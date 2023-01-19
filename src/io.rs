@@ -9,6 +9,7 @@ use serde::{Serialize, Deserialize};
 use std::io::{Seek, SeekFrom};
 use bincode;
 // use polars::prelude::*;
+use regex::Regex;
 
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
@@ -285,63 +286,104 @@ pub struct BusFolder {
     pub ec_dict: HashMap<u32, Vec<u32>>, // EC-> list of Transcript ids
     pub transcript_dict: HashMap<u32, String>,  // transcript-id -> traqnscript name
     pub transcript_to_gene: HashMap<String, String>,
-    pub ec2gene: HashMap<u32, Vec<String>>
+    pub ec2gene: HashMap<u32, Vec<String>>,
+    pub busfile: String
+}
+
+pub fn parse_ecmatrix(filename: String) -> HashMap<u32, Vec<u32>>{
+    // parsing an ec.matrix into a Hashmap EC->list_of_transcript_ids
+    let file = File::open(filename).unwrap();
+    let reader = BufReader::new(file);
+    let mut ec_dict: HashMap<u32, Vec<u32>> = HashMap::new();
+
+    for line in reader.lines(){
+        if let Ok(l) = line{
+            // println!("{}", l);
+            let mut s = l.split_whitespace();
+            let ec = s.next().unwrap().parse::<u32>().unwrap();
+            let tmp = s.next().unwrap();
+
+            let transcript_list: Vec<u32> = tmp
+                                             .split(",")
+                                             .map(|x|x.parse::<u32>().unwrap()).collect();
+            ec_dict.insert(ec, transcript_list);
+        }
+    }
+    ec_dict
 }
 
 
+pub fn parse_ecmatrix2(filename: String) -> HashMap<u32, Vec<u32>>{
 
+    let file = File::open(filename).unwrap();
+    // parsing an ec.matrix into a Hashmap EC->list_of_transcript_ids
+    let reader = BufReader::new(file);
+    let mut ec_dict: HashMap<u32, Vec<u32>> = HashMap::new();
+
+    let re = Regex::new(r"^(\d+)\s+(.+)$").unwrap();
+
+    for line in reader.lines(){
+        if let Ok(l) = line{
+            let caps = re.captures(&l).unwrap();
+            
+            let ecid = caps.get(1).unwrap().as_str().parse::<u32>().unwrap();
+            let t_string = caps.get(2).unwrap().as_str();
+            let transcript_list: Vec<u32> = t_string
+                .split(",")
+                .map(|x|x.parse::<u32>().unwrap()).collect();
+            ec_dict.insert(ecid, transcript_list);
+        }
+    }
+    ec_dict
+}
+
+fn parse_transcript(filename: String) -> HashMap<u32, String>{
+    let file = File::open(filename).unwrap();
+    let reader = BufReader::new(file);
+    let mut transcript_dict: HashMap<u32, String> = HashMap::new();
+    for (i, line) in reader.lines().enumerate(){
+        if let Ok(l) = line{
+            transcript_dict.insert(i as u32, l);
+        }
+    }
+    transcript_dict
+}
+
+fn parse_t2g(t2g_file: String) -> HashMap<String, String>{
+
+    let mut t2g_dict: HashMap<String, String> = HashMap::new();        
+    let file = File::open(t2g_file).unwrap();
+    let reader = BufReader::new(file);
+    for (_i, line) in reader.lines().enumerate(){
+        if let Ok(l) = line{
+            let mut s = l.split_whitespace();
+            let transcript_id = s.next().unwrap();
+            s.next();
+            let symbol = s.next().unwrap();
+
+            assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
+            t2g_dict.insert(transcript_id.to_string(), symbol.to_string());
+        }
+    }
+    t2g_dict
+}
 
 impl BusFolder {
     pub fn new(foldername: String, t2g_file:String) ->BusFolder{
 
         // read EC dict
-        let file = File::open(format!("{}/{}", foldername, "matrix.ec")).unwrap();
-        let reader = BufReader::new(file);
-        let mut ec_dict: HashMap<u32, Vec<u32>> = HashMap::new();
-
         println!("Reading EC.matrix");
-        for line in reader.lines(){
-            if let Ok(l) = line{
-                let mut s = l.split_whitespace();
-                let ec = s.next().unwrap().parse::<u32>().unwrap();
-                let tmp = s.next().unwrap();
-
-                let transcript_list: Vec<u32> = tmp
-                                                 .split(",")
-                                                 .map(|x|x.parse::<u32>().unwrap()).collect();
-                ec_dict.insert(ec, transcript_list);
-            }
-        }
+        let filename= format!("{}/{}", foldername, "matrix.ec");
+        let ec_dict = parse_ecmatrix(filename);
 
         // read transcript dict
         println!("Reading transcripts.txt");
-
-        let file = File::open(format!("{}/{}", foldername, "transcripts.txt")).unwrap();
-        let reader = BufReader::new(file);
-        let mut transcript_dict: HashMap<u32, String> = HashMap::new();
-        for (i, line) in reader.lines().enumerate(){
-            if let Ok(l) = line{
-                transcript_dict.insert(i as u32, l);
-            }
-        }
+        let filename = format!("{}/{}", foldername, "transcripts.txt");
+        let transcript_dict = parse_transcript(filename);
 
         // read transcript to gene file
         println!("Reading t2g_dict");
-
-        let mut t2g_dict: HashMap<String, String> = HashMap::new();        
-        let file = File::open(t2g_file).unwrap();
-        let reader = BufReader::new(file);
-        for (_i, line) in reader.lines().enumerate(){
-            if let Ok(l) = line{
-                let mut s = l.split_whitespace();
-                let transcript_id = s.next().unwrap();
-                s.next();
-                let symbol = s.next().unwrap();
-
-                assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
-                t2g_dict.insert(transcript_id.to_string(), symbol.to_string());
-            }
-        }
+        let t2g_dict = parse_t2g(t2g_file);
 
         // create the EC->gene mapping
         println!("building EC->gene");
@@ -376,16 +418,32 @@ impl BusFolder {
         // .finish().unwrap();
         
         // let x = df["tid"].zip(df["symbol"]);
-
+        let busfile = String::from("output.corrected.sort.bus");
         BusFolder{
             foldername,
             ec_dict,
             transcript_dict,
             transcript_to_gene: t2g_dict,
-            ec2gene
+            ec2gene,
+            busfile
         }
     }
 }
+
+pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>>{
+    /*
+    group a list of records by their CB/UMI (i.e. a single molecule)
+    */
+    let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
+
+    for r in record_list{
+        let empty: Vec<BusRecord> = Vec::new();
+        let rlist = cbumi_map.entry((r.CB, r.UMI)).or_insert(empty);
+        rlist.push(r);
+    }
+    cbumi_map
+}
+
 
 //=================================================================================
 #[cfg(test)]
@@ -424,7 +482,7 @@ mod tests {
         let mut reader = BusIteratorBuffered::new(&busname);
         let e1 = reader.next().unwrap();
         assert_eq!(e1, r1);
-        println!("{:?} {:?}", r1, e1);
+        // println!("{:?} {:?}", r1, e1);
 
         let e2 = reader.next().unwrap();
         assert_eq!(e2, r2);
@@ -470,7 +528,7 @@ mod tests {
         let cb_iter = CellIterator::new(&busname);
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
-        println!("{:?}", n);
+        // println!("{:?}", n);
 
         assert_eq!(n.len(), 4);
         // println!("{:?}", n);
@@ -551,4 +609,57 @@ mod tests {
     //       println!("{:?}", b.ec2gene.get(&613).unwrap());
           
     //   }
+    use std::fs::File;
+    use std::io::{BufWriter};
+
+    // use super::parse_ecmatrix;
+    use super::parse_ecmatrix2;
+    #[test]
+    fn test_ecmatrix(){
+        let f = File::create("/tmp/foo").expect("Unable to create file");
+        let mut f = BufWriter::new(f);
+
+        let data = "0 1,2,3\n1 3,4\n2 4";
+        f.write_all(data.as_bytes()).expect("Unable to write data");
+        f.flush().unwrap();
+
+        let ec= parse_ecmatrix2("/tmp/foo".to_string());
+        // println!("{}", ec.len());
+        println!("{:?}", ec);
+        let e1 = ec.get(&0).unwrap();
+        assert_eq!(*e1, vec![1,2,3]);
+
+        let e1 = ec.get(&1).unwrap();
+        assert_eq!(*e1, vec![3 ,4]);
+    }
+
+    use super::group_record_by_cb_umi;
+    #[test]
+    fn test_grouping(){
+        let r1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0};
+        let r2 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+        let r3 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r4 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+        let r5 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0};
+        let r6 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+
+        let records = vec![r1,r2,r3,r4,r5, r6];
+        
+        let grouped = group_record_by_cb_umi(records);
+
+
+        let g1 = grouped.get(&(0 as u64,1 as u64)).unwrap();
+        assert_eq!(*g1, vec![r1,r2]);
+
+        let g2 = grouped.get(&(0 as u64,2 as u64)).unwrap();
+        assert_eq!(*g2, vec![r3]);
+
+        let g3 = grouped.get(&(1 as u64,1 as u64)).unwrap();
+        assert_eq!(*g3, vec![r4, r6]);
+
+        let g4 = grouped.get(&(1 as u64,2 as u64)).unwrap();
+        assert_eq!(*g4, vec![r5]);
+
+    }
+
 }
