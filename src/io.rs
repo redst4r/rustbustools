@@ -437,8 +437,7 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
 
     for r in record_list{
-        let empty: Vec<BusRecord> = Vec::new();
-        let rlist = cbumi_map.entry((r.CB, r.UMI)).or_insert(empty);
+        let rlist = cbumi_map.entry((r.CB, r.UMI)).or_insert(Vec::new());
         rlist.push(r);
     }
     cbumi_map

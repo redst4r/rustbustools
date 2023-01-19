@@ -1,7 +1,10 @@
+
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Write;
 use crate::io::{BusFolder,CellIterator, BusRecord, group_record_by_cb_umi, BusIteratorBuffered};
 use sprs;
-use indicatif::{ProgressBar};
+use indicatif::{ProgressBar, ProgressStyle};
 // use std::iter::FromIterator;
 use statrs::distribution::{Multinomial, Binomial};  // warning the statrs::Binomial has very slow sampling (sum of Bernullis)
 use probability;  // use probability::distribution::Binomial instead, which does inverse cdf sampling
@@ -12,6 +15,18 @@ use probability::prelude::*;
 use rand;
 use rand::distributions::Distribution;
 
+pub fn write_sprs_to_file(matrix: sprs::CsMat<usize>, filename:&str){
+
+    let mut file_handle = File::create(filename).unwrap();
+    
+    let (rows, cols) = matrix.shape();
+    let nnz = matrix.nnz();
+    file_handle.write("%%MatrixMarket matrix coordinate real general\n%\n".as_bytes()).unwrap();
+    file_handle.write(format!("{} {} {}\n", rows, cols, nnz ).as_bytes()).unwrap();
+    for (x, (i,j)) in matrix.iter(){
+        file_handle.write(format!("{} {} {}\n", i, j, x ).as_bytes()).unwrap();
+    }
+}
 
 pub fn count_bayesian(bfolder: BusFolder) {
 
@@ -147,9 +162,11 @@ pub fn count(bfolder: BusFolder) -> sprs::CsMat<usize>{
 
     let mut all_expression_vector: HashMap<u64, HashMap<String, u32>> = HashMap::new();
 
-    // let mut counter = 0;
-    let bar = ProgressBar::new_spinner();
-
+    // let bar = ProgressBar::new_spinner();
+    let bar = ProgressBar::new(1_000_000);
+    bar.set_style(ProgressStyle::default_bar()
+        .template("[{elapsed_precise} ETA {eta}] {bar:40.cyan/blue} {pos}/{len} {per_sec}")
+        .progress_chars("##-"));
 
     for (cb, record_list) in cb_iter{
         // println!("{} {}",cb, record_list.len());
@@ -157,11 +174,7 @@ pub fn count(bfolder: BusFolder) -> sprs::CsMat<usize>{
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
         all_expression_vector.insert(cb, s);
-        // counter += 1;
         bar.inc(1)
-        // if counter>1000{
-        //     break;
-        // }
     }
 
     //collect all genes
@@ -175,6 +188,134 @@ pub fn count(bfolder: BusFolder) -> sprs::CsMat<usize>{
     println!("{:?} nnz {}", countmatrix.shape(), countmatrix.nnz());
     countmatrix
 
+}
+
+
+fn find_consistent_genes(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, Vec<String>>) -> HashSet<String>{
+    // is there a single gene consistent with all those busrecords?
+
+    let mut genes :Vec<HashSet<String>>= Vec::new();
+    // let mut genes :HashSet<String>= HashSet::new();
+    for r in record_list {
+        let ec_genes = &ec2gene[&r.EC];
+        let mut ec_genes_set = HashSet::new();
+        for g in ec_genes.into_iter(){  // todo: not sure how to do this nicely, just transform vec into set
+            ec_genes_set.insert(g.clone());
+        }
+        genes.push(ec_genes_set);
+    
+        // if  genes.len() == 0{
+        //     // if nothing is in the set, add
+        //     genes = ec_genes_set;
+        // }
+        // else{
+        //     genes = genes.intersection(&ec_genes_set).cloned().collect();
+        // }
+        // now, genes should contain only those genes that are consisten with all records of that CB/UMI
+    }
+    let consistent_genes = intersect_sets(&mut genes);
+    consistent_genes
+}
+
+
+fn records_to_expression_vector_groupby(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, Vec<String>>) -> HashMap<String, u32>{
+    let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
+    let mut _multimapped = 0;
+    let mut _inconsistant= 0;
+
+    // first, group the records by UMI
+    // TODO: EXPENSIVE!! 25k/s
+
+    use itertools::Itertools;
+    let cb_umi_grouped = record_list.into_iter().group_by(|a|(a.CB, a.UMI));
+
+    for (_key, group) in cb_umi_grouped.into_iter(){
+        let records: Vec<BusRecord> = group.collect();
+        // all records coresponding to the same UMI
+        // TODO: EXPENSIVE!! 25k/s
+        let consistent_genes= find_consistent_genes(records, ec2gene);
+
+        // let consistent_genes = ec2gene.get(&records[0].EC).unwrap();
+        // let consistent_genes = vec![records[0].EC];
+
+
+        if consistent_genes.len() > 1{
+            //multimapped
+            _multimapped += 1;
+        }
+        else if consistent_genes.len() == 1 {
+            //single gene
+            // let g = consistent_genes.drain().next().unwrap();
+
+            // let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
+            // let g = &v[0];
+
+            let g = consistent_genes.iter().next().unwrap();  // Set to first element
+
+
+            let val = expression_vector.entry(g.to_string()).or_insert(0);
+            *val += 1;        
+        }
+        else{
+            // inconsistant
+            _inconsistant += 1
+        }
+    }
+    // println!("{}, {}",_multimapped, _inconsistant);
+
+    expression_vector
+
+}
+
+
+fn records_to_expression_vector(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, Vec<String>>) -> HashMap<String, u32>{
+    /*
+    turn the list of records of a single CB into a expression vector: per gene, how many umis are observed
+    TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
+    */
+    let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
+    let mut _multimapped = 0;
+    let mut _inconsistant= 0;
+
+    // first, group the records by UMI
+    // TODO: EXPENSIVE!! 25k/s
+    let cb_umi_grouped = group_record_by_cb_umi(record_list);
+
+    // let records = record_list;
+    for ((_cb, _umi), records) in cb_umi_grouped{
+        // all records coresponding to the same UMI
+        // TODO: EXPENSIVE!! 25k/s
+        let consistent_genes= find_consistent_genes(records, ec2gene);
+
+        // let consistent_genes = ec2gene.get(&records[0].EC).unwrap();
+        // let consistent_genes = vec![records[0].EC];
+
+
+        if consistent_genes.len() > 1{
+            //multimapped
+            _multimapped += 1;
+        }
+        else if consistent_genes.len() == 1 {
+            //single gene
+            // let g = consistent_genes.drain().next().unwrap();
+
+            // let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
+            // let g = &v[0];
+
+            let g = consistent_genes.iter().next().unwrap();  // Set to first element
+
+
+            let val = expression_vector.entry(g.to_string()).or_insert(0);
+            *val += 1;        
+        }
+        else{
+            // inconsistant
+            _inconsistant += 1
+        }
+    }
+    // println!("{}, {}",_multimapped, _inconsistant);
+
+    expression_vector
 }
 
 fn expression_vectors_to_matrix(all_expression_vector: HashMap<u64, HashMap<String, u32>>, genelist: Vec<&String>) -> sprs::CsMat<usize>{
@@ -217,7 +358,6 @@ fn expression_vectors_to_matrix(all_expression_vector: HashMap<u64, HashMap<Stri
 
 }
 
-
 fn intersect_sets(list_of_sets: &mut Vec<HashSet<String>>) -> HashSet<String>{
     // warning this mutates the list by poping
     // todo we probably can do this with iterator reduce
@@ -236,76 +376,6 @@ fn intersect_sets(list_of_sets: &mut Vec<HashSet<String>>) -> HashSet<String>{
 
     // return t.unwrap();
 }
-
-fn records_to_expression_vector(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, Vec<String>>) -> HashMap<String, u32>{
-    /*
-    turn the list of records of a single CB into a expression vector: per gene, how many umis are observed
-    TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
-    */
-    let mut expression_vector: HashMap<String, u32> = HashMap::new();
-    let mut _multimapped = 0;
-    let mut _inconsistant= 0;
-
-    // first, group the records by UMI
-    let cb_umi_grouped = group_record_by_cb_umi(record_list);
-
-    for ((_cb, _umi), records) in cb_umi_grouped{
-        let mut genes :Vec<HashSet<String>>= Vec::new();
-        // let mut genes :HashSet<String>= HashSet::new();
-        for r in records{
-            let ec_genes = &ec2gene[&r.EC];
-            let mut ec_genes_set = HashSet::new();
-            for g in ec_genes.into_iter(){  // todo: not sure how to do this nicely, just transform vec into set
-                ec_genes_set.insert(g.clone());
-            }
-            genes.push(ec_genes_set);
-        
-            // if  genes.len() == 0{
-            //     // if nothing is in the set, add
-            //     genes = ec_genes_set;
-            // }
-            // else{
-            //     genes = genes.intersection(&ec_genes_set).cloned().collect();
-            // }
-            // now, genes should contain only those genes that are consisten with all records of that CB/UMI
-        }
-        let consistent_genes = intersect_sets(&mut genes);
-
-        if consistent_genes.len() > 1{
-            //multimapped
-            _multimapped += 1;
-        }
-        else if consistent_genes.len() == 1 {
-            //single gene
-            let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
-            let g = &v[0];
-            let val = expression_vector.entry(g.to_string()).or_insert(0);
-            *val += 1;        
-        }
-        else{
-            // inconsistant
-            _inconsistant += 1
-        }
-    }
-    println!("{}, {}",_multimapped, _inconsistant);
-    // for r in record_list{
-    //     let genes = &ec2gene[&r.EC];
-    //     if genes.len() > 1{
-    //         _multimapped += 1;
-    //     }
-    //     else{
-    //         // update the count by 1
-    //         let g = &genes[0];
-    //         let val = expression_vector.entry(g.to_string()).or_insert(0);
-    //         *val += 1;
-
-    //     }
-    // }
-    expression_vector
-}
-
-
-
 
 // #[test]
 pub fn test_multinomial(dim: i32){
@@ -334,13 +404,16 @@ pub fn test_multinomial_stats(dim: i32){
 
 #[test]    
 fn test_itt(){  
-    let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
-    let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
+    // let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
+    // let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
+    let t2g_file = String::from("/home/michi/bus_testing/transcripts_to_genes.txt");
+    let foldername = String::from("/home/michi/bus_testing/bus_output");
+
 
     let b = BusFolder::new(foldername, t2g_file);
     let count_matrix = count(b);
 
-    count_matrix;
+    write_sprs_to_file(count_matrix, "/tmp/test.mtx");
     // count_bayesian(b)
 }
 
