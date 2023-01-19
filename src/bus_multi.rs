@@ -291,9 +291,26 @@ mod tests {
     use crate::io::{BusRecord, BusHeader, BusWriter};
     use std::collections::HashMap;
     use super::*;
+
+    fn create_busfile(fname: &str, records: Vec<BusRecord>){
+        let header = BusHeader::new(16, 12, 20);
+        let busname1 = fname.to_string();
+        let mut writer = BusWriter::new(&busname1, header);
+        writer.write_records(&records);
+    }
+
     #[test]
     fn test_read_write(){
 
+        /* 
+        iterate two busfiles in parallel across cells
+        it should yield the following:
+        r1, s1
+        r2,r3, s2
+        s3
+        r4
+         */
+        use std::iter::zip;
         let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
         let r2 =BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
         let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
@@ -306,61 +323,32 @@ mod tests {
         let s3 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
         let v2 = vec![s1,s2,s3];
 
-
-        let header = BusHeader::new(16, 12, 20);
-        let busname1 = "/tmp/test1.bus".to_string();
-        let mut writer = BusWriter::new(&busname1, header);
-        writer.write_records(&v1);
-
-        let header = BusHeader::new(16, 12, 20);
-        let busname2 = "/tmp/test2.bus".to_string();
-        let mut writer = BusWriter::new(&busname2, header);
-        writer.write_records(&v2);
+        // write the records to file
+        let busname1 ="/tmp/test1.bus";
+        let busname2 ="/tmp/test2.bus";
+        create_busfile(busname1, v1);
+        create_busfile(busname2, v2);
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), busname1),
-            ("test2".to_string(), busname2)
+            ("test1".to_string(), busname1.to_string()),
+            ("test2".to_string(), busname2.to_string())
         ]);
 
 
-        let mut iii = CellIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        // what we expect to get
+        let expected_pairs = vec![
+            HashMap::from([("test1".to_string(), vec![r1]), ("test2".to_string(), vec![s1])]),
+            HashMap::from([("test1".to_string(), vec![r2, r3]), ("test2".to_string(), vec![s2])]),
+            HashMap::from([("test2".to_string(), vec![s3])]),
+            HashMap::from([("test1".to_string(), vec![r4])]),
+
+        ];
+
+        // iterate, see if it meets the expectations
+        let iii = CellIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
         
-        println!("========================================");
-        println!("Before iter1 {:?}", iii.current_items);
-        let e1 = HashMap::from([
-            ("test1".to_string(), vec![r1]),
-            ("test2".to_string(), vec![s1]),
-        ]);
-        let o1 = iii.next().unwrap();
-        assert_eq!(o1, (0 ,e1));
-
-        println!("========================================");
-        println!("After iter1 {:?}", iii.current_items);
-
-
-        let e2 = HashMap::from([
-            ("test1".to_string(), vec![r2, r3]),
-            ("test2".to_string(), vec![s2]),
-        ]);
-        let o2 = iii.next().unwrap();
-        assert_eq!(o2, (1 ,e2));
-
-        println!("========================================");
-        println!("After iter2 {:?}", iii.current_items);
-
-        let e3 = HashMap::from([
-            ("test2".to_string(), vec![s3]),
-        ]);
-        let o3 = iii.next().expect("something");
-        assert_eq!(o3, (2 ,e3));
-
-        println!("========================================");
-        println!("After iter3 {:?}", iii.current_items);
-
-        let e4 = HashMap::from([
-            ("test1".to_string(), vec![r4]),
-        ]);
-        let o4 = iii.next().unwrap();
-        assert_eq!(o4, (3 ,e4));
+        for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii){
+            assert_eq!(r_expect, r_obs);
+        }
     }
 }
