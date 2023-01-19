@@ -24,7 +24,7 @@ const BUS_HEADER_SIZE: usize = 20;
 pub struct BusRecord {
     pub CB: u64, //8byte
     pub UMI: u64, // 8byte
-    pub EC: i32,  // 4v byte
+    pub EC: u32,  // 4v byte
     pub COUNT: u32, // 4v byte
     pub FLAG: u32, // 4v byte    including this, we have 28 bytes, missing 4 to fill up
     // PAD: u32 // just padding to fill 32bytes
