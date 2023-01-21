@@ -1,6 +1,8 @@
 // #![feature(slice_group_by)]
 
-use rustbustools::{busmerger, io::BusFolder, count::write_sprs_to_file};
+use std::fs;
+
+use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
 
 #[derive(Parser)]
@@ -19,6 +21,7 @@ struct Cli {
 enum MyCommand {
     busmerge(BusMergeArgs),
     count(CountArgs),
+    count2(CountArgs),
 }
 #[derive(Args)]
 struct CountArgs{
@@ -27,6 +30,8 @@ struct CountArgs{
     inbus: String,
     #[clap(long= "t2g")] 
     t2g: String,    
+    #[clap(long= "ignoremm")] 
+    ignoremm: bool,    
 }
 
 #[derive(Args)]
@@ -48,9 +53,12 @@ struct BusMergeArgs{
 
 
 // mod count;
-use rustbustools::count::{self, test_multinomial_stats, test_multinomial, multinomial_sample};
+use rustbustools::count2;
+use rustbustools::count;
 
 fn main() {
+    // use rustbustools::multinomial::{test_multinomial_stats, test_multinomial, multinomial_sample};
+
     // use std::time::Instant;
 
     // let dim = 10_000_000;
@@ -84,14 +92,28 @@ fn main() {
         }
         MyCommand::count(args) => {
             println!("Doing count");
+
+            fs::create_dir(&cli.output).unwrap();
+
             let bfolder = BusFolder::new(args.inbus, args.t2g);
 
-            let c = count::count(bfolder);
-            write_sprs_to_file(c, &cli.output);
+            let c = count::count(bfolder, args.ignoremm);
+
+            c.write(&cli.output);
+            // write_matrix_market(&cli.output, &c.matrix).unwrap();
+        }
+        MyCommand::count2(args) => {
+            println!("Doing count");
+            fs::create_dir(&cli.output).unwrap();
+
+            let bfolder = BusFolder::new(args.inbus, args.t2g);
+
+            let c = count2::count(bfolder, args.ignoremm);
+
+            c.write(&cli.output);
+            // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
     }
-
-
 }
 
 

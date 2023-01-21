@@ -67,30 +67,11 @@ pub fn get_progressbar(total: u64) -> ProgressBar{
     bar
 }
 
-// pub fn write_sprs_to_file(matrix: sprs::CsMat<usize>, filename:&str){
-
-//     // TODO this is not writing i,j (row col) locations, but the weird intptr format!!
-//     // since CsMat.iter iterates over that!
-
-//     let mut file_handle = File::create(filename).unwrap();
-    
-//     let (rows, cols) = matrix.shape();
-//     let nnz = matrix.nnz();
-//     file_handle.write("%%MatrixMarket matrix coordinate real general\n%\n".as_bytes()).unwrap();
-//     file_handle.write(format!("{} {} {}\n", rows, cols, nnz ).as_bytes()).unwrap();
-//     for (x, (i,j)) in matrix.iter(){
-//         file_handle.write(format!("{} {} {}\n", i, j, x ).as_bytes()).unwrap();
-//     }
-// }
-
-
-use crate::io::{BusIteratorBuffered, BusWriter};
-
 
 mod tests {
     #[test]
     fn encode_seq(){
-        use crate::utils::{seq_to_int};
+        use crate::utils::seq_to_int;
         assert_eq!(seq_to_int("A".to_string()), 0);
         assert_eq!(seq_to_int("C".to_string()), 1);
         assert_eq!(seq_to_int("G".to_string()), 2);
@@ -101,7 +82,7 @@ mod tests {
 
     #[test]
     fn decode_seq(){
-        use crate::utils::{int_to_seq};
+        use crate::utils::int_to_seq;
  
         //  base order
         assert_eq!(int_to_seq(0, 1), "A");

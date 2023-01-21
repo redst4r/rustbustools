@@ -3,5 +3,7 @@ pub mod iterators;
 pub mod busmerger;
 pub mod bus_multi;
 pub mod count;
+pub mod count2;
 pub mod utils;
-
+//pub mod multinomial;
+pub mod consistent_genes;
