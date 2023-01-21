@@ -29,7 +29,7 @@ pub fn merge_busfiles_on_overlap(busfile1: String, busfile2: String, outfile1: S
 
 #[cfg(test)]
 mod tests {
-    use crate::io::{BusRecord, BusHeader, BusWriter, BusIteratorBuffered};
+    use crate::{io::{BusRecord, BusHeader, BusWriter, BusIteratorBuffered}, iterators};
     use super::*;
 
     fn setup_busfile(records: Vec<BusRecord>, busname: &String){
