@@ -1,3 +1,13 @@
+use indicatif::{ProgressBar, ProgressStyle};
+use sprs;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Write;
+
+use crate::io::{BusRecord, BusHeader};
+
+
+
 pub fn seq_to_int(seq: String) -> u64{
 
     assert!(seq.len() <= 32); // cant handle longer sequences in a single 64bit integer!
@@ -48,6 +58,33 @@ pub fn int_to_seq(i: u64, seq_len:u64) -> String{
     // println!("{:?}", s);
     s
 }   
+
+pub fn get_progressbar(total: u64) -> ProgressBar{
+    let bar = ProgressBar::new(total);
+    bar.set_style(ProgressStyle::default_bar()
+        .template("[{elapsed_precise} ETA {eta}] {bar:40.cyan/blue} {pos}/{len} {per_sec}")
+        .progress_chars("##-"));
+    bar
+}
+
+// pub fn write_sprs_to_file(matrix: sprs::CsMat<usize>, filename:&str){
+
+//     // TODO this is not writing i,j (row col) locations, but the weird intptr format!!
+//     // since CsMat.iter iterates over that!
+
+//     let mut file_handle = File::create(filename).unwrap();
+    
+//     let (rows, cols) = matrix.shape();
+//     let nnz = matrix.nnz();
+//     file_handle.write("%%MatrixMarket matrix coordinate real general\n%\n".as_bytes()).unwrap();
+//     file_handle.write(format!("{} {} {}\n", rows, cols, nnz ).as_bytes()).unwrap();
+//     for (x, (i,j)) in matrix.iter(){
+//         file_handle.write(format!("{} {} {}\n", i, j, x ).as_bytes()).unwrap();
+//     }
+// }
+
+
+use crate::io::{BusIteratorBuffered, BusWriter};
 
 
 mod tests {

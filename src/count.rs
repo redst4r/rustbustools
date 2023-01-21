@@ -15,18 +15,6 @@ use probability::prelude::*;
 use rand;
 use rand::distributions::Distribution;
 
-pub fn write_sprs_to_file(matrix: sprs::CsMat<usize>, filename:&str){
-
-    let mut file_handle = File::create(filename).unwrap();
-    
-    let (rows, cols) = matrix.shape();
-    let nnz = matrix.nnz();
-    file_handle.write("%%MatrixMarket matrix coordinate real general\n%\n".as_bytes()).unwrap();
-    file_handle.write(format!("{} {} {}\n", rows, cols, nnz ).as_bytes()).unwrap();
-    for (x, (i,j)) in matrix.iter(){
-        file_handle.write(format!("{} {} {}\n", i, j, x ).as_bytes()).unwrap();
-    }
-}
 
 pub fn count_bayesian(bfolder: BusFolder) {
 
