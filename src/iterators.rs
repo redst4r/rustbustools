@@ -147,7 +147,7 @@ impl Iterator for CellIterator {
         let records = vec![r1,r2,r3,r4,r5, r6];
     
         let busname = "/tmp/test_iter.bus";
-        setup_busfile(records, &busname);
+        setup_busfile(&records, &busname);
     
     
         let cb_iter = CellIterator::new(busname);
@@ -187,7 +187,7 @@ impl Iterator for CellIterator {
         let records = vec![r1,r2,r3,r4,r5, r6];
 
         let busname = "/tmp/test_cbumi_iter.bus";
-        setup_busfile(records, &busname);
+        setup_busfile(&records, &busname);
 
 
         let cb_iter = CbUmiIterator::new(busname);
@@ -228,7 +228,7 @@ impl Iterator for CellIterator {
         let records = vec![r1,r2,r3,r4];
 
         let busname = "/tmp/test_panic_on_unsorted.bus";
-        setup_busfile(records, busname);
+        setup_busfile(&records, busname);
 
         let cb_iter = CellIterator::new(busname);
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();

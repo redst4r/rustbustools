@@ -59,7 +59,6 @@ impl BusHeader {
         self.tlen
     }
 }
-#[derive(Debug)]
 pub struct BusIteratorBuffered {
     pub bus_header: BusHeader,
     buf: BufReader<File>
@@ -296,10 +295,10 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     cbumi_map
 }
 
-pub fn setup_busfile(records: Vec<BusRecord>, busname: &str){
+pub fn setup_busfile(records: &Vec<BusRecord>, busname: &str){
     let header = BusHeader::new(16, 12, 20);
     let mut writer = BusWriter::new(busname, header);
-    writer.write_records(&records);
+    writer.write_records(records);
 }
 
 
@@ -347,12 +346,16 @@ mod tests {
         let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
 
         let busname = "/tmp/test_read_write.bus";
-        setup_busfile(vec![r1,r2], busname);
+        let rlist = vec![r1,r2];   // note: this clones r1, r2!
+        // let mut rlist = Vec::new();
+        // rlist.push(r1);
+        // rlist.push(r2);
+        setup_busfile(&rlist, busname);
 
         let reader = BusIteratorBuffered::new(busname);
 
         let records: Vec<BusRecord> = reader.into_iter().collect();
-        assert_eq!(records, vec![r1, r2])
+        assert_eq!(records, rlist)
 
     }
 
