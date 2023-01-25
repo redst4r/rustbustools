@@ -138,6 +138,43 @@ impl Iterator for CellIterator {
  mod tests{
     use crate::io::{BusRecord, setup_busfile};
     use crate::iterators::{CbUmiIterator, CellIterator};
+
+    #[test]
+    fn test_cb_iter_last_element1(){   
+        // make sure everything is emitted, even if the last element is its own group
+        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
+        let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
+        let records = vec![r1.clone(),r2.clone(),r3.clone()];
+        let busname = "/tmp/test_iter.bus";
+        setup_busfile(&records, &busname);
+
+        let n: Vec<_> = CellIterator::new(busname).collect();
+        assert_eq!(n.len(), 2);
+
+        let (_cb, rlist) = &n[1];
+        assert_eq!(rlist.len(), 1);
+    }
+
+    #[test]
+    fn test_cb_iter_last_element2(){   
+        // make sure everything is emitted, even if the last element has mutiple elements
+        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
+        let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
+        let r4 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
+        let records = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
+        let busname = "/tmp/test_iter.bus";
+        setup_busfile(&records, &busname);
+
+        let n: Vec<_> = CellIterator::new(busname).collect();
+        assert_eq!(n.len(), 2);
+
+        let (_cb, rlist) = &n[1];
+        assert_eq!(rlist.len(), 2);
+    }
+
+
     #[test]
     fn test_cb_iter(){   
         let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
