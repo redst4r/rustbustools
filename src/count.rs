@@ -1,4 +1,3 @@
-
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use crate::count2::CountMatrix;
@@ -263,8 +262,8 @@ mod test{
         use sprs::io::write_matrix_market;
         // let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
         // let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
-        let t2g_file = String::from("/home/michi/bus_testing/transcripts_to_genes.txt");
-        let foldername = String::from("/home/michi/bus_testing/bus_output");
+        let t2g_file = "/home/michi/bus_testing/transcripts_to_genes.txt";
+        let foldername ="/home/michi/bus_testing/bus_output";
     
     
         let b = BusFolder::new(foldername, t2g_file);

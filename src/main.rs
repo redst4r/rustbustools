@@ -95,7 +95,7 @@ fn main() {
 
             fs::create_dir(&cli.output).unwrap();
 
-            let bfolder = BusFolder::new(args.inbus, args.t2g);
+            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
 
             let c = count::count(bfolder, args.ignoremm);
 
@@ -106,7 +106,7 @@ fn main() {
             println!("Doing count");
             fs::create_dir(&cli.output).unwrap();
 
-            let bfolder = BusFolder::new(args.inbus, args.t2g);
+            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
 
             let c = count2::count(bfolder, args.ignoremm);
 

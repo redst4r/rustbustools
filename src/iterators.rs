@@ -7,7 +7,7 @@ pub struct CbUmiIterator {
 
 impl CbUmiIterator {
 
-    pub fn new(fname: &String) ->CbUmiIterator{
+    pub fn new(fname: &str) ->CbUmiIterator{
         let mut busiter = BusIteratorBuffered::new(fname);
         let last_record = busiter.next(); //initilize with the first record in the file
         CbUmiIterator {busiter, last_record}
@@ -74,7 +74,7 @@ pub struct CellIterator {
 
 impl CellIterator {
 
-    pub fn new(fname: &String) ->CellIterator{
+    pub fn new(fname: &str) ->CellIterator{
         let mut busiter = BusIteratorBuffered::new(fname);
         let last_record = busiter.next(); //initilize with the first record in the file
         CellIterator {busiter, last_record}
@@ -146,11 +146,11 @@ impl Iterator for CellIterator {
     
         let records = vec![r1,r2,r3,r4,r5, r6];
     
-        let busname = "/tmp/test_iter.bus".to_string();
+        let busname = "/tmp/test_iter.bus";
         setup_busfile(records, &busname);
     
     
-        let cb_iter = CellIterator::new(&busname);
+        let cb_iter = CellIterator::new(busname);
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
         // println!("{:?}", n);
@@ -186,11 +186,11 @@ impl Iterator for CellIterator {
 
         let records = vec![r1,r2,r3,r4,r5, r6];
 
-        let busname = "/tmp/test_cbumi_iter.bus".to_string();
+        let busname = "/tmp/test_cbumi_iter.bus";
         setup_busfile(records, &busname);
 
 
-        let cb_iter = CbUmiIterator::new(&busname);
+        let cb_iter = CbUmiIterator::new(busname);
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<((u64, u64), Vec<BusRecord>)> = cb_iter.collect();
         println!("{:?}", n);
@@ -227,10 +227,10 @@ impl Iterator for CellIterator {
 
         let records = vec![r1,r2,r3,r4];
 
-        let busname = "/tmp/test_panic_on_unsorted.bus".to_string();
-        setup_busfile(records, &busname);
+        let busname = "/tmp/test_panic_on_unsorted.bus";
+        setup_busfile(records, busname);
 
-        let cb_iter = CellIterator::new(&busname);
+        let cb_iter = CellIterator::new(busname);
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
     }
  }
