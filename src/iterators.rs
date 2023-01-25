@@ -22,26 +22,27 @@ impl Iterator for CbUmiIterator {
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
     
         loop {
-            if let Some(last_record) = self.last_record{  //if we're not done with the iteration
+            if let Some(last_record) = self.last_record {  //if we're not done with the iteration
                 // try to get a new record
                 if let Some(new_record) = self.busiter.next(){
 
                     // determine if we encounter a new cell in this iteration
-                    let current_cb = last_record.CB;
-                    let current_umi = last_record.UMI;
+                    let (current_cb, current_umi) = (last_record.CB, last_record.UMI);
 
+                    // last_record is overhauled now (since we got a "new last record")
+                    // and we add it 
+                    busrecords.push(last_record); // the stored element from the previous iteration
+                    self.last_record = Some(new_record);
+
+                    // now we just need to decide if we want to emit, or continue growing
                     if new_record.CB > current_cb || (new_record.CB == current_cb &&  new_record.UMI > current_umi){  
                         // we ran into a new CB/UMI and its records
-                        busrecords.push(last_record); // the stored element from the previous iteration
                         // println!("\tyielding {:?}", (current_cb, &busrecords));
-                        self.last_record = Some(new_record);
 
                         return Some(((current_cb, current_umi), busrecords));
                     }
                     else if (new_record.CB == current_cb) && new_record.UMI == current_umi {
-                        busrecords.push(last_record);
-                        self.last_record = Some(new_record);
-
+                        // nothing happens, just keep growing busrecords
                     }
                     else{  // the new cb is smaller then the current state: this is a bug due to an UNOSORTED busfile
                         panic!("Unsorted busfile: {}/{} -> {}/{}", current_cb, current_umi, new_record.CB, new_record.UMI)
@@ -95,18 +96,20 @@ impl Iterator for CellIterator {
 
                     // determine if we encounter a new cell in this iteration
                     let current_cb = last_record.CB;
+
+                    // last_record is overhauled now (since we got a "new last record")
+                    // and we add it 
+                    busrecords.push(last_record); // the stored element from the previous iteration
+                    self.last_record = Some(new_record);
+
+
                     if new_record.CB > current_cb {  
                         // we ran into a new CB and its records
-                        busrecords.push(last_record); // the stored element from the previous iteration
                         // println!("\tyielding {:?}", (current_cb, &busrecords));
-                        self.last_record = Some(new_record);
-
                         return Some((current_cb, busrecords));
                     }
                     else if new_record.CB == current_cb {
-                        busrecords.push(last_record);
-                        self.last_record = Some(new_record);
-
+                        // nothing
                     }
                     else{  // the new cb is smaller then the current state: this is a bug due to an UNOSORTED busfile
                         panic!("Unsorted busfile: {} -> {}", current_cb, new_record.CB)
