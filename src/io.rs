@@ -200,11 +200,11 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, String>{
         if let Ok(l) = line{
             let mut s = l.split_whitespace();
             let transcript_id = s.next().unwrap();
-            s.next();
+            let ensemble_id = s.next().unwrap();
             let symbol = s.next().unwrap();
 
             assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
-            t2g_dict.insert(transcript_id.to_string(), symbol.to_string());
+            t2g_dict.insert(transcript_id.to_string(), ensemble_id.to_string());
         }
     }
     t2g_dict
