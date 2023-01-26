@@ -310,16 +310,16 @@ mod test{
         let r12 = BusRecord{CB: 0, UMI: 4, EC: 2, COUNT: 2, FLAG: 0};
         let r13= BusRecord{CB: 0, UMI: 4, EC: 0, COUNT: 2, FLAG: 0};
 
-        let records0 = vec![r1,r2];
+        let records0 = vec![r1.clone(),r2.clone()];
         let c0 = records_to_expression_vector(records0, &ec_dict, false);
         assert_eq!(c0, HashMap::from([("G1".to_string(), 1)]));
 
-        let records1 = vec![r1,r2, r10, r11];
+        let records1 = vec![r1.clone(),r2.clone(), r10.clone(), r11.clone()];
         let c1= records_to_expression_vector(records1, &ec_dict, false);
         assert_eq!(c1, HashMap::from([("G1".to_string(), 2)]));
 
 
-        let records2 = vec![r4,r5,r6];
+        let records2 = vec![r4.clone(),r5.clone(),r6.clone()];
         let c2= records_to_expression_vector(records2, &ec_dict, false);
         assert_eq!(c2, HashMap::from([]));
 

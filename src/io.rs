@@ -19,7 +19,7 @@ const BUS_HEADER_SIZE: usize = 20;
 // i: 4byte int
 // I: unsigned int, 4byte
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]  // TODO take away the copy and clone
 pub struct BusRecord {
     pub CB: u64, //8byte
     pub UMI: u64, // 8byte
@@ -285,6 +285,8 @@ impl BusFolder {
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>>{
     /*
     group a list of records by their CB/UMI (i.e. a single molecule)
+
+    takes ownership of record_list, since it reorders the elements
     */
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
 
@@ -319,6 +321,19 @@ fn test_write(){
 
     write_partial_busfile(fname, outname, 10_000_000)
 }
+
+// #[test]
+// fn testing2(){
+//     use itertools::Itertools;
+//     let FOLDERNAME:&str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+//     let n =100000;
+//     let biter= BusIteratorBuffered::new(&FOLDERNAME);
+//     let s:Vec<Vec<BusRecord>> = biter
+//         .group_by(|r| r.CB)
+//         .into_iter().map(|(a, records)|records.collect())
+//         .take(n)
+//         .collect();
+// }
 
 //=================================================================================
 #[cfg(test)]
@@ -392,7 +407,7 @@ mod tests {
         let r5 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0};
         let r6 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
 
-        let records = vec![r1,r2,r3,r4,r5, r6];
+        let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
         
         let grouped = group_record_by_cb_umi(records);
 

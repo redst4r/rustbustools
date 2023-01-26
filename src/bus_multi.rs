@@ -317,12 +317,12 @@ mod tests {
         let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
 
-        let v1 = vec![r1,r2,r3, r4];
+        let v1 = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
 
         let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
         let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
         let s3 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
-        let v2 = vec![s1,s2,s3];
+        let v2 = vec![s1.clone(),s2.clone(),s3.clone()];
 
         // write the records to file
         let busname1 ="/tmp/test1.bus";
