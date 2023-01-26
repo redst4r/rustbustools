@@ -2,6 +2,26 @@ use std::collections::{HashSet, HashMap};
 use crate::io::BusRecord;
 
 
+// #[inline(never)]
+fn update_intersection(inter:  &mut HashSet<String>, newset: &HashSet<String>)
+{        
+    // delete any elemt in shared_genes not present in current_set
+    // i..e set intersection
+    // we cant delete while iterating, so remember which elements to delete
+
+    let mut to_delete = Vec::new();
+    for el in inter.iter(){
+        if !newset.contains(el){
+            to_delete.push(el.clone());
+        }
+    }
+    // delete
+    for el in to_delete{
+        inter.remove(&el);
+    }
+}
+
+
 pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
 
     /*
@@ -16,16 +36,23 @@ pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<
     // get the genes per BusRecord
     let mut setlist = records.iter().map(|r| ec2gene.get(&r.EC).unwrap());
 
-    // indicator, remembering which elements need to be deleted from the first set
-    let mut shared_genes:HashSet<String> = HashSet::new();
-    
-    // initial element, make a copy of that
     let s1 = setlist.next().unwrap();
-    for el in s1{
-        shared_genes.insert(el.clone());
+
+    let mut shared_genes;
+    if false{
+        shared_genes = HashSet::new(); // could spec capacity
+    
+        // initial element, make a copy of that
+        for el in s1{
+            shared_genes.insert(el.clone());
+        }
+    }
+    // pretty much just a clone of s1
+    else{
+        shared_genes = s1.clone();
     }
 
-    // 
+    // save some time if its only one record
     if records.len() == 1{
         return shared_genes
     }
@@ -33,18 +60,7 @@ pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<
     for current_set in setlist{
         // delete any elemt in shared_genes not present in current_set
         // i..e set intersection
-
-        // we cant delete while iterating, so remember which elements to delete
-        let mut to_delete = Vec::new();
-        for el in shared_genes.iter(){
-            if !current_set.contains(el){
-                to_delete.push(el.clone());
-            }
-        }
-        // delete
-        for el in to_delete{
-            shared_genes.remove(&el);
-        }
+        update_intersection(&mut shared_genes, current_set);
 
         // to save some time: if the current intersection is already empty, it'll stay empty
         if shared_genes.len() == 0{
@@ -55,106 +71,53 @@ pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<
 }
 
 
-fn find_consistent2(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
-
-    // this one has the enumerate instead of doign the fist iteration separately
-    // no indicator, just shrinnk the set as we go
-
-    // seems pretty good to me
-    let mut shared_genes:HashSet<String> = HashSet::new();
-
-    for (i, r) in records.iter().enumerate(){
-        // all genes this record is consitent with
-        let g = ec2gene.get(&r.EC).unwrap();
-        if i == 0{
-            // copy the g hashset
-            for el in g{
-                shared_genes.insert(el.clone());
-            }
-        }
-        // otherwise delete any elemt in shared_genes not present in g
-        // i..e set intersection
-        // we cant delete while iterating, so remember which elements to delete
-        let mut to_delete = Vec::new();
-        for el in shared_genes.iter(){
-            if !g.contains(el){
-                // shared_genes.remove(el);
-                to_delete.push(el.clone());
-                // shared_genes_indicator.insert(el.clone(), false);
-            }
-        }
-        // delete
-        for el in to_delete{
-            shared_genes.remove(&el);
-        }
-
-        // to save some time: if the current intersection is already empty, it'll stay empty
-        if shared_genes.len() == 0{
-            break
-        }
-    }
-    shared_genes
-}
-
-
-
-fn find_consistent3(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
-
-    /*
-    set intersection in Rust is a MESS due to ownership etc!!
-    Here's the strategy:
-    1. copy the first set s1 entirely (the intersection will only contain elements of this set)
-    2. go threought the second set s2: if an element in s2 is NOT present in s1, remove it from s1. However, due to rust restrictions, we cant really modify
-       Instead, for each element in s1, we keep an indicator, telling us if that element needs to be deleted
-    3. delete any element in s1 thats indicated.
-    */
-
-    // pretty much same as above find_consistent2, just using the indicator, which will be slower (no set shrink)
-
-
-    // get the genes per BusRecord
-    let mut setlist = records.iter().map(|r| ec2gene.get(&r.EC).unwrap());
-
-    // indicator, remembering which elements need to be deleted from the first set
-    let mut shared_genes_indicator:HashMap<String, bool> = HashMap::new();
-    
-    // initial element
-    let s1 = setlist.next().unwrap();
-    for el in s1{
-        shared_genes_indicator.insert(el.clone(), true);
-    }
-
-    // the remaining sets
-    for g in setlist{
-        // otherwise delete any elemt in shared_genes not present in g
-        // i..e set intersection
-        // cant iterate and modify!!
-
-        // this is not allowed (chaning while iterating over it)
-        // we could do a retain instead
-        /*
-        for el in shared_genes_indicator.keys(){
-            if !g.contains(el){
-                // shared_genes_indicator.insert(el.clone(), false);
-                shared_genes_indicator.insert(el.clone(), false);
-            }
-        }
-        */
-        // shared_genes_indicator.retain(|k,v| k);
-    }
-
-    // 3. remove any element that was marked == False
-    let mut shared_genes2:HashSet<String> = HashSet::new();
-    for (gene, ind) in shared_genes_indicator{
-        if ind{
-            shared_genes2.insert(gene);
-        }
-    };
-    shared_genes2
-
-}
-
-
+#[test]
 fn test_consistent(){
+
+    let ec0: HashSet<String> = vec!["A".to_string()].into_iter().collect();
+    let ec1: HashSet<String> = vec!["B".to_string()].into_iter().collect();
+    let ec2: HashSet<String> = vec!["A".to_string(), "B".to_string()].into_iter().collect();
+    let ec3: HashSet<String> = vec!["C".to_string(), "D".to_string()].into_iter().collect();
+
+    let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
+        (0, ec0), 
+        (1, ec1), 
+        (2, ec2), 
+        (3, ec3), 
+        ]);
+
+    // not find_consistent doesnt check the records indeed come from the same CB/UMI
+
+    // single read, consistent with A
+    let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
+    let res1: Vec<String> = find_consistent(&vec![r1], &ec_dict).into_iter().collect();
+    assert_eq!(vec!["A"], res1);
+
+    // single read, consistent with A and B, hence multimapped
+    let r2 =BusRecord{CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0};
+    let res2: Vec<String> = find_consistent(&vec![r2], &ec_dict).into_iter().collect();
+    // assert_eq!(vec!["A", "B"], res2);  WRNING the order matters here, the function might return the vec ordered differently
+    assert_eq!(res2.len(), 2);
+
+
+    // two reads, consistent with A
+    let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
+    let r4 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
+    let res3: Vec<String> = find_consistent(&vec![r3, r4], &ec_dict).into_iter().collect();
+    assert_eq!(vec!["A"], res3);
+
+    // two reads, inconsistent with A, B
+    let r5 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
+    let r6 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
+    let res4: Vec<String> = find_consistent(&vec![r5, r6], &ec_dict).into_iter().collect();
+    assert_eq!(res4.len(), 0);
+
+    // three reads,  A, B, (A,B)
+    // inconsintent at the end
+    let r7 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
+    let r8 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
+    let r9 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
+    let res5: Vec<String> = find_consistent(&vec![r7, r8, r9], &ec_dict).into_iter().collect();
+    assert_eq!(res5.len(), 0);
 
 }
