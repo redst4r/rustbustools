@@ -3,7 +3,7 @@ use std::fs::File;
 use std::time::Instant;
 use sprs::io::write_matrix_market;
 
-use crate::consistent_genes::find_consistent;
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
 use crate::iterators::CbUmiIterator;
 use crate::io::BusFolder;
 use crate::utils::{get_progressbar, int_to_seq};
@@ -67,7 +67,7 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, String), usize>, gene_vector: Vec
     for ((cb, gene), counter) in countmap{
 
         let cbi = cb_ix.get(&cb).unwrap();
-        let genei = gene_ix.get(&gene).unwrap();
+        let genei = gene_ix.get(&gene).expect(&format!("{} missing", gene));
         ii.push(*cbi);
         jj.push(*genei);
         vv.push(*counter);
@@ -104,32 +104,46 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     println!("determine size of iterator");
     let now = Instant::now();
     let total_records = cbumi_iter_tmp.count();
+
+    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
+    let max_length_records = cbumi_iter_tmp.map(|(_cbumi, rlist)| rlist.len()).max().unwrap();
+
     let elapsed_time = now.elapsed();
 
-    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
+
+    println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
+
+    // handles the mapping between EC and gene
+    let EGM = Ec2GeneMapper::new(ec2gene);
+
 
     // CB,gene -> count
-    let mut all_expression_vector: HashMap<(u64, String), usize> = HashMap::new();
+    let mut all_expression_vector: HashMap<(u64, u32), usize> = HashMap::new();
     let bar = get_progressbar(total_records as u64);
 
     let mut n_mapped = 0;
     let mut n_multi_inconsistent = 0;
 
     let mut counter = 0;
+
+    let now = Instant::now();
+
     for ((cb, _umi), record_list) in cbumi_iter {
-        let consistent_genes: HashSet<String>;
+        let consistent_genes: HashSet<u32>;
 
         if !ignore_multimapped{
-                consistent_genes= find_consistent(&record_list, &ec2gene);
+                consistent_genes= find_consistent(&record_list, &EGM);
         }else{
             if record_list.len() > 1{
                 continue
             }
             else{
-                consistent_genes = ec2gene.get(&record_list[0].EC).unwrap().clone();
+                // consistent_genes = ec2gene.get(&record_list[0].EC).unwrap().clone();
+                consistent_genes = EGM.get_genes(record_list[0].EC).clone();
             }
         }
        
+        // uniquely mapped to a single gene
         if consistent_genes.len() == 1{
             let g = consistent_genes.into_iter().next().unwrap().clone();
             let key = (cb, g);
@@ -144,23 +158,33 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
             n_multi_inconsistent += 1;
         }
 
-        if counter % 100_000 == 0{
-            bar.inc(100_000);
+        if counter % 1_000_000 == 0{
+            bar.inc(1_000_000);
         }
         counter += 1;
     }
 
-    println!("Mapped {}, multi-discard {}", n_mapped, n_multi_inconsistent); 
+    let elapsed_time = now.elapsed();
+    println!("Mapped {}, multi-discard {} in {:?}", n_mapped, n_multi_inconsistent, elapsed_time); 
+
+    // turn from geneid to String
+    let EEE: HashMap<(u64, String), usize> = all_expression_vector
+        .into_iter()
+        .map(|((cb, geneid), v)| ((cb, EGM.resolve_gene_id(geneid)), v)).collect();
 
     //collect all genes
-    let mut genelist = HashSet::new(); 
-    for glist in ec2gene.values(){
-        genelist.extend(glist)
-    }
-    let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
-    genelist_vector.sort();
+    // let mut genelist = HashSet::new(); 
+    // for glist in ec2gene.values(){
+    //     genelist.extend(glist)
+    // }
+    // let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
+    let ngenes = EGM.int_to_gene.len();
+    let genelist_vector: Vec<String> = (0..ngenes).map(|k| EGM.resolve_gene_id(k as u32)).collect();
+    let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&String>>();
 
-    let countmatrix = countmap_to_matrix(&all_expression_vector, genelist_vector );
+    genelist_vector2.sort();
+
+    let countmatrix = countmap_to_matrix(&EEE, genelist_vector2 );
     println!("{:?} nnz {}", countmatrix.matrix.shape(), countmatrix.matrix.nnz());
     countmatrix
 

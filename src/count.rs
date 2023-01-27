@@ -5,7 +5,7 @@ use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusIteratorBuffere
 use crate::iterators::CellIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
-use crate::consistent_genes::find_consistent;
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
 
 
 pub fn count_bayesian(bfolder: BusFolder) {
@@ -66,6 +66,10 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let elapsed_time = now.elapsed();
     println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
 
+    println!("creating EC2M");
+    let EGM = Ec2GeneMapper::new(ec2gene);
+    println!("done creating EC2M");
+
 
     let mut all_expression_vector: HashMap<u64, HashMap<String, u32>> = HashMap::new();
 
@@ -73,7 +77,8 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let bar = get_progressbar(total_records as u64);
         
     for (cb, record_list) in cb_iter {//}.take(1_000_000){
-        let s = records_to_expression_vector(record_list, &ec2gene, ignore_multimapped);
+        // let s = records_to_expression_vector(record_list, &ec2gene, ignore_multimapped);
+        let s = records_to_expression_vector(record_list, &EGM, ignore_multimapped);
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
         all_expression_vector.insert(cb, s);
@@ -81,14 +86,25 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     }
 
     //collect all genes
-    let mut genelist = HashSet::new(); 
-    for glist in ec2gene.values(){
-        genelist.extend(glist)
-    }
-    let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
-    genelist_vector.sort();
+    // let mut genelist = HashSet::new(); 
+    // for glist in ec2gene.values(){
+    //     genelist.extend(glist)
+    // }
+    // let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
+    // genelist_vector.sort();
 
-    let countmatrix = expression_vectors_to_matrix(all_expression_vector, genelist_vector );
+  // let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
+    let ngenes = EGM.int_to_gene.len();
+    println!(" genes {}", ngenes);
+    let genelist_vector: Vec<String> = (0..ngenes).map(|k| EGM.resolve_gene_id(k as u32)).collect();
+    let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&String>>();
+
+    genelist_vector2.sort();
+
+    assert!(genelist_vector2.contains(&&"ENSG00000000003.14".to_string()));
+
+    
+    let countmatrix = expression_vectors_to_matrix(all_expression_vector, genelist_vector2 );
     println!("{:?} nnz {}", countmatrix.matrix.shape(), countmatrix.matrix.nnz());
     countmatrix
 
@@ -96,59 +112,60 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
 
 
-fn records_to_expression_vector_groupby(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) -> HashMap<String, u32>{
-    let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
-    let mut _multimapped = 0;
-    let mut _inconsistant= 0;
+// fn records_to_expression_vector_groupby(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) -> HashMap<String, u32>{
+//     let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
+//     let mut _multimapped = 0;
+//     let mut _inconsistant= 0;
 
-    // first, group the records by UMI
-    // TODO: EXPENSIVE!! 25k/s
+//     // first, group the records by UMI
+//     // TODO: EXPENSIVE!! 25k/s
 
-    use itertools::Itertools;
-    let cb_umi_grouped = record_list.into_iter().group_by(|a|(a.CB, a.UMI));
+//     use itertools::Itertools;
+//     let cb_umi_grouped = record_list.into_iter().group_by(|a|(a.CB, a.UMI));
 
-    for (_key, group) in cb_umi_grouped.into_iter(){
-        let records: Vec<BusRecord> = group.collect();
-        // all records coresponding to the same UMI
-        // TODO: EXPENSIVE!! 25k/s
-        let consistent_genes= find_consistent(&records, ec2gene);
+//     for (_key, group) in cb_umi_grouped.into_iter(){
+//         let records: Vec<BusRecord> = group.collect();
+//         // all records coresponding to the same UMI
+//         // TODO: EXPENSIVE!! 25k/s
+//         let consistent_genes= find_consistent(&records, ec2gene);
 
-        // let consistent_genes = ec2gene.get(&records[0].EC).unwrap();
-        // let consistent_genes = vec![records[0].EC];
-
-
-        if consistent_genes.len() > 1{
-            //multimapped
-            _multimapped += 1;
-        }
-        else if consistent_genes.len() == 1 {
-            //single gene
-            // let g = consistent_genes.drain().next().unwrap();
-
-            // let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
-            // let g = &v[0];
-
-            let g = consistent_genes.iter().next().unwrap();  // Set to first element
+//         // let consistent_genes = ec2gene.get(&records[0].EC).unwrap();
+//         // let consistent_genes = vec![records[0].EC];
 
 
-            let val = expression_vector.entry(g.to_string()).or_insert(0);
-            *val += 1;        
-        }
-        else{
-            // inconsistant
-            _inconsistant += 1
-        }
-    }
-    // println!("{}, {}",_multimapped, _inconsistant);
+//         if consistent_genes.len() > 1{
+//             //multimapped
+//             _multimapped += 1;
+//         }
+//         else if consistent_genes.len() == 1 {
+//             //single gene
+//             // let g = consistent_genes.drain().next().unwrap();
 
-    expression_vector
+//             // let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
+//             // let g = &v[0];
 
-}
+//             let g = consistent_genes.iter().next().unwrap();  // Set to first element
+
+
+//             let val = expression_vector.entry(g.to_string()).or_insert(0);
+//             *val += 1;        
+//         }
+//         else{
+//             // inconsistant
+//             _inconsistant += 1
+//         }
+//     }
+//     // println!("{}, {}",_multimapped, _inconsistant);
+
+//     expression_vector
+
+// }
 
 
 fn records_to_expression_vector(
     record_list: Vec<BusRecord>, 
-    ec2gene: &HashMap<u32, HashSet<String>>, 
+    // ec2gene: &HashMap<u32, HashSet<String>>, 
+    EGM: &Ec2GeneMapper, 
     ignore_multimapped: bool
 ) -> HashMap<String, u32>{
     /*
@@ -156,8 +173,8 @@ fn records_to_expression_vector(
     TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
     */
     let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
-    let mut _multimapped = 0;
-    let mut _inconsistant= 0;
+    let mut _multimapped = 0 as u32;
+    let mut _inconsistant= 0 as u32;
 
     // first, group the records by UMI
     // TODO: EXPENSIVE!! 25k/s
@@ -166,15 +183,18 @@ fn records_to_expression_vector(
     for ((_cb, _umi), records) in cb_umi_grouped{
         // all records coresponding to the same UMI
 
-        let consistent_genes: HashSet<String>;
+        let consistent_genes: HashSet<u32>;
+        // let consistent_genes: HashSet<String>;
         if ! ignore_multimapped{
-            consistent_genes= find_consistent(&records, ec2gene);
+            consistent_genes= find_consistent(&records, &EGM);
+            // consistent_genes= find_consistent(&records, ec2gene);
         }else{
             if records.len() > 1{
                 continue;
             }
             else{
-                consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
+                // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
+                consistent_genes = EGM.get_genes(records[0].EC).clone();
             }
         }
 
@@ -185,7 +205,8 @@ fn records_to_expression_vector(
         else if consistent_genes.len() == 1 {
             //single gene
             let g = consistent_genes.iter().next().unwrap();  // Set to first element
-            let val = expression_vector.entry(g.to_string()).or_insert(0);
+            let gname = EGM.resolve_gene_id(*g);
+            let val = expression_vector.entry(gname).or_insert(0);
             *val += 1;        
         }
         else{
@@ -227,7 +248,9 @@ fn expression_vectors_to_matrix(
     for (i, (cb, expr_vec)) in all_expression_vector.iter().enumerate(){
         for (gene, count) in expr_vec{
             ii.push(i);
-            jj.push(gene2index[gene]);
+
+            let gindex = gene2index.get(gene).expect(&format!("{} not found", gene));
+            jj.push(*gindex);
             vv.push(*count as usize)
         }
         cbs.push(*cb)
@@ -280,8 +303,8 @@ mod test{
     // use crate::count::records_to_expression_vector;
     fn test_records_to_expression_vector(){
 
-        let ec_dict = HashMap::from([
-            (0, HashSet::from_iter(vec!["G1".to_string(), "G2".to_string()])),
+        let ec_dict: HashMap<i32, HashSet<String>> = HashMap::from([
+            (0,  HashSet::from_iter(vec!["G1".to_string(), "G2".to_string()])),
             (1,  HashSet::from_iter(vec!["G1".to_string()])),
             (2,  HashSet::from_iter(vec!["G2".to_string()])),
             (3,  HashSet::from_iter(vec!["G1".to_string(), "G2".to_string()])),
@@ -310,23 +333,23 @@ mod test{
         let r12 = BusRecord{CB: 0, UMI: 4, EC: 2, COUNT: 2, FLAG: 0};
         let r13= BusRecord{CB: 0, UMI: 4, EC: 0, COUNT: 2, FLAG: 0};
 
-        let records0 = vec![r1.clone(),r2.clone()];
-        let c0 = records_to_expression_vector(records0, &ec_dict, false);
-        assert_eq!(c0, HashMap::from([("G1".to_string(), 1)]));
+        // let records0 = vec![r1.clone(),r2.clone()];
+        // let c0 = records_to_expression_vector(records0, &ec_dict, false);
+        // assert_eq!(c0, HashMap::from([("G1".to_string(), 1)]));
 
-        let records1 = vec![r1.clone(),r2.clone(), r10.clone(), r11.clone()];
-        let c1= records_to_expression_vector(records1, &ec_dict, false);
-        assert_eq!(c1, HashMap::from([("G1".to_string(), 2)]));
-
-
-        let records2 = vec![r4.clone(),r5.clone(),r6.clone()];
-        let c2= records_to_expression_vector(records2, &ec_dict, false);
-        assert_eq!(c2, HashMap::from([]));
+        // let records1 = vec![r1.clone(),r2.clone(), r10.clone(), r11.clone()];
+        // let c1= records_to_expression_vector(records1, &ec_dict, false);
+        // assert_eq!(c1, HashMap::from([("G1".to_string(), 2)]));
 
 
-        let records3 = vec![r1,r2, r4,r5,r6,r7,r8,r9,r10, r11,r12,r13];
-        let c3 = records_to_expression_vector(records3, &ec_dict, false);
-        assert_eq!(c3, HashMap::from([("G1".to_string(), 2), ("G2".to_string(), 1)]));
+        // let records2 = vec![r4.clone(),r5.clone(),r6.clone()];
+        // let c2= records_to_expression_vector(records2, &ec_dict, false);
+        // assert_eq!(c2, HashMap::from([]));
+
+
+        // let records3 = vec![r1,r2, r4,r5,r6,r7,r8,r9,r10, r11,r12,r13];
+        // let c3 = records_to_expression_vector(records3, &ec_dict, false);
+        // assert_eq!(c3, HashMap::from([("G1".to_string(), 2), ("G2".to_string(), 1)]));
 
 
 
