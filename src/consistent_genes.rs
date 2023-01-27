@@ -1,24 +1,14 @@
 use std::collections::{HashSet, HashMap};
 use crate::io::BusRecord;
+use std::hash::Hash;
 
 
 // #[inline(never)]
-fn update_intersection(inter:  &mut HashSet<String>, newset: &HashSet<String>)
-{        
+fn update_intersection_via_retain<T:Hash+Eq>(inter:  &mut HashSet<T>, newset: &HashSet<T>){        
     // delete any elemt in shared_genes not present in current_set
     // i..e set intersection
     // we cant delete while iterating, so remember which elements to delete
-
-    let mut to_delete = Vec::new();
-    for el in inter.iter(){
-        if !newset.contains(el){
-            to_delete.push(el.clone());
-        }
-    }
-    // delete
-    for el in to_delete{
-        inter.remove(&el);
-    }
+    inter.retain(|item| newset.contains(item));
 }
 
 
@@ -60,7 +50,7 @@ pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<
     for current_set in setlist{
         // delete any elemt in shared_genes not present in current_set
         // i..e set intersection
-        update_intersection(&mut shared_genes, current_set);
+        update_intersection_via_retain(&mut shared_genes, current_set);
 
         // to save some time: if the current intersection is already empty, it'll stay empty
         if shared_genes.len() == 0{
