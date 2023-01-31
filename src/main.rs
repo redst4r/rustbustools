@@ -88,7 +88,7 @@ fn main() {
     match cli.command{
         MyCommand::busmerge(args) => {
             println!("Doing bus merging");
-            busmerger::merge_busfiles_on_overlap(args.inbus1, args.inbus2, args.outbus1, args.outbus2)      
+            busmerger::merge_busfiles_on_overlap(&args.inbus1, &args.inbus2, &args.outbus1, &args.outbus2)      
         }
         MyCommand::count(args) => {
             println!("Doing count");
@@ -96,7 +96,6 @@ fn main() {
             fs::create_dir(&cli.output).unwrap();
 
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-
             let c = count::count(bfolder, args.ignoremm);
 
             c.write(&cli.output);

@@ -43,11 +43,11 @@ impl CountMatrix {
         let mut fh_gene = File::create(genefile).unwrap();
 
         for cb in self.cbs{
-            fh_cb.write(format!("{}\n", cb).as_bytes()).unwrap();
+            fh_cb.write_all(format!("{}\n", cb).as_bytes()).unwrap();
         }
 
         for g in self.genes{
-            fh_gene.write(format!("{}\n", g).as_bytes()).unwrap();
+            fh_gene.write_all(format!("{}\n", g).as_bytes()).unwrap();
         }
     }
 }
@@ -62,7 +62,9 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<St
     // let all_genes = countmap.keys().map(|(cb, gene)| *gene.clone()).collect::<BTreeSet<_>>();
 
     println!("building index");
-    let cb_ix = all_cbs.iter().enumerate().map(|(ix, cb)|(cb.clone(), ix)).collect::<HashMap<_,_>>();
+    // some issues with the cb.clone: clippy complains!
+    // let cb_ix = all_cbs.iter().enumerate().map(|(ix, cb)|(cb.clone(), ix)).collect::<HashMap<_,_>>();
+    let cb_ix = all_cbs.iter().enumerate().map(|(ix, cb)|(**cb, ix)).collect::<HashMap<_,_>>();
 
     // sparse matrix indices
     let mut ii: Vec<usize> = Vec::new();
@@ -71,7 +73,7 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<St
 
     for ((cb, geneid), counter) in countmap{
 
-        let cbi = cb_ix.get(&cb).unwrap();
+        let cbi = cb_ix.get(cb).unwrap();
         let genei = *geneid as usize;
         ii.push(*cbi);
         jj.push(genei);
@@ -232,7 +234,7 @@ fn count_from_record_list(records: Vec<BusRecord>, egmapper: &Ec2GeneMapper, ign
        
     // uniquely mapped to a single gene
     if consistent_genes.len() == 1{
-        let g = consistent_genes.into_iter().next().unwrap().clone();
+        let g = consistent_genes.into_iter().next().unwrap();
         Some(g)
     }
     else{

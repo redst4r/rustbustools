@@ -79,7 +79,7 @@ impl Iterator for BusIteratorBuffered {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0;BUS_ENTRY_SIZE];
-        match self.buf.read(&mut buffer){
+        let r = match self.buf.read(&mut buffer){
             Ok(BUS_ENTRY_SIZE) => Some(bincode::deserialize(&buffer).expect("deserial error")),
             Ok(0) => None,
             Ok(n) => {
@@ -87,7 +87,8 @@ impl Iterator for BusIteratorBuffered {
                 panic!("{:?} {:?} {:?}", n, buffer, s)
             }
             Err(e) => panic!("{:?}", e),
-        }
+        };
+        r
     }
 }
 
@@ -130,7 +131,7 @@ impl BusWriter {
         }
 
         // println!("Length of record in bytes {}", binrecord.len());
-        self.buf.write(&binrecord).expect("FAILED to write record");
+        self.buf.write_all(&binrecord).expect("FAILED to write record");
     }
     pub fn write_records(&mut self, records: &Vec<BusRecord>){
         // writes several recordsd and flushes
@@ -167,9 +168,12 @@ pub fn parse_ecmatrix(filename: &str) -> HashMap<u32, Vec<u32>>{
             let tmp = s.next().unwrap();
 
             let transcript_list: Vec<u32> = tmp
-                                             .split(",")
+                                             .split(',')
                                              .map(|x|x.parse::<u32>().unwrap()).collect();
             ec_dict.insert(ec, transcript_list);
+        }
+        else {
+            panic!("Error reading file {}", filename)
         }
     }
     ec_dict
@@ -218,7 +222,7 @@ fn build_ec2gene(
         let mut genes: HashSet<String> = HashSet::new();
 
         for t_int in transcript_ints{
-            let t_name = transcript_dict.get(&t_int).unwrap();
+            let t_name = transcript_dict.get(t_int).unwrap();
 
             // if we can resolve, put the genename, otherwsise use the transcript name instead
             match t2g_dict.get(t_name){
@@ -253,7 +257,8 @@ impl BusFolder {
         println!("building EC->gene");
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
 
-        let busfile = String::from("output.corrected.sort.bus");
+        let busfile = format!("{}/output.corrected.sort.bus", foldername);
+        
         BusFolder{
             foldername : foldername.to_string(),  // to avoid changing foldername: &str and the lifetime stuff
             ec_dict,
@@ -264,6 +269,7 @@ impl BusFolder {
         }
     }
 }
+
 
 
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>>{

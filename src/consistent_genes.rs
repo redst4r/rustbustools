@@ -61,7 +61,7 @@ pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &Ec2GeneMapper) ->Hash
         update_intersection_via_retain(&mut shared_genes, current_set);
 
         // to save some time: if the current intersection is already empty, it'll stay empty
-        if shared_genes.len() == 0{
+        if shared_genes.is_empty(){
             break
         }
     }
@@ -84,31 +84,31 @@ fn test_consistent(){
         (3, ec3), 
         ]);
 
-    let ES = Ec2GeneMapper::new(ec_dict);
+    let es_mapper = Ec2GeneMapper::new(ec_dict);
 
     // not find_consistent doesnt check the records indeed come from the same CB/UMI
 
     // single read, consistent with A
     let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-    let res1: Vec<String> = find_consistent(&vec![r1], &ES).into_iter().map(|gid|ES.resolve_gene_id(gid)).collect();
+    let res1: Vec<String> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
     assert_eq!(vec!["A"], res1);
 
     // single read, consistent with A and B, hence multimapped
     let r2 =BusRecord{CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0};
-    let res2: Vec<String> = find_consistent(&vec![r2], &ES).into_iter().map(|gid|ES.resolve_gene_id(gid)).collect();
+    let res2: Vec<String> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
     // assert_eq!(vec!["A", "B"], res2);  WRNING the order matters here, the function might return the vec ordered differently
     assert_eq!(res2.len(), 2);
 
     // two reads, consistent with A
     let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
     let r4 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-    let res3: Vec<String> = find_consistent(&vec![r3, r4], &ES).into_iter().map(|gid|ES.resolve_gene_id(gid)).collect();
+    let res3: Vec<String> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
     assert_eq!(vec!["A"], res3);
 
     // two reads, inconsistent with A, B
     let r5 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
     let r6 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
-    let res4: Vec<String> = find_consistent(&vec![r5, r6], &ES).into_iter().map(|gid|ES.resolve_gene_id(gid)).collect();
+    let res4: Vec<String> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
     assert_eq!(res4.len(), 0);
 
     // three reads,  A, B, (A,B)
@@ -116,7 +116,7 @@ fn test_consistent(){
     let r7 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
     let r8 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
     let r9 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-    let res5: Vec<String> = find_consistent(&vec![r7, r8, r9], &ES).into_iter().map(|gid|ES.resolve_gene_id(gid)).collect();
+    let res5: Vec<String> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
     assert_eq!(res5.len(), 0);
 
 }
@@ -132,6 +132,8 @@ pub struct Ec2GeneMapper {
     */
     ec2geneid: HashMap<EC, HashSet<u32>>,  // maps each EC to a set of geneids (integers)
     gene_to_int: HashMap<Gene, u32>,  // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
+
+    // TODO this could be a simple Vec, indexing into it
     pub int_to_gene: HashMap<u32, Gene>,  // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
 
     // consistent_ec_sets: HashSet<HashSet<EC>>  // what general EC combinations are allowed
@@ -139,7 +141,7 @@ pub struct Ec2GeneMapper {
 
 
 fn ec_combinatorics_for_gene(geneid: u32, ec2geneid: &HashMap<EC, HashSet<u32>>){
-
+    todo!();
     // all ECs that contain the gene
     let ecs_sets: HashMap<EC, HashSet<u32>> = ec2geneid.iter()
         .filter(|(_ec, gset)| gset.contains(&geneid))
@@ -152,13 +154,13 @@ fn ec_combinatorics_for_gene(geneid: u32, ec2geneid: &HashMap<EC, HashSet<u32>>)
     let target_set = HashSet::from_iter(vec![geneid]);
 
     // "recursion": just keep iterating until there's no more candidates
-    while  current_maybe_sets.len() > 0{
+    while  !current_maybe_sets.is_empty() {
         
         let mut new_maybe_sets :HashMap<EC, HashSet<u32>> = HashMap::new();
 
         // filter out anything thats not overlaping with target at all
         for (ec, set) in current_maybe_sets{
-            let overlap = set.intersection(&target_set).collect::<Vec<&u32>>().len();
+            let overlap = set.intersection(&target_set).count();
             if overlap > 0{
                 if set == target_set{ // the ones that are exacly the target set are added to the solution
                     current_consistent_sets.insert(ec, set);
@@ -182,6 +184,14 @@ impl Ec2GeneMapper{
     pub fn new(ec2gene: HashMap<u32, HashSet<String>>) ->  Self{
 
         // get all genes and sort them
+        // could be done with a flatmap?
+        // let gene_list2:HashSet<Gene> =  ec2gene
+        //     .values()
+        //     .flat_map(|set|
+        //                 set.iter().map(|s| Gene(s.to_string()))
+        //             )
+        //     .collect();
+        
         let mut gene_list : HashSet<Gene> = HashSet::new();
         for genes in ec2gene.values(){
             for g in genes{
@@ -191,15 +201,19 @@ impl Ec2GeneMapper{
         let mut gene_vector: Vec<Gene> = gene_list.into_iter().collect();
         gene_vector.sort();
 
+        // we're going to encode genes by ints hence we need
+        // a mapping from gene-> int
         let gene_to_int: HashMap<Gene, u32> = gene_vector
             .into_iter()
             .enumerate()
-            .map(|(i, g)| (g.clone(), i as u32))
+            .map(|(i, g)| (g, i as u32))
             .collect();
 
+        // the reverse
         let int_to_gene: HashMap<u32, Gene> = gene_to_int.iter().map(|(g, i)| (*i as u32, g.clone())).collect();
 
-
+        // mapping from EC to a set of gene_id
+        // this is the main struct we'll be using!
         let mut ec2geneid: HashMap<EC, HashSet<u32>>= HashMap::new();
         for (ec, genes) in ec2gene{
             let geneids: HashSet<u32> = genes.iter().map(|gname| *gene_to_int.get(&Gene(gname.to_string())).unwrap()).collect();
@@ -230,12 +244,12 @@ impl Ec2GeneMapper{
     pub fn resolve_gene_id(&self, gene_id: u32) -> String{
         // turns a gene_id into a genename (ENSEMBL)
         let r = self.int_to_gene.get(&gene_id).unwrap();
-        return r.0.to_string()
+        r.0.to_string()
     }
 
 }
 #[test]
-fn test_ECStruct(){
+fn test_ec_struct(){
 
     let ec0: HashSet<String> = vec!["A".to_string()].into_iter().collect();
     let ec1: HashSet<String> = vec!["B".to_string()].into_iter().collect();
@@ -249,11 +263,11 @@ fn test_ECStruct(){
         (3, ec3.clone()), 
         ]);
 
-    let ES = Ec2GeneMapper::new(ec_dict);
+    let es = Ec2GeneMapper::new(ec_dict);
 
     for (i, ec) in vec![ec0, ec1, ec2, ec3].iter().enumerate(){
-        let gids = ES.get_genes(i as u32);
-        let gnames: HashSet<_> = gids.iter().map(|i| ES.resolve_gene_id(*i)).collect();
+        let gids = es.get_genes(i as u32);
+        let gnames: HashSet<_> = gids.iter().map(|i| es.resolve_gene_id(*i)).collect();
         assert_eq!(&gnames, ec);
     }
 }

@@ -69,7 +69,7 @@ impl CellIteratorMulti {
                                   cb2
                               }
                           }).unwrap();
-        min.clone() 
+        *min
     }
 }
 
@@ -79,7 +79,7 @@ impl Iterator for CellIteratorMulti {
 
     fn next(&mut self) -> Option<Self::Item> {
 
-        if self.iterators.len() == 0{
+        if self.iterators.is_empty(){
             return None
         }
 
@@ -217,7 +217,7 @@ impl Iterator for CellUmiIteratorMulti {
 
     fn next(&mut self) -> Option<Self::Item> {
 
-        if self.iterators.len() == 0{
+        if self.iterators.is_empty() {
             return None
         }
 
@@ -283,8 +283,6 @@ impl Iterator for CellUmiIteratorMulti {
         Some((current_min_cb, the_emission))
     }
 }
-
-
 
 
 #[cfg(test)]

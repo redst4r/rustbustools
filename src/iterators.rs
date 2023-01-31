@@ -17,7 +17,7 @@ impl CbUmiIterator {
 impl Iterator for CbUmiIterator {
     type Item = ((u64, u64), Vec<BusRecord>);
 
-    fn next(&mut self) -> Option<((u64, u64), Vec<BusRecord>)> {
+    fn next(&mut self) -> Option<Self::Item> {
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
     
         loop {
@@ -113,19 +113,11 @@ impl Iterator for CellIterator {
 
                 busrecords.push(last_record); // the stored element from the previous iteration
 
-
                 // now we just need to decide if we want to emit, or continue growing
-                if new_cb > current_cb {  
-                    // we ran into a new CB/UMI and its records
-                    // println!("\tyielding {:?}", (current_cb, &busrecords));
-
-                    return Some((current_cb, busrecords));
-                }
-                else if new_cb == current_cb {
-                    // nothing happens, just keep growing busrecords
-                }
-                else{  // the new cb is smaller then the current state: this is a bug due to an UNOSORTED busfile
-                    panic!("Unsorted busfile: {} -> {}", current_cb, new_cb)
+                match new_cb.cmp(&current_cb){
+                    std::cmp::Ordering::Equal => { }, //nothing happens, just keep growing busrecords
+                    std::cmp::Ordering::Greater => {return Some((current_cb, busrecords));},
+                    std::cmp::Ordering::Less => {panic!("Unsorted busfile: {} -> {}", current_cb, new_cb)}
                 }
             }
             else{
@@ -152,7 +144,8 @@ impl Iterator for CellIterator {
 
 
 
- mod tests{
+#[cfg(test)]
+mod tests{
     use crate::io::{BusRecord, setup_busfile};
     use crate::iterators::{CbUmiIterator, CellIterator};
 
@@ -211,9 +204,7 @@ impl Iterator for CellIterator {
     
 
         let cb_iter = CellIterator::new(&busname);
-        // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
-        // println!("{:?}", n);
     
         assert_eq!(n.len(), 4);
         // println!("{:?}", n);

@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::time::Instant;
-
 use statrs::distribution::{Multinomial, Binomial};  // warning the statrs::Binomial has very slow sampling (sum of Bernullis)
 use probability;  // use probability::distribution::Binomial instead, which does inverse cdf sampling
 use probability::distribution::Sample;
@@ -57,12 +54,12 @@ pub fn multinomial_sample(n: u64, pvec: &Vec<f64>, source: &mut Xorshift128Plus)
     statrs version does the same algorithm, but relies internally on a statrs::distribution::Binomial
     which is extremely slow.
     */
-    let mut x :Vec<f64> = Vec::new();
+    let dim = pvec.len();
+    let mut x :Vec<f64> = Vec::with_capacity(dim);
 
     // normalize the pvec
     let _sum: f64 = pvec.iter().sum();
     let pvec_norm: Vec<f64> = pvec.iter().map(|x| x/_sum).collect();
-    let dim = pvec_norm.len();
 
     let mut remaining_p = 1.0;
     let mut remaining_n = n;
@@ -194,12 +191,11 @@ pub fn test_multinomial_stats(dim: i32){
 
 }
 
-#[test]
+// #[test]
 pub fn multinomial_speed_eval(){
-
-    use core::ops::Add;
-    use core::ops::Div;
-    use core::ops::Sub;
+    use std::fs::File;
+    use std::time::Instant;
+    use core::ops::{Add, Div, Sub};
     use std::fmt::Debug;
     
     pub fn linspace<T>(x0: T, xend: T, n: u16) -> Vec<T>

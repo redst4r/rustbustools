@@ -1,20 +1,20 @@
 use crate::io::{BusRecord, BusIteratorBuffered};
 
-pub struct CbUmiIterator_clone {
+pub struct CbUmiIteratorClone {
     pub(crate) busiter: BusIteratorBuffered,
     pub(crate) last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
 }
 
-impl CbUmiIterator_clone {
+impl CbUmiIteratorClone {
 
-    pub fn new(fname: &str) ->CbUmiIterator_clone{
+    pub fn new(fname: &str) ->CbUmiIteratorClone{
         let mut busiter = BusIteratorBuffered::new(fname);
         let last_record = busiter.next(); //initilize with the first record in the file
-        CbUmiIterator_clone {busiter, last_record}
+        CbUmiIteratorClone {busiter, last_record}
     }
 }
 
-impl Iterator for CbUmiIterator_clone {
+impl Iterator for CbUmiIteratorClone {
     type Item = ((u64, u64), Vec<BusRecord>);
 
 
@@ -78,23 +78,23 @@ impl Iterator for CbUmiIterator_clone {
 }
 
 
-pub struct CellIterator_clone {
+pub struct CellIteratorClone {
     pub(crate) busiter: BusIteratorBuffered,
     pub(crate) last_record: Option<BusRecord>,  //option needed to mark the final element of the iteration
     // buffersize: usize
 }
 
-impl CellIterator_clone {
+impl CellIteratorClone {
 
-    pub fn new(fname: &str) ->CellIterator_clone{
+    pub fn new(fname: &str) ->CellIteratorClone{
         let mut busiter = BusIteratorBuffered::new(fname);
         let last_record = busiter.next(); //initilize with the first record in the file
-        CellIterator_clone {busiter, last_record}
+        CellIteratorClone {busiter, last_record}
         // CellIterator_clone {busiter, last_record, buffersize:1}
     }
 }
 
-impl Iterator for CellIterator_clone {
+impl Iterator for CellIteratorClone {
     type Item = (u64, Vec<BusRecord>);
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -14,8 +14,7 @@ pub fn seq_to_int(seq: String) -> u64{
         _ => panic!("unkown seq character"),
     })
     .collect();
-    let int_seq = u64::from_str_radix(&s, 4).unwrap();
-    int_seq
+    u64::from_str_radix(&s, 4).unwrap()
 }
 
 
@@ -45,9 +44,8 @@ pub fn int_to_seq(i: u64, seq_len:u64) -> String{
         3 => 'T',
         _ => panic!("unkown seq character"),
     })
-    .collect::<String>();
-
-    // println!("{:?}", s);
+    // .collect::<String>();
+    .collect();
     s
 }   
 
@@ -60,6 +58,7 @@ pub fn get_progressbar(total: u64) -> ProgressBar{
 }
 
 
+#[cfg(test)]
 mod tests {
     #[test]
     fn encode_seq(){
