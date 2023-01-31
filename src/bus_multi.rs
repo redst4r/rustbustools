@@ -289,16 +289,9 @@ impl Iterator for CellUmiIteratorMulti {
 
 #[cfg(test)]
 mod tests {
-    use crate::io::{BusRecord, BusHeader, BusWriter};
+    use crate::io::{BusRecord, setup_busfile};
     use std::collections::HashMap;
     use super::*;
-
-    fn create_busfile(fname: &str, records: Vec<BusRecord>){
-        let header = BusHeader::new(16, 12, 20);
-        let busname1 = fname.to_string();
-        let mut writer = BusWriter::new(&busname1, header);
-        writer.write_records(&records);
-    }
 
     #[test]
     fn test_read_write(){
@@ -325,10 +318,11 @@ mod tests {
         let v2 = vec![s1.clone(),s2.clone(),s3.clone()];
 
         // write the records to file
-        let busname1 ="/tmp/test1.bus";
-        let busname2 ="/tmp/test2.bus";
-        create_busfile(busname1, v1);
-        create_busfile(busname2, v2);
+        let (busname1, _dir1) =setup_busfile(&v1);
+        let (busname2, _dir2) =setup_busfile(&v2);
+
+        // create_busfile(busname1, v1);
+        // create_busfile(busname2, v2);
 
         let hashmap = HashMap::from([
             ("test1".to_string(), busname1.to_string()),

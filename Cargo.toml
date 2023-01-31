@@ -19,8 +19,11 @@ statrs = "0.16"
 rand = "0.8"
 probability="0.20"  # for faster Binomial Sampling, using inverse pdf
 itertools="0.10.5"
+tempfile="3.3.0"
+
 [dev-dependencies]
 criterion = "0.4"
+ndarray="0.15.6"
 
 [[bench]]
 name = "my_benchmark"

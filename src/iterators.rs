@@ -99,7 +99,6 @@ impl Iterator for CellIterator {
         // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
     
         loop {
-
             if let Some(new_record) = self.busiter.next(){
                 // the newly seen record
                 let new_cb = new_record.CB;
@@ -165,11 +164,10 @@ impl Iterator for CellIterator {
         let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
 
         let records = vec![r1.clone(),r2.clone(),r3.clone()];
-        let busname = "/tmp/test_iter.bus";
-        setup_busfile(&records, &busname);
+        let (busname, _dir) = setup_busfile(&records);
 
-        let n: Vec<_> = CellIterator::new(busname).map(|(_cb, records)| records).collect();
-
+        let n: Vec<_> = CellIterator::new(&busname).map(|(_cb, records)| records).collect();
+        println!("{:?}", n);
         // assert_eq!(n, vec![vec![r1, r2], vec![r3]]);
         assert_eq!(n.len(), 2);
 
@@ -185,10 +183,11 @@ impl Iterator for CellIterator {
         let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
         let r4 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
         let records = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
-        let busname = "/tmp/test_iter.bus";
-        setup_busfile(&records, &busname);
+        let (busname, _dir) = setup_busfile(&records);
 
-        let n: Vec<_> = CellIterator::new(busname).collect();
+        let n: Vec<_> = CellIterator::new(&busname).collect();
+        println!("{:?}", n);
+
         assert_eq!(n.len(), 2);
 
         let (_cb, rlist) = &n[1];
@@ -208,11 +207,10 @@ impl Iterator for CellIterator {
         let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
         // let records = vec![r1,r2,r3,r4,r5, r6].to_vec();
     
-        let busname = "/tmp/test_iter.bus";
-        setup_busfile(&records, &busname);
+        let (busname, _dir) = setup_busfile(&records);
     
-    
-        let cb_iter = CellIterator::new(busname);
+
+        let cb_iter = CellIterator::new(&busname);
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
         // println!("{:?}", n);
@@ -252,7 +250,6 @@ impl Iterator for CellIterator {
 
     }
 
-
     #[test]
     fn test_cbumi_iter(){   
         let r1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0};
@@ -264,14 +261,12 @@ impl Iterator for CellIterator {
 
         let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
 
-        let busname = "/tmp/test_cbumi_iter.bus";
-        setup_busfile(&records, &busname);
+        let (busname, _dir) = setup_busfile(&records);
 
-
-        let cb_iter = CbUmiIterator::new(busname);
+        let cb_iter = CbUmiIterator::new(&busname);
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<((u64, u64), Vec<BusRecord>)> = cb_iter.collect();
-        println!("{:?}", n);
+        // println!("{:?}", n);
 
         assert_eq!(n.len(), 5);
         // println!("{:?}", n);
@@ -305,10 +300,10 @@ impl Iterator for CellIterator {
 
         let records = vec![r1,r2,r3,r4];
 
-        let busname = "/tmp/test_panic_on_unsorted.bus";
-        setup_busfile(&records, busname);
+        // let busname = "/tmp/test_panic_on_unsorted.bus";
+        let (busname, _dir) = setup_busfile(&records);
 
-        let cb_iter = CellIterator::new(busname);
+        let cb_iter = CellIterator::new(&busname);
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
     }
  }

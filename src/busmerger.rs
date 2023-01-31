@@ -10,8 +10,8 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
     ]);
 
     let mut writers: HashMap<String, BusWriter> = HashMap::from([
-        ("f1".to_string(), BusWriter::new(&outfile1, BusHeader::new(16, 12, 20))), 
-        ("f2".to_string(), BusWriter::new(&outfile2, BusHeader::new(16, 12, 20))), 
+        ("f1".to_string(), BusWriter::new(outfile1, BusHeader::new(16, 12, 20))), 
+        ("f2".to_string(), BusWriter::new(outfile2, BusHeader::new(16, 12, 20))), 
     ]);
 
     let cbumi_merge_iter = CellUmiIteratorMulti::new(&h);
@@ -29,14 +29,8 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
 
 #[cfg(test)]
 mod tests {
-    use crate::io::{BusRecord, BusHeader, BusWriter, BusIteratorBuffered};
+    use crate::io::{BusRecord, BusIteratorBuffered, setup_busfile};
     use super::*;
-
-    fn setup_busfile(records: &Vec<BusRecord>, busname: &str){
-        let header = BusHeader::new(16, 12, 20);
-        let mut writer = BusWriter::new(&busname, header);
-        writer.write_records(&records);
-    }
 
     fn get_records(fname: &str) -> Vec<BusRecord>{
         let reader = BusIteratorBuffered::new(fname);
@@ -60,15 +54,17 @@ mod tests {
 
         let v2 = vec![s2.clone(),s3.clone(), s4.clone()];
 
-        let input1 = "/tmp/merge1.bus";
-        let input2 = "/tmp/merge2.bus";
+        // let input1 = "/tmp/merge1.bus";
+        // let input2 = "/tmp/merge2.bus";
 
-        setup_busfile(&v1, input1);
-        setup_busfile(&v2, input2);
+        let (input1, _dir1) = setup_busfile(&v1); //input1
+        let (input2, _dir2) =  setup_busfile(&v2); // input2
 
+        // TODO dangerous: hardcoded filenames
         let output1 = "/tmp/merge1_out.bus";
         let output2 = "/tmp/merge2_out.bus";
-        merge_busfiles_on_overlap(input1, input2, output1, output2);
+
+        merge_busfiles_on_overlap(&input1, &input2, output1, output2);
 
         assert_eq!(get_records(output1), vec![r2, r4,r5]);
         assert_eq!(get_records(output2), vec![s2, s4]);

@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::BufWriter;
-use std::io::Read;
-use std::io::BufReader;
-use std::io::BufRead;
-use std::io::Write;
+use std::io::{BufWriter, Read, BufReader, BufRead, Write, Seek, SeekFrom};
 use serde::{Serialize, Deserialize};
-use std::io::{Seek, SeekFrom};
 use bincode;
+use tempfile::TempDir;
 
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
@@ -67,12 +62,11 @@ pub struct BusIteratorBuffered {
 impl BusIteratorBuffered {
     pub fn new(filename: &str) -> BusIteratorBuffered{
         let bus_header = BusHeader::from_file(filename);
-        let mut file_handle = std::fs::File::open(filename).expect("FAIL");
+        let mut file_handle = File::open(filename).expect("FAIL");
     
         // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
-        let to_seek:u64 = BUS_HEADER_SIZE.try_into().unwrap();
-        let hhh: u64 = bus_header.tlen.into();
-        let _x = file_handle.seek(SeekFrom::Start(to_seek + hhh)).unwrap();
+        let to_seek = BUS_HEADER_SIZE as u64 + bus_header.tlen as u64;
+        let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::new(file_handle);
         // let mut buf = BufReader::with_capacity(8000, file_handle);
@@ -103,15 +97,13 @@ pub struct BusWriter{
     pub header: BusHeader
 }
 impl BusWriter {
-    pub fn new(filename: &str, header: BusHeader) -> BusWriter{
-        // let mut file_handle = std::fs::File::open(filename).expect("FAILED to open");
-        let file_handle: File = File::create(filename).expect("FAILED to open");
 
+    pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter{
         let mut buf = BufWriter::new(file_handle);
 
         // write the header into the file
         let binheader = bincode::serialize(&header).expect("FAILED to serialze header");
-        buf.write(&binheader).expect("FAILED to write header");
+        buf.write_all(&binheader).expect("FAILED to write header");
 
         // write the variable header
         let mut varheader: Vec<u8> = Vec::new();
@@ -119,9 +111,14 @@ impl BusWriter {
             varheader.push(0);
         }
         // println!("len of varheader: {}" ,varheader.len());
-        buf.write(&varheader).expect("FAILED to write var header");
+        buf.write_all(&varheader).expect("FAILED to write var header");
 
-        BusWriter {buf: buf , header: header}
+        BusWriter {buf , header}
+    }
+
+    pub fn new(filename: &str, header: BusHeader) -> BusWriter{
+        let file_handle: File = File::create(filename).expect("FAILED to open");
+        BusWriter::from_filehandle(file_handle, header)
     }
 
     pub fn write_record(&mut self, record: &BusRecord){
@@ -141,7 +138,6 @@ impl BusWriter {
             self.write_record(r)
         }
         self.buf.flush().unwrap();
-
     }
 
 }
@@ -201,25 +197,13 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, String>{
             let mut s = l.split_whitespace();
             let transcript_id = s.next().unwrap();
             let ensemble_id = s.next().unwrap();
-            let symbol = s.next().unwrap();
+            let _symbol = s.next().unwrap();
 
             assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
             t2g_dict.insert(transcript_id.to_string(), ensemble_id.to_string());
         }
     }
     t2g_dict
-    // let df =  CsvReader::from_path(t2g_file).unwrap()
-    //                                         .has_header(false)            
-    //                                         .infer_schema(None);
-    // let y = df.with_columns(Some(vec!["tid".to_string(),"gid".to_string(), "symbol".to_string()]));
-    // v.finish();
-    // let mut df = CsvReader::from_path(t2g_file).unwrap()
-    // // .with_n_threads(Some(1)) // comment for multithreading
-    // // .with_encoding(CsvEncoding::LossyUtf8)
-    // .has_header(true)
-    // .with_columns(Some(vec!["tid".to_string(),"gid".to_string(), "symbol".to_string()]))
-    // .finish().unwrap();
-    // let x = df["tid"].zip(df["symbol"]);    
 }
 
 fn build_ec2gene(
@@ -297,10 +281,24 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     cbumi_map
 }
 
-pub fn setup_busfile(records: &Vec<BusRecord>, busname: &str){
+pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
+    // just writes the records into a temporay file
+    // returns the filename
+    // returns TempDir so that it doesnt go out of scope and gets deleted right after tis function returns
+    use tempfile::tempdir;
+
+    // let tmpfile = NamedTempFile::new().unwrap();
+    // let tmpfile = tempfile().unwrap();
+    let dir = tempdir().unwrap();
+
+    let file_path = dir.path().join("busfile_temp.bus");   
+    let tmpfilename = file_path.to_str().unwrap();
+
     let header = BusHeader::new(16, 12, 20);
-    let mut writer = BusWriter::new(busname, header);
+    let mut writer = BusWriter::new(tmpfilename, header);
     writer.write_records(records);
+
+    (tmpfilename.to_string(), dir)
 }
 
 
@@ -360,14 +358,13 @@ mod tests {
         let r1 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
         let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
 
-        let busname = "/tmp/test_read_write.bus";
         let rlist = vec![r1,r2];   // note: this clones r1, r2!
         // let mut rlist = Vec::new();
         // rlist.push(r1);
         // rlist.push(r2);
-        setup_busfile(&rlist, busname);
+        let (busname, _dir) = setup_busfile(&rlist);
 
-        let reader = BusIteratorBuffered::new(busname);
+        let reader = BusIteratorBuffered::new(&busname);
 
         let records: Vec<BusRecord> = reader.into_iter().collect();
         assert_eq!(records, rlist)

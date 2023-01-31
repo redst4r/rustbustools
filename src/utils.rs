@@ -1,11 +1,4 @@
 use indicatif::{ProgressBar, ProgressStyle};
-use sprs;
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::Write;
-
-use crate::io::{BusRecord, BusHeader};
-
 
 
 pub fn seq_to_int(seq: String) -> u64{
@@ -40,7 +33,6 @@ pub fn int_to_seq(i: u64, seq_len:u64) -> String{
 
     while result.len() < seq_len as usize{
         result.push(0);
-
     }
 
     result.reverse();
@@ -76,7 +68,6 @@ mod tests {
         assert_eq!(seq_to_int("C".to_string()), 1);
         assert_eq!(seq_to_int("G".to_string()), 2);
         assert_eq!(seq_to_int("T".to_string()), 3);
-
         assert_eq!(seq_to_int("GCCA".to_string()), 148);
     }
 
