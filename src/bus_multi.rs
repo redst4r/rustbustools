@@ -12,10 +12,6 @@ impl CellIteratorMulti {
 
     pub fn new(fnames: &HashMap<String, String>) ->CellIteratorMulti{
 
-        // let iterators: HashMap<String, CellIterator> = fnames.iter()
-        //                                              .map(|(name, fname)| (name.clone(), CellIterator::new(fname)))
-        //                                              .collect();
-
         let mut iterators: HashMap<String, CellIterator> = HashMap::new();
         let mut current_items: HashMap<String, (u64, Vec<BusRecord>)> = HashMap::new();
 
@@ -40,14 +36,7 @@ impl CellIteratorMulti {
     fn advance_iter(&mut self, itername: &String) -> Option<(u64, Vec<BusRecord>)>{
         // advance the specified iterator and return the result
         if let Some(iter) = self.iterators.get_mut(itername){
-            if let Some(item) = iter.next(){
-                println!("Iterator {} yielding item {:?}", itername, item);
-                Some(item)
-            }
-            else{
-                println!("Iterator {} empty", itername);
-                None
-            }
+            iter.next()
         }
         else{
             // the iterators already got removed
@@ -84,31 +73,19 @@ impl Iterator for CellIteratorMulti {
         }
 
         let current_min_cb = self.get_current_min_items();
-        println!("Current min {}", current_min_cb);
-        // let current_min_cb = &1;
+        // println!("Current min {}", current_min_cb);
 
         // all iterators/names that are at the minimum item will emit
-        let names_to_emit: Vec<String>;
+        let names_to_emit: Vec<String> = self.current_items.iter()
+        .filter_map(|(sname, (cb, _r))| {
+            if *cb == current_min_cb{
+                Some(sname.clone())
+            }
+            else{
+                None
+            }
+        }).collect();
 
-        {   //scope to limit the life of current_items
-            // not sure if that has anything to do with the problem actually
-            //
-            // this issue seemd to be that names_to_emit was containing REFERENCES to things (name) in current_items
-            // those REFERENCES causes alot of issues down the road
-            // if instead we clone `name`, we dont refer to things inside current_items any more
-            let current_items = &self.current_items;  // we need a reference here, cant move self.current_item's ownership out of self
-            names_to_emit = 
-                    current_items.iter().by_ref()
-                                .filter(|(_name, (cb, _r))| *cb == current_min_cb)
-                                .map(|(name, (_cb, _r))| name.clone())
-                                .collect();
-        }
-        // let items_to_emit: HashMap<&String, &Vec<BusRecord>> = 
-        //     self.current_items.iter()
-        //                       .filter(|(name, (cb, r))| cb == current_min_cb)
-        //                       .map(|(name, (cb, r))| (name, r))
-        //                       .collect();
-        
         // advance all the iterators that did emit
         // for name in items_to_emit.iter().map(|(name, _rec| name)){
         let mut the_emission: HashMap<String, Vec<BusRecord>> = HashMap::new();
@@ -117,9 +94,9 @@ impl Iterator for CellIteratorMulti {
         for name in names_to_emit{
 
             // first pop that item out of current
-            let the_item = self.current_items.get(&name).unwrap().clone();  //todo bad clone: to get around the .insert in the next line
+            let (_cb, the_item) = self.current_items.remove(&name).unwrap();  //todo bad clone: to get around the .insert in the next line
             // and add to emission
-            the_emission.insert(name.clone(), the_item.1);
+            the_emission.insert(name.clone(), the_item);
 
             // advance the iterator once more
             // store the result accordingly
@@ -127,14 +104,11 @@ impl Iterator for CellIteratorMulti {
             match self.advance_iter(&name){
 
                 Some(cb_rlist) => {
-                println!("Advancing {} --> {:?}", name, cb_rlist);
-
+                // println!("Advancing {} --> {:?}", name, cb_rlist);
                     self.current_items.insert(name.clone(), cb_rlist); //overwrite the already emitted item
                 }, 
                 None => {
-                    println!("Advancing {} --> EMPTY", name);
-
-                    self.current_items.remove(&name); // clean up the emitted item, remove the iterator itself
+                    // println!("Advancing {} --> EMPTY", name);
                     self.iterators.remove(&name);
                 }
             };
@@ -156,10 +130,6 @@ impl CellUmiIteratorMulti {
 
     pub fn new(fnames: &HashMap<String, String>) ->CellUmiIteratorMulti{
 
-        // let iterators: HashMap<String, CellIterator> = fnames.iter()
-        //                                              .map(|(name, fname)| (name.clone(), CellIterator::new(fname)))
-        //                                              .collect();
-
         let mut iterators: HashMap<String, CbUmiIterator> = HashMap::new();
         let mut current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)> = HashMap::new();
 
@@ -177,21 +147,13 @@ impl CellUmiIteratorMulti {
             // store for later
             iterators.insert(name.clone(), the_iter);
         }
-
         CellUmiIteratorMulti { iterators, current_items}
     }
 
     fn advance_iter(&mut self, itername: &String) -> Option<((u64, u64), Vec<BusRecord>)>{
         // advance the specified iterator and return the result
         if let Some(iter) = self.iterators.get_mut(itername){
-            if let Some(item) = iter.next(){
-                // println!("Iterator {} yielding item {:?}", itername, item);
-                Some(item)
-            }
-            else{
-                // println!("Iterator {} empty", itername);
-                None
-            }
+            iter.next()
         }
         else{
             // the iterators already got removed
@@ -206,7 +168,7 @@ impl CellUmiIteratorMulti {
         self.current_items.values()
                           .map(|(cbumi, _records)| cbumi)
                           .min().unwrap();
-
+        //TODO is this min over tuples really working?
         *min
     }
 }
@@ -223,29 +185,17 @@ impl Iterator for CellUmiIteratorMulti {
 
         let current_min_cb = self.get_current_min_items();
         // println!("Current min {:?}", current_min_cb);
-        // let current_min_cb = &1;
 
         // all iterators/names that are at the minimum item will emit
-        let names_to_emit: Vec<String>;
-
-        {   //scope to limit the life of current_items
-            // not sure if that has anything to do with the problem actually
-            //
-            // this issue seemd to be that names_to_emit was containing REFERENCES to things (name) in current_items
-            // those REFERENCES causes alot of issues down the road
-            // if instead we clone `name`, we dont refer to things inside current_items any more
-            let current_items = &self.current_items;  // we need a reference here, cant move self.current_item's ownership out of self
-            names_to_emit = 
-                    current_items.iter().by_ref()
-                                .filter(|(_name, (cbumi, _r))| *cbumi == current_min_cb)
-                                .map(|(name, (_cb, _r))| name.clone())
-                                .collect();
-        }
-        // let items_to_emit: HashMap<&String, &Vec<BusRecord>> = 
-        //     self.current_items.iter()
-        //                       .filter(|(name, (cb, r))| cb == current_min_cb)
-        //                       .map(|(name, (cb, r))| (name, r))
-        //                       .collect();
+        let names_to_emit: Vec<String> = self.current_items.iter()
+            .filter_map(|(sname, (cbumi, _r))| {
+                if *cbumi == current_min_cb{
+                    Some(sname.clone())
+                }
+                else{
+                    None
+                }
+            }).collect();
         
         // advance all the iterators that did emit
         // for name in items_to_emit.iter().map(|(name, _rec| name)){
@@ -255,9 +205,9 @@ impl Iterator for CellUmiIteratorMulti {
         for name in names_to_emit{
 
             // first pop that item out of current
-            let the_item = self.current_items.get(&name).unwrap().clone();  //todo bad clone: to get around the .insert in the next line
+            let (_cbumi, the_item) = self.current_items.remove(&name).unwrap();  //todo bad clone: to get around the .insert in the next line
             // and add to emission
-            the_emission.insert(name.clone(), the_item.1);
+            the_emission.insert(name.clone(), the_item);
 
             // advance the iterator once more
             // store the result accordingly
@@ -266,20 +216,14 @@ impl Iterator for CellUmiIteratorMulti {
 
                 Some(cb_rlist) => {
                 // println!("Advancing {} --> {:?}", name, cb_rlist);
-
                     self.current_items.insert(name.clone(), cb_rlist); //overwrite the already emitted item
                 }, 
                 None => {
                     // println!("Advancing {} --> EMPTY", name);
-
-                    self.current_items.remove(&name); // clean up the emitted item, remove the iterator itself
                     self.iterators.remove(&name);
                 }
-            };
-
-            // different plan:
-            // we could advance the iterator first: .insert pops out an existing element (thats to be emitted)
-        };
+            }
+        }
         Some((current_min_cb, the_emission))
     }
 }
@@ -343,5 +287,49 @@ mod tests {
         for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii){
             assert_eq!(r_expect, r_obs);
         }
+    }
+
+    #[test]
+    fn test_cbumi_multi(){
+        use std::iter::zip;
+        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
+        let r2 =BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
+        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
+        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
+
+        let v1 = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
+
+        let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
+        let s3 = BusRecord{CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0};
+        let s4 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
+        let s5 = BusRecord{CB: 2, UMI: 3, EC: 2, COUNT:  2, FLAG: 0}; 
+        let v2 = vec![s1.clone(),s2.clone(),s3.clone(), s4.clone(), s5.clone()];
+
+        // write the records to file
+        let (busname1, _dir1) =setup_busfile(&v1);
+        let (busname2, _dir2) =setup_busfile(&v2);
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), busname1.to_string()),
+            ("test2".to_string(), busname2.to_string())
+        ]);
+
+        // what we expect to get
+        let expected_pairs = vec![
+            HashMap::from([("test1".to_string(), vec![r1]), ("test2".to_string(), vec![s1])]),
+            HashMap::from([("test1".to_string(), vec![r2])]),
+            HashMap::from([("test2".to_string(), vec![s2])]),
+            HashMap::from([("test1".to_string(), vec![r3]), ("test2".to_string(), vec![s3])]),
+            HashMap::from([("test2".to_string(), vec![s4, s5])]),
+            HashMap::from([("test1".to_string(), vec![r4])]),
+        ];
+
+        // iterate, see if it meets the expectations
+        let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        
+        for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii){
+            assert_eq!(r_expect, r_obs);
+        }        
     }
 }
