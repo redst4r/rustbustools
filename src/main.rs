@@ -22,6 +22,8 @@ enum MyCommand {
     busmerge(BusMergeArgs),
     count(CountArgs),
     count2(CountArgs),
+    // countbayes(CountBayesArgs),
+    phantom(PhantomArgs)
 }
 #[derive(Args)]
 struct CountArgs{
@@ -51,7 +53,13 @@ struct BusMergeArgs{
     outbus2: String,  
 }
 
-
+#[derive(Args)]
+struct PhantomArgs{
+    #[clap()]
+    busfolders: Vec<String>,
+    #[clap(long= "t2g")] 
+    t2g: String, 
+}
 // mod count;
 use rustbustools::count2;
 use rustbustools::count;
@@ -82,7 +90,11 @@ fn main() {
     // let elapsed_time = now.elapsed();
     // println!("Running test_multinomial({}) took {} seconds.", dim, elapsed_time.as_secs());
 
+    // use rustbustools::butterfly;
+    // butterfly::testing2();
 
+    use rustbustools::phantompurger;
+    // phantompurger::testing2();
 
     let cli = Cli::parse();
     match cli.command{
@@ -108,11 +120,33 @@ fn main() {
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
 
             let c = count2::count(bfolder, args.ignoremm);
-
             c.write(&cli.output);
             // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
+        // MyCommand::countbayes(args) => {
+        //     println!("Doing count_bayesian");
+        //     // fs::create_dir(&cli.output).unwrap();
+
+        //     let bfolder = BusFolder::new(&args.inbus, &args.t2g);
+
+        //     count2::baysian_count(bfolder, args.ignoremm, args.nsamples);
+        //     // c.write(&cli.output);
+        //     // write_matrix_market(&cli.output, &c.matrix).unwrap();
+        // }
+        MyCommand::phantom(args) => {
+            println!("Doing phnatom");
+
+            let busfolder_dict = args.busfolders.into_iter()
+                .map(|b|(b.clone(), BusFolder::new(&b, &args.t2g)))
+                .collect();
+
+            let histo = phantompurger::make_fingerprint_histogram(busfolder_dict);
+            histo.to_csv(&cli.output);
+
+        }
     }
+    
+
 }
 
 
