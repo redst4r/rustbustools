@@ -111,7 +111,6 @@ impl BusWriter {
         for _i in 0..header.tlen{
             varheader.push(0);
         }
-        // println!("len of varheader: {}" ,varheader.len());
         buf.write_all(&varheader).expect("FAILED to write var header");
 
         BusWriter {buf , header}
@@ -129,8 +128,6 @@ impl BusWriter {
         for _i in 0..4{
             binrecord.push(0);
         }
-
-        // println!("Length of record in bytes {}", binrecord.len());
         self.buf.write_all(&binrecord).expect("FAILED to write record");
     }
     pub fn write_records(&mut self, records: &Vec<BusRecord>){
@@ -147,9 +144,9 @@ impl BusWriter {
 
 pub struct BusFolder {
     pub foldername: String,
-    pub ec_dict: HashMap<u32, Vec<u32>>, // EC-> list of Transcript ids
-    pub transcript_dict: HashMap<u32, String>,  // transcript-id -> traqnscript name
-    pub transcript_to_gene: HashMap<String, String>,
+    // pub ec_dict: HashMap<u32, Vec<u32>>, // EC-> list of Transcript ids
+    // pub transcript_dict: HashMap<u32, String>,  // transcript-id -> traqnscript name
+    // pub transcript_to_gene: HashMap<String, String>,
     pub ec2gene: HashMap<u32, HashSet<String>>,
     pub busfile: String
 }
@@ -235,7 +232,6 @@ fn build_ec2gene(
     ec2gene
 }
 
-
 impl BusFolder {
     pub fn new(foldername: &str, t2g_file:&str) ->BusFolder{
 
@@ -261,15 +257,14 @@ impl BusFolder {
         
         BusFolder{
             foldername : foldername.to_string(),  // to avoid changing foldername: &str and the lifetime stuff
-            ec_dict,
-            transcript_dict,
-            transcript_to_gene: t2g_dict,
+            // ec_dict,
+            // transcript_dict,
+            // transcript_to_gene: t2g_dict,
             ec2gene,
             busfile
         }
     }
 }
-
 
 
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>>{
@@ -292,9 +287,6 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
     // returns the filename
     // returns TempDir so that it doesnt go out of scope and gets deleted right after tis function returns
     use tempfile::tempdir;
-
-    // let tmpfile = NamedTempFile::new().unwrap();
-    // let tmpfile = tempfile().unwrap();
     let dir = tempdir().unwrap();
 
     let file_path = dir.path().join("busfile_temp.bus");   
@@ -310,7 +302,6 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
 
 pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
     let busiter = BusIteratorBuffered::new(bfile);
-
     let newheader = BusHeader::new(busiter.bus_header.cb_len, busiter.bus_header.umi_len, busiter.bus_header.tlen);
     let mut buswriter = BusWriter::new(boutfile,newheader);
 
