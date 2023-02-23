@@ -1,5 +1,5 @@
-use core::panic;
-use std::{collections::{HashMap, HashSet}, hash::Hash, fs::File, io::Write};
+// use core::panic;
+use std::{collections::{HashMap, HashSet}, hash::Hash, fs::File, io::Write, time::Instant};
 use crate::{disjoint::{DisjointSubsets, SEPARATOR}, io::BusFolder};
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::{bus_multi::CellUmiIteratorMulti, io::{BusRecord}, iterators::CbUmiIterator, utils::get_progressbar, consistent_genes::Ec2GeneMapper};
@@ -41,12 +41,17 @@ pub fn detect_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String
             bar.inc(1000000);
         }
     }
-
     counter
 
 }
 
-#[derive(Debug)] 
+
+/// given a collection of busfiles, FingerPrintHistogram keeps track of the 
+/// number of times we see a molecule (CB/UMI/gene) in a particular distribution 
+/// across the busfiles. Instead recording individual CUGs, we aggregate all the ones
+/// having the same fingerprint, i.e. we create a histogram of fingerprints
+/// 
+#[derive(Debug)]
 pub struct FingerprintHistogram{
     order: Vec<String>,
     histogram: HashMap<Vec<u32>, usize>,
@@ -73,7 +78,8 @@ impl FingerprintHistogram{
                 .map(|(k, v)| (k, v[0].clone())) // clone -> pop since we dont use vec after; not critical though
                 .collect();
 
-            for rdict in groupby_gene_simple(filtered_dict, ecmapper_dict){
+            // for rdict in groupby_gene_simple(filtered_dict, ecmapper_dict){
+            for rdict in groupby_gene_even_simpler(filtered_dict, ecmapper_dict){
                 let fp_hash = make_fingerprint_simple(&rdict);
                 
                 // turn the hashmap into a vector, sorted acc to order
@@ -83,26 +89,15 @@ impl FingerprintHistogram{
                 // update frequency
                 let v = self.histogram.entry(fp).or_insert(0);
                 *v += 1;
-     
             }
         }
         else{
             panic!("not supported")
         }
-
-        // let fp_hash = make_fingerprint(&record_dict);
-        // // turn the hashmap into a vector, sorted acc to order
-        // let fp:  Vec<_>  = self.order.iter()
-        //     .map(|s| fp_hash.get(s).unwrap_or(&0)).cloned().collect();
-
-        // // update frequency
-        // let v = self.histogram.entry(fp).or_insert(0);
-        // *v+=1;
     }
 
     pub fn to_csv(&self, outfile: &str){
         let mut fh = File::create(outfile).unwrap();
-
         let mut header = self.order.join(",");
         header.push_str(", frequency");
 
@@ -134,8 +129,12 @@ pub fn make_fingerprint_histogram(busfolders: HashMap<String, BusFolder>) -> Fin
         .map(|(s, bfolder)| (s.clone(), bfolder.get_busfile()))
         .collect();
 
-    _make_fingerprint_histogram(&busnames, &ecmapper_dict)
+    let now = Instant::now();
+    let result = _make_fingerprint_histogram(&busnames, &ecmapper_dict);
+    let elapsed_time = now.elapsed();
+    println!("Ran _make_fingerprint_histogram, took {} seconds.", elapsed_time.as_secs());
 
+    result
 }
 
 pub fn _make_fingerprint_histogram(busnames: &HashMap<String, String>, ecmapper_dict: &HashMap<String, &Ec2GeneMapper>) -> FingerprintHistogram{
@@ -147,7 +146,6 @@ pub fn _make_fingerprint_histogram(busnames: &HashMap<String, String>, ecmapper_
     bar.set_style(ProgressStyle::default_bar()
         .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos} {per_sec}")
         .progress_chars("##-"));
-    // let bar = get_progressbar(total as u64);
         
     let mut order: Vec<_> = busnames.keys().cloned().collect();
     order.sort();
@@ -155,9 +153,7 @@ pub fn _make_fingerprint_histogram(busnames: &HashMap<String, String>, ecmapper_
     let mut fp_histo = FingerprintHistogram::new(&order);
 
     for (i,((_cb, _umi), record_dict)) in multi_iter.enumerate(){
-        // println!("adding {:?}", record_dict);
         fp_histo.add(record_dict, ecmapper_dict);
-        // println!("fphist {:?}", fp_histo);
 
         if i % 1000000== 0{
             bar.inc(1000000);
@@ -190,94 +186,52 @@ fn make_fingerprint_simple(record_dict: &HashMap<String,BusRecord>) -> Fingerpri
     fingerprint
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
-struct BusTmp {cb: u64, umi: u64, ec: u32, count:u32, flag:u32, samplename:String }
-impl BusTmp {
-    fn parse(item: &str) -> Option<Self> {
-
-        let s: Vec<_> = item.split("@@").collect();
-        if s.len() == 6{
-            let cb:u64 = s[0].parse().unwrap();
-            let umi:u64 = s[1].parse().unwrap();
-            let ec: u32 = s[2].parse().unwrap();
-            let count: u32 = s[3].parse().unwrap();
-            let flag:u32 = s[4].parse().unwrap();
-            let samplename = s[5].to_string();
-            Some(BusTmp {cb , umi , ec, count, flag, samplename})
-        }
-        else{
-            None
-        }
-        // BusTmp { value: item }
-    }
-    fn to_string(&self) -> String{
-        let mut s = String::new();
-        s.push_str(&self.cb.to_string());
-        s.push_str("@@");
-
-        s.push_str(&self.umi.to_string());
-        s.push_str("@@");
-
-        s.push_str(&self.ec.to_string());
-        s.push_str("@@");
-
-        s.push_str(&self.count.to_string());
-        s.push_str("@@");
-
-        s.push_str(&self.flag.to_string());
-        s.push_str("@@");
-
-        s.push_str(&self.samplename.to_string());
-        s
-    }
-}
-
 // #[inline(never)]
-pub fn groupby_gene_simple(record_dict: HashMap<String,BusRecord>, ecmapper_dict: &HashMap<String, &Ec2GeneMapper>) -> Vec<HashMap<String, BusRecord>>
+pub fn groupby_gene_even_simpler(record_dict: HashMap<String,BusRecord>, ecmapper_dict: &HashMap<String, &Ec2GeneMapper>) -> Vec<HashMap<String, BusRecord>>
 {
     // assuming no multimapped reads, hence record dict contains only single entries (not a list)
+    // this uses a much simpler idea without the BusTmp:
+    // - build the disjoint set using samplename-> genes, i.e. the disjoint sets elements are samplenames
+    // - iterate over the disjoint_set elements (samplenames) and build the Busrecords
 
     // check if the genes are consistent across samples
     // if so yield the record as is
     // otherwise split into multiple records
     if record_dict.len() == 1{
         return vec![record_dict];
-        // return
     };
     
-    let mut records:Vec<BusTmp> = Vec::new();
-    for (sname, r) in record_dict{
-        records.push(
-                BusTmp { cb: r.CB, umi: r.UMI, ec: r.EC, count: r.COUNT, flag: r.FLAG, samplename: sname.clone() }
-            )
+    // give each element in record_dict a unique name ( the key)
+    // and store i) the element itself, ii) its genes iii) its samplename
+    let mut big_hash:HashMap<String, (BusRecord, String, &HashSet<u32>)> = HashMap::with_capacity(record_dict.len());
+    for (i, (sname, r)) in record_dict.into_iter().enumerate(){
+        let ecmapper = ecmapper_dict.get(&sname).unwrap();
+        let g = ecmapper.get_genes(r.EC);
+        big_hash.insert(i.to_string(), (r, sname,g ));
     }
 
-    let mut genes: HashMap<BusTmp, &HashSet<u32>> = HashMap::new();
-    for b in records{
-        let ecmapper = ecmapper_dict.get(&b.samplename).unwrap();
-        let g = ecmapper.get_genes(b.ec);
-        genes.insert(b, g);
-    }
-
+    // build disjoint set based on samplename and genes
     let mut disjoint_set = DisjointSubsets::new();
-    for (b, gset) in genes.drain(){
-        disjoint_set.add(b.to_string(), gset.clone());
+    for (id, (_r, _sname, gset)) in big_hash.iter(){
+        disjoint_set.add(id.clone(), (*gset).clone());
     }
 
+    // build the emitted dict
     let mut emit_vector: Vec<HashMap<String, BusRecord>> = Vec::new();
-    for bus_string_concat in disjoint_set.disjoint_sets.keys(){
+    for ids_of_set_elements in disjoint_set.get_disjoint_set_ids(){
         // these are now all records across the samples that map to the same gene
-        let bus_tuple: Vec<BusTmp> = bus_string_concat.split(SEPARATOR).map(|bstring|BusTmp::parse(bstring).unwrap()).collect();
+        // let bus_tuple: Vec<BusTmp> = bus_string_concat.split(SEPARATOR).map(|bstring|BusTmp::parse(bstring).unwrap()).collect();
 
         let mut emited_dict: HashMap<String, BusRecord> = HashMap::new();
-        for b in bus_tuple{
+        for el_id in ids_of_set_elements{
+            // pop out the element. not needed, but shrinks the map
+            let (record, samplename, _genes) = big_hash.remove(&el_id).unwrap();
 
-            if emited_dict.contains_key(&b.samplename){
+            if emited_dict.contains_key(&samplename){
                 panic!("cant happen, each sample only has one record")
             } 
             else{
-                let brecord = BusRecord{ CB: b.cb, UMI: b.umi, EC:0, COUNT: b.count, FLAG: b.flag};
-                emited_dict.insert(b.samplename, brecord);
+                emited_dict.insert(samplename, record);
             }
         }
         emit_vector.push(emited_dict);
@@ -286,66 +240,10 @@ pub fn groupby_gene_simple(record_dict: HashMap<String,BusRecord>, ecmapper_dict
 }
 
 
-fn groupby_gene(record_dict: HashMap<String,Vec<BusRecord>>, ecmapper_dict: &HashMap<String, Ec2GeneMapper>) 
-    -> Vec<HashMap<String, BusRecord>>
-    {
-    // multiple experiments yielded the same CB/UMI
-    // turn this into a list of record_dicts, where the gene is consistent
-
-    let mut records:Vec<BusTmp> = Vec::new();
-    for (sname, recordlist) in record_dict{
-        for r in recordlist{
-            records.push(
-                BusTmp { cb: r.CB, umi: r.UMI, ec: r.EC, count: r.COUNT, flag: r.FLAG, samplename: sname.clone() }
-            )
-        }
-    }
-    // if records.len() == 1{
-    //     return record_dict
-    //     // return
-    // };
-
-    // get genes for each record.
-    let mut genes: HashMap<BusTmp, &HashSet<u32>> = HashMap::new();
-    for b in records{
-        let ecmapper = ecmapper_dict.get(&b.samplename).unwrap();
-        let g = ecmapper.get_genes(b.ec);
-        genes.insert(b, g);
-    }
-
-    // also build the disjoint set based on the genes
-    let mut disjoint_set = DisjointSubsets::new();
-    for (b, gset) in genes.drain(){
-        disjoint_set.add(b.to_string(), gset.clone());
-    }
-
-    let mut emit_vector: Vec<HashMap<String, BusRecord>> = Vec::new();
-    for bus_string_concat in disjoint_set.disjoint_sets.keys(){
-        // these are now all records across the samples that map to the same gene
-        let bus_tuple: Vec<BusTmp> = bus_string_concat.split('_').map(|bstring|BusTmp::parse(bstring).unwrap()).collect();
-
-        let mut emited_dict: HashMap<String, BusRecord> = HashMap::new();
-        for b in bus_tuple{
-
-            // if we already have a record in that sample, just update the count
-            if emited_dict.contains_key(&b.samplename){
-                let brecord = emited_dict.get_mut(&b.samplename).unwrap();
-                brecord.COUNT += b.count;
-            } 
-            else{
-                let brecord = BusRecord{ CB: b.cb, UMI: b.umi, EC:0, COUNT: b.count, FLAG: b.flag};
-                emited_dict.insert(b.samplename, brecord);
-            }
-        }
-        emit_vector.push(emited_dict);
-    }
-    emit_vector
-}
-
-#[cfg(test)]
-mod tests{
+// #[cfg(test)]
+pub mod tests{
     use std::collections::{HashSet, HashMap};
-    use crate::{consistent_genes::Ec2GeneMapper, io::{BusRecord, BusFolder}, phantompurger::{groupby_gene_simple, _make_fingerprint_histogram, make_fingerprint_simple}};
+    use crate::{consistent_genes::Ec2GeneMapper, io::{BusRecord, BusFolder}, phantompurger::{_make_fingerprint_histogram, make_fingerprint_simple, groupby_gene_even_simpler}};
     use super::make_fingerprint_histogram;
 
     fn create_dummy_ec() ->Ec2GeneMapper{
@@ -360,10 +258,8 @@ mod tests{
             (2, ec2), // A,B
             (3, ec3), // C,D
             ]);
-
         Ec2GeneMapper::new(ec_dict)
     }
-
 
     #[test]
     fn test_groupby_gene_simple(){
@@ -388,7 +284,8 @@ mod tests{
             ("s1".to_string(), r1),
             ("s2".to_string(), s1),
         ].into_iter().collect();
-        let res = groupby_gene_simple(record_dict, &es_dict);
+        // let res = groupby_gene_simple(record_dict, &es_dict);
+        let res = groupby_gene_even_simpler(record_dict, &es_dict);
         println!("{:?}", res);
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].len(), 2);
@@ -401,7 +298,9 @@ mod tests{
             ("s1".to_string(), r1),
             ("s2".to_string(), s1),
         ].into_iter().collect();
-        let res = groupby_gene_simple(record_dict, &es_dict);
+        // let res = groupby_gene_simple(record_dict, &es_dict);
+        let res = groupby_gene_even_simpler(record_dict, &es_dict);
+
         println!("{:?}", res);
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].len(), 2);
@@ -414,7 +313,9 @@ mod tests{
             ("s1".to_string(), r1),
             ("s2".to_string(), s1),
         ].into_iter().collect();
-        let res = groupby_gene_simple(record_dict, &es_dict);
+        // let res = groupby_gene_simple(record_dict, &es_dict);
+        let res = groupby_gene_even_simpler(record_dict, &es_dict);
+
         println!("{:?}", res);
         assert_eq!(res.len(), 2);
         assert_eq!(res[0].len(), 1);
@@ -430,7 +331,9 @@ mod tests{
             ("s2".to_string(), s1),
             ("s3".to_string(), t1),
         ].into_iter().collect();
-        let res = groupby_gene_simple(record_dict, &es_dict);
+        // let res = groupby_gene_simple(record_dict, &es_dict);
+        let res = groupby_gene_even_simpler(record_dict, &es_dict);
+
         println!("{:?}", res);
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].len(), 3);
