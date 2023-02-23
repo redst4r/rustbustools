@@ -60,6 +60,7 @@ fn set_overlap<T: Hash+Eq>(aset: &HashSet<T>, bset: &HashSet<T>) -> bool{
     false
 }
 
+
 #[test]
 fn testing_disjoint(){
 
@@ -72,12 +73,42 @@ fn testing_disjoint(){
     ds.add("set1".to_string(), a);
     ds.add("set2".to_string(), b);
 
-    println!("{:?}", ds.disjoint_sets);
+
+    let mut expected: HashMap<String, HashSet<&str>> = HashMap::new();
+    let set1 = vec!["A", "B", "C"].into_iter().collect::<HashSet<&str>>();
+    expected.insert("set1".to_string(), set1);
+    let set2 = vec!["D", "E"].into_iter().collect::<HashSet<&str>>();
+    expected.insert("set2".to_string(), set2);
+
+    assert_eq!(
+        ds.disjoint_sets,
+        expected
+    );
+
+    // println!("{:?}", ds.disjoint_sets);
 
     ds.add("set3".to_string(), c);
-    println!("{:?}", ds.disjoint_sets);
+
+    let mut expected: HashMap<String, HashSet<&str>> = HashMap::new();
+    let set1 = vec!["A", "B", "C", "D","E"].into_iter().collect::<HashSet<&str>>();
+    expected.insert("set1@SEP@set2@SEP@set3".to_string(), set1);
+    assert_eq!(
+        ds.disjoint_sets,
+        expected
+    );
+    // println!("{:?}", ds.disjoint_sets);
+
 
     ds.add("set4".to_string(), d);
-    println!("{:?}", ds.disjoint_sets);
 
+    let mut expected: HashMap<String, HashSet<&str>> = HashMap::new();
+    let set1 = vec!["A", "B", "C", "D","E"].into_iter().collect::<HashSet<&str>>();
+    expected.insert("set1@SEP@set2@SEP@set3".to_string(), set1);
+    let set2 = vec!["Z"].into_iter().collect::<HashSet<&str>>();
+    expected.insert("set4".to_string(), set2);    
+    // println!("{:?}", ds.disjoint_sets);
+    assert_eq!(
+        ds.disjoint_sets,
+        expected
+    );
 }
