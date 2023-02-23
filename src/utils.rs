@@ -1,8 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
-
 pub fn seq_to_int(seq: String) -> u64{
-
     assert!(seq.len() <= 32); // cant handle longer sequences in a single 64bit integer!
     let s: String = seq
     .chars()
@@ -33,7 +31,6 @@ pub fn int_to_seq(i: u64, seq_len:u64) -> String{
     while result.len() < seq_len as usize{
         result.push(0);
     }
-
     result.reverse();
 
     let s: String = result.iter()

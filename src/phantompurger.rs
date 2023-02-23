@@ -56,7 +56,6 @@ pub struct FingerprintHistogram{
 impl FingerprintHistogram{
 
     pub fn new(sample_order: &[String]) -> Self{
-
         let hist = HashMap::new();
         FingerprintHistogram{ 
             order: sample_order.to_owned(), // not sure why, linter is suggesting it
@@ -65,13 +64,13 @@ impl FingerprintHistogram{
         }
     }
 
-    pub fn add(&mut self, record_dict: HashMap<String, Vec<BusRecord>>, ecmapper_dict:&HashMap<String, Ec2GeneMapper>){
+    pub fn add(&mut self, record_dict: HashMap<String, Vec<BusRecord>>, ecmapper_dict:&HashMap<String, &Ec2GeneMapper>){
 
         if self.drop_multimapped{
             // filter out the cases where a CB/UMI has more than one EC
             let filtered_dict: HashMap<String, BusRecord> = (record_dict).into_iter()
                 .filter(|(_k,v)| v.len()==1)
-                .map(|(k, v)| (k, v[0].clone()))
+                .map(|(k, v)| (k, v[0].clone())) // clone -> pop since we dont use vec after; not critical though
                 .collect();
 
             for rdict in groupby_gene_simple(filtered_dict, ecmapper_dict){
@@ -127,19 +126,19 @@ pub fn make_fingerprint_histogram(busfolders: HashMap<String, BusFolder>) -> Fin
     // create the EC2gene mappers
     let ecmapper_dict = busfolders.iter()
         .map(|(samplename, bfolder)|
-            (samplename.clone(), Ec2GeneMapper::new(bfolder.ec2gene.clone()))   //#todo remove clone
+            (samplename.clone(), &bfolder.ec2gene)   //#todo remove clone
         ).collect();
 
     // a list of busfile-names for the iterator
     let busnames =busfolders.iter()
-        .map(|(s, bfolder)| (s.clone(), bfolder.busfile.clone()))
+        .map(|(s, bfolder)| (s.clone(), bfolder.get_busfile()))
         .collect();
 
     _make_fingerprint_histogram(&busnames, &ecmapper_dict)
 
 }
 
-pub fn _make_fingerprint_histogram(busnames: &HashMap<String, String>, ecmapper_dict: &HashMap<String, Ec2GeneMapper>) -> FingerprintHistogram{
+pub fn _make_fingerprint_histogram(busnames: &HashMap<String, String>, ecmapper_dict: &HashMap<String, &Ec2GeneMapper>) -> FingerprintHistogram{
 
     // the actual workhorse, make_fingerprint_histogram is just a convenient wrapper
     let multi_iter = CellUmiIteratorMulti::new(busnames);
@@ -233,8 +232,8 @@ impl BusTmp {
     }
 }
 
-
-fn groupby_gene_simple(record_dict: HashMap<String,BusRecord>, ecmapper_dict: &HashMap<String, Ec2GeneMapper>) -> Vec<HashMap<String, BusRecord>>
+// #[inline(never)]
+pub fn groupby_gene_simple(record_dict: HashMap<String,BusRecord>, ecmapper_dict: &HashMap<String, &Ec2GeneMapper>) -> Vec<HashMap<String, BusRecord>>
 {
     // assuming no multimapped reads, hence record dict contains only single entries (not a list)
 
@@ -377,10 +376,10 @@ mod tests{
         let es1 = create_dummy_ec();
         let es2 = create_dummy_ec();
         let es3 = create_dummy_ec();
-        let es_dict: HashMap<String, Ec2GeneMapper> = vec![
-            ("s1".to_string(), es1),
-            ("s2".to_string(), es2),
-            ("s3".to_string(), es3)
+        let es_dict: HashMap<String, &Ec2GeneMapper> = vec![
+            ("s1".to_string(), &es1),
+            ("s2".to_string(), &es2),
+            ("s3".to_string(), &es3)
             ]
         .into_iter().collect();
 
@@ -476,9 +475,9 @@ mod tests{
 
         let es1 = create_dummy_ec();
         let es2 = create_dummy_ec();
-        let es_dict: HashMap<String, Ec2GeneMapper> = vec![
-            ("s1".to_string(), es1),
-            ("s2".to_string(), es2)]
+        let es_dict: HashMap<String, &Ec2GeneMapper> = vec![
+            ("s1".to_string(), &es1),
+            ("s2".to_string(), &es2)]
             .into_iter().collect();
 
         let s = _make_fingerprint_histogram(&hashmap, &es_dict);

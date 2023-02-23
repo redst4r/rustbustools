@@ -49,6 +49,16 @@ impl <T:Hash+Eq> DisjointSubsets<T>{
         // insert the newly made set
         self.disjoint_sets.insert(newname, newset);
     }
+
+    pub fn get_disjoint_set_ids(&self) -> Vec<Vec<String>>{
+        // return the list of disjoint sets, for each set, report it by its element's IDs
+        let mut setlist: Vec<Vec<String>> = Vec::with_capacity(self.disjoint_sets.len());
+        for id_str in self.disjoint_sets.keys(){
+            let s: Vec<String> = id_str.split(SEPARATOR).map(|x|x.to_string()).collect();
+            setlist.push(s);
+        }
+        setlist
+    }
 }
 
 fn set_overlap<T: Hash+Eq>(aset: &HashSet<T>, bset: &HashSet<T>) -> bool{

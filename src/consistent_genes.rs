@@ -19,7 +19,7 @@ fn update_intersection_via_retain<T:Hash+Eq>(inter:  &mut HashSet<T>, newset: &H
 }
 
 // pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
-pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &Ec2GeneMapper) ->HashSet<u32> {
+pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) ->HashSet<u32> {
 
     /*
     set intersection in Rust is a MESS due to ownership etc!!

@@ -99,10 +99,8 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<St
 
 
 pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usize){
-    let bfile = format!("{}/{}", bfolder.foldername, bfolder.busfile);
+    let bfile = bfolder.get_busfile();
     println!("{}",bfile);
-
-    let ec2gene = bfolder.ec2gene;
 
     let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
     println!("determine size of iterator");
@@ -116,7 +114,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
     println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
 
     // handles the mapping between EC and gene
-    let egm = Ec2GeneMapper::new(ec2gene);
+    let egm = bfolder.ec2gene;
 
 
     // prep for the multinomial sample
@@ -203,8 +201,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
         let fraction_mapped = n_multi_inconsistent as f64 /(n_mapped as f64+n_multi_inconsistent as f64);
         println!("Iteration {}: Mapped {}, multi-discard {} ({}%) in {:?}",i, n_mapped, n_multi_inconsistent, 100.0*fraction_mapped, elapsed_time);
 
-        let ngenes = egm.int_to_gene.len();
-        let genelist_vector: Vec<String> = (0..ngenes).map(|k| egm.resolve_gene_id(k as u32)).collect();
+        let genelist_vector: Vec<String> = egm.get_gene_list();
         // this is how genes are ordered as by EGM
         // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
     
@@ -248,10 +245,9 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
-    let bfile = format!("{}/{}", bfolder.foldername, bfolder.busfile);
+    let bfile = bfolder.get_busfile();
     println!("{}",bfile);
 
-    let ec2gene = bfolder.ec2gene;
     let cbumi_iter = CbUmiIterator::new(&bfile);
 
     let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
@@ -267,7 +263,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
 
     // handles the mapping between EC and gene
-    let eg_mapper = Ec2GeneMapper::new(ec2gene);
+    let eg_mapper = bfolder.ec2gene;
 
 
     // CB,gene_id -> count
@@ -303,8 +299,8 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     let elapsed_time = now.elapsed();
     println!("Mapped {}, multi-discard {} in {:?}", n_mapped, n_multi_inconsistent, elapsed_time); 
 
-    let ngenes = eg_mapper.int_to_gene.len();
-    let genelist_vector: Vec<String> = (0..ngenes).map(|k| eg_mapper.resolve_gene_id(k as u32)).collect();
+    let genelist_vector: Vec<String> = eg_mapper.get_gene_list();
+
     // this is how genes are ordered as by EGM
     // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
 

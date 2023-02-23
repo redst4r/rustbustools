@@ -4,6 +4,7 @@ use std::io::{BufWriter, Read, BufReader, BufRead, Write, Seek, SeekFrom};
 use serde::{Serialize, Deserialize};
 use bincode;
 use tempfile::TempDir;
+use crate::consistent_genes::Ec2GeneMapper;
 
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
@@ -144,11 +145,8 @@ impl BusWriter {
 
 pub struct BusFolder {
     pub foldername: String,
-    // pub ec_dict: HashMap<u32, Vec<u32>>, // EC-> list of Transcript ids
-    // pub transcript_dict: HashMap<u32, String>,  // transcript-id -> traqnscript name
-    // pub transcript_to_gene: HashMap<String, String>,
-    pub ec2gene: HashMap<u32, HashSet<String>>,
-    pub busfile: String
+    pub t2g_file: String,
+    pub ec2gene: Ec2GeneMapper,
 }
 
 pub fn parse_ecmatrix(filename: &str) -> HashMap<u32, Vec<u32>>{
@@ -253,17 +251,45 @@ impl BusFolder {
         println!("building EC->gene");
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
 
-        let busfile = format!("{}/output.corrected.sort.bus", foldername);
+        let ecmapper = Ec2GeneMapper::new(ec2gene);
+
         
         BusFolder{
-            foldername : foldername.to_string(),  // to avoid changing foldername: &str and the lifetime stuff
-            // ec_dict,
-            // transcript_dict,
-            // transcript_to_gene: t2g_dict,
-            ec2gene,
-            busfile
+            foldername : foldername.to_string(),
+            ec2gene: ecmapper,
+            t2g_file: t2g_file.to_owned()
         }
     }
+
+    pub fn get_busfile(&self) -> String{
+        format!("{}/output.corrected.sort.bus", self.foldername)
+    }
+
+    pub fn get_ecmatrix_file(&self)-> String{
+        format!("{}/matrix.ec", self.foldername)
+    }
+
+    pub fn get_transcript_file(&self)-> String{
+        format!("{}/transcripts.txt", self.foldername)
+    }
+
+    pub fn parse_ecmatrix(&self) -> HashMap<u32, Vec<u32>>{
+        let filename= self.get_ecmatrix_file();
+        parse_ecmatrix(&filename)
+    }
+
+    pub fn parse_transcript(&self) -> HashMap<u32, String>{
+        let filename = self.get_transcript_file();
+        parse_transcript(&filename)
+    }
+    pub fn build_ec2gene(&self, ) -> HashMap<u32, HashSet<String>>{
+        let ec_dict = self.parse_ecmatrix();
+        let transcript_dict = self.parse_transcript();
+        let t2g_dict = parse_t2g(&self.t2g_file);
+        let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
+        ec2gene
+    }
+
 }
 
 

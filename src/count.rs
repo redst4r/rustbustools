@@ -10,7 +10,7 @@ use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
 
 pub fn count_bayesian(bfolder: BusFolder) {
 
-    let bfile = format!("{}/{}", bfolder.foldername, bfolder.busfile);
+    let bfile = bfolder.get_busfile();
     println!("{}",bfile);
 
     // let ec2gene = bfolder.ec2gene;
@@ -53,10 +53,9 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
-    let bfile = format!("{}/{}", bfolder.foldername, bfolder.busfile);
+    let bfile = bfolder.get_busfile();
     println!("{}",bfile);
 
-    let ec2gene = bfolder.ec2gene;
     let cb_iter = CellIterator::new(&bfile);
 
     let cb_iter_tmp = CellIterator::new(&bfile);
@@ -67,7 +66,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
 
     println!("creating EC2M");
-    let eg_mapper = Ec2GeneMapper::new(ec2gene);
+    let eg_mapper =  bfolder.ec2gene;
     println!("done creating EC2M");
 
 
@@ -91,18 +90,11 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     let elapsed_time = now.elapsed();
     println!("done in {:?}", elapsed_time); 
+    
     //collect all genes
-    // let mut genelist = HashSet::new(); 
-    // for glist in ec2gene.values(){
-    //     genelist.extend(glist)
-    // }
-    // let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
-    // genelist_vector.sort();
+    let genelist_vector: Vec<String> = eg_mapper.get_gene_list();
+    println!(" genes {}", genelist_vector.len());
 
-  // let mut genelist_vector :Vec<&String>= genelist.into_iter().collect::<Vec<&String>>();
-    let ngenes = eg_mapper.int_to_gene.len();
-    println!(" genes {}", ngenes);
-    let genelist_vector: Vec<String> = (0..ngenes).map(|k| eg_mapper.resolve_gene_id(k as u32)).collect();
     let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&String>>();
 
     genelist_vector2.sort();
