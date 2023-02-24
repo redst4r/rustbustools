@@ -54,6 +54,63 @@ pub fn get_progressbar(total: u64) -> ProgressBar{
     bar
 }
 
+pub mod argsort{
+    use std::cmp::Ordering;
+
+    #[derive(PartialEq, PartialOrd)] // 
+    struct NonNan(f64);
+
+    impl NonNan {
+        fn new(val: f64) -> Option<NonNan> {
+            if val.is_nan() {
+                None
+            } else {
+                Some(NonNan(val))
+            }
+        }
+    }
+    // https://stackoverflow.com/questions/69764050/how-to-get-the-indices-that-would-sort-a-vector-in-rust
+    // https://stackoverflow.com/questions/28247990/how-to-do-a-binary-search-on-a-vec-of-floats
+    impl Eq for NonNan {}
+
+    impl Ord for NonNan {
+        fn cmp(&self, other: &NonNan) -> Ordering {
+            self.partial_cmp(other).unwrap()
+        }
+    }
+
+    pub fn argsort<T: Ord>(slice: &[T]) -> Vec<usize> {
+        let n = slice.len();
+        let mut keys : Vec<_> = (0..n).collect();
+        keys.sort_by_key(|x| &slice[*x]);
+        keys
+    }
+
+    pub fn argsort_float(fvec: &Vec<f64>, ascending: bool) -> Vec<usize>{
+
+        let _fvec: Vec<NonNan> = fvec.iter().map(|x|NonNan::new( *x).unwrap()).collect();
+        let mut fvec_sorted_ix = argsort(&_fvec);
+        if ascending{
+            fvec_sorted_ix.reverse();
+        }
+        fvec_sorted_ix
+
+    }
+    pub fn argmax_float(fvec: &Vec<f64>) -> (usize, f64){
+        let ix = argsort_float(fvec, false);
+        let i = ix[0];
+        let value = fvec[i];
+        (i, value)
+    }
+
+    pub fn argmin_float(fvec: &Vec<f64>) -> (usize, f64){
+        let ix = argsort_float(fvec, true);
+        let i = ix[0];
+        let value = fvec[i];
+        (i, value)
+    }
+
+}
 
 #[cfg(test)]
 mod tests {

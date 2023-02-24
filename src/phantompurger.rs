@@ -1,8 +1,48 @@
 // use core::panic;
-use std::{collections::{HashMap, HashSet}, hash::Hash, fs::File, io::Write, time::Instant};
-use crate::{disjoint::{DisjointSubsets, SEPARATOR}, io::BusFolder};
+use std::{collections::{HashMap, HashSet}, fs::File, io::{Write, BufReader, BufRead}, time::Instant, hash::Hash};
+use crate::{disjoint::{DisjointSubsets}, io::BusFolder, binomialreg::phantom_binomial_regression, bus_multi::CellIteratorMulti};
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::{bus_multi::CellUmiIteratorMulti, io::{BusRecord}, iterators::CbUmiIterator, utils::get_progressbar, consistent_genes::Ec2GeneMapper};
+
+#[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Debug,Copy)]
+pub struct CB(u64);
+
+pub fn detect_cell_overlap(busfolders: HashMap<String, String>, outfile: &str) {
+
+    let samplenames: Vec<String> = busfolders.keys().cloned().collect();
+
+    let multi_iter = CellIteratorMulti::new(&busfolders);
+
+    let mut result: HashMap<CB, Vec<usize>> = HashMap::new();
+
+    for (c, record_dict) in multi_iter{
+        let mut entry: Vec<usize> = Vec::new();
+        for s in samplenames.iter(){
+            let numi = match record_dict.get(s){
+                Some(records) => records.len(),
+                None => 0
+            };
+            entry.push(numi)
+        }
+        result.insert(CB(c), entry);
+    };
+    
+    // write to file
+    let mut fh = File::create(outfile).unwrap();
+    let mut header = samplenames.join(",");
+    header.push_str(",CB");
+    writeln!(fh, "{}", header).unwrap();
+
+    for (cid, numis) in result.iter(){
+        // concat with commas
+        let mut s = numis.iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",");
+        s.push_str(&format!(",{}", cid.0));
+        writeln!(fh, "{}", s).unwrap();
+    }  
+
+
+}
+
 
 pub fn detect_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String>, usize> {
     // deprecated

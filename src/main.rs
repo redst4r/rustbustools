@@ -2,6 +2,7 @@
 
 use std::fs;
 
+use rustbustools::phantompurger;
 use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
 
@@ -22,8 +23,8 @@ enum MyCommand {
     busmerge(BusMergeArgs),
     count(CountArgs),
     count2(CountArgs),
-    // countbayes(CountBayesArgs),
-    phantom(PhantomArgs)
+    phantom(PhantomArgs),
+    phantomCB(PhantomCBArgs),
 }
 #[derive(Args)]
 struct CountArgs{
@@ -60,6 +61,13 @@ struct PhantomArgs{
     #[clap(long= "t2g")] 
     t2g: String, 
 }
+
+#[derive(Args)]
+struct PhantomCBArgs{
+    #[clap()]
+    busfolders: Vec<String>,
+}
+
 // mod count;
 use rustbustools::count2;
 use rustbustools::count;
@@ -142,7 +150,14 @@ fn main() {
 
             let histo = phantompurger::make_fingerprint_histogram(busfolder_dict);
             histo.to_csv(&cli.output);
+        }
+        MyCommand::phantomCB(args) => {
+            println!("Doing phnatom CB overlap");
 
+            let busfolder_dict = args.busfolders.into_iter()
+                .map(|b|(b.clone(), b.clone()))
+                .collect();
+            phantompurger::detect_cell_overlap(busfolder_dict, &cli.output);
         }
     }
     
