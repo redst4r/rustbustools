@@ -97,19 +97,30 @@ pub mod argsort{
 
     }
     pub fn argmax_float(fvec: &Vec<f64>) -> (usize, f64){
-        let ix = argsort_float(fvec, false);
-        let i = ix[0];
-        let value = fvec[i];
-        (i, value)
-    }
-
-    pub fn argmin_float(fvec: &Vec<f64>) -> (usize, f64){
         let ix = argsort_float(fvec, true);
         let i = ix[0];
         let value = fvec[i];
         (i, value)
     }
 
+    pub fn argmin_float(fvec: &Vec<f64>) -> (usize, f64){
+        let ix = argsort_float(fvec, false);
+        let i = ix[0];
+        let value = fvec[i];
+        (i, value)
+    }
+
+    #[test]
+    fn test_argmin(){
+        let v = vec![1.0, -1.0, 10.0, 0.0];
+        assert_eq!(argmin_float(&v), (1, -1.0));
+    }
+
+    #[test]
+    fn test_argmax(){
+        let v = vec![1.0, -1.0, 10.0, 0.0];
+        assert_eq!(argmax_float(&v), (2, 10.0));
+    }    
 }
 
 #[cfg(test)]
