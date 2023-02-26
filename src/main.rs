@@ -2,7 +2,6 @@
 
 use std::fs;
 
-use rustbustools::phantompurger;
 use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
 
@@ -23,8 +22,6 @@ enum MyCommand {
     busmerge(BusMergeArgs),
     count(CountArgs),
     count2(CountArgs),
-    phantom(PhantomArgs),
-    phantomCB(PhantomCBArgs),
 }
 #[derive(Args)]
 struct CountArgs{
@@ -52,20 +49,6 @@ struct BusMergeArgs{
     /// 2nd output busfile
     #[clap(long= "o2")] 
     outbus2: String,  
-}
-
-#[derive(Args)]
-struct PhantomArgs{
-    #[clap()]
-    busfolders: Vec<String>,
-    #[clap(long= "t2g")] 
-    t2g: String, 
-}
-
-#[derive(Args)]
-struct PhantomCBArgs{
-    #[clap()]
-    busfolders: Vec<String>,
 }
 
 // mod count;
@@ -101,9 +84,6 @@ fn main() {
     // use rustbustools::butterfly;
     // butterfly::testing2();
 
-    use rustbustools::phantompurger;
-    // phantompurger::testing2();
-
     let cli = Cli::parse();
     match cli.command{
         MyCommand::busmerge(args) => {
@@ -131,37 +111,9 @@ fn main() {
             c.write(&cli.output);
             // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
-        // MyCommand::countbayes(args) => {
-        //     println!("Doing count_bayesian");
-        //     // fs::create_dir(&cli.output).unwrap();
 
-        //     let bfolder = BusFolder::new(&args.inbus, &args.t2g);
 
-        //     count2::baysian_count(bfolder, args.ignoremm, args.nsamples);
-        //     // c.write(&cli.output);
-        //     // write_matrix_market(&cli.output, &c.matrix).unwrap();
-        // }
-        MyCommand::phantom(args) => {
-            println!("Doing phnatom");
-
-            let busfolder_dict = args.busfolders.into_iter()
-                .map(|b|(b.clone(), BusFolder::new(&b, &args.t2g)))
-                .collect();
-
-            let histo = phantompurger::make_fingerprint_histogram(busfolder_dict);
-            histo.to_csv(&cli.output);
         }
-        MyCommand::phantomCB(args) => {
-            println!("Doing phnatom CB overlap");
-
-            let busfolder_dict = args.busfolders.into_iter()
-                .map(|b|(b.clone(), b.clone()))
-                .collect();
-            phantompurger::detect_cell_overlap(busfolder_dict, &cli.output);
-        }
-    }
-    
-
 }
 
 

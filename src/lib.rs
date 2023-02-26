@@ -9,8 +9,4 @@ pub mod count;
 pub mod count2;
 pub mod utils;
 pub mod multinomial;
-pub mod binomialreg; 
-pub mod disjoint;
 pub mod consistent_genes;
-// pub mod butterfly;
-pub mod phantompurger;
