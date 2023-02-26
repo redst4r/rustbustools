@@ -126,7 +126,7 @@ impl BusWriter {
         let mut binrecord = bincode::serialize(record).expect("FAILED to serialze record");
 
         // the struct is only 28bytes, so we need 4 padding bytes
-        for _i in 0..4{
+        for _i in 0..4{  //TODO feel like theres a better way to do this
             binrecord.push(0);
         }
         self.buf.write_all(&binrecord).expect("FAILED to write record");
@@ -250,10 +250,8 @@ impl BusFolder {
         // create the EC->gene mapping
         println!("building EC->gene");
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
-
         let ecmapper = Ec2GeneMapper::new(ec2gene);
 
-        
         BusFolder{
             foldername : foldername.to_string(),
             ec2gene: ecmapper,
@@ -263,6 +261,10 @@ impl BusFolder {
 
     pub fn get_busfile(&self) -> String{
         format!("{}/output.corrected.sort.bus", self.foldername)
+    }
+
+    pub fn get_bus_header(&self) -> BusHeader{
+        BusHeader::from_file(&self.get_busfile())
     }
 
     pub fn get_ecmatrix_file(&self)-> String{
@@ -327,6 +329,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
 
 
 pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
+    // write the first nrecords of the intput file into the output
     let busiter = BusIteratorBuffered::new(bfile);
     let newheader = BusHeader::new(busiter.bus_header.cb_len, busiter.bus_header.umi_len, busiter.bus_header.tlen);
     let mut buswriter = BusWriter::new(boutfile,newheader);
@@ -409,7 +412,7 @@ mod tests {
 
         let ec= parse_ecmatrix("/tmp/foo");
         // println!("{}", ec.len());
-        println!("{:?}", ec);
+        // println!("{:?}", ec);
         let e1 = ec.get(&0).unwrap();
         assert_eq!(*e1, vec![1,2,3]);
 

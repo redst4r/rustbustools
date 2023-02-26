@@ -50,8 +50,6 @@ impl Iterator for CbUmiIterator {
                 }
             }
             else{ // emit whatever is left in last element
-                
-                
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
                 let last_record = std::mem::replace(&mut self.last_record, None);
@@ -81,7 +79,6 @@ pub struct CellIterator {
 }
 
 impl CellIterator {
-
     pub fn new(fname: &str) ->CellIterator{
         let mut busiter = BusIteratorBuffered::new(fname);
         let last_record = busiter.next(); //initilize with the first record in the file
@@ -160,7 +157,7 @@ mod tests{
         let (busname, _dir) = setup_busfile(&records);
 
         let n: Vec<_> = CellIterator::new(&busname).map(|(_cb, records)| records).collect();
-        println!("{:?}", n);
+        // println!("{:?}", n);
         // assert_eq!(n, vec![vec![r1, r2], vec![r3]]);
         assert_eq!(n.len(), 2);
 
@@ -179,7 +176,7 @@ mod tests{
         let (busname, _dir) = setup_busfile(&records);
 
         let n: Vec<_> = CellIterator::new(&busname).collect();
-        println!("{:?}", n);
+        // println!("{:?}", n);
 
         assert_eq!(n.len(), 2);
 
