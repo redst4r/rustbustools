@@ -233,22 +233,19 @@ fn build_ec2gene(
 impl BusFolder {
     pub fn new(foldername: &str, t2g_file:&str) ->BusFolder{
 
+        println!("building EC->gene for {}", foldername);
         // read EC dict
-        println!("Reading EC.matrix");
         let filename= format!("{}/{}", foldername, "matrix.ec");
         let ec_dict = parse_ecmatrix(&filename);
 
         // read transcript dict
-        println!("Reading transcripts.txt");
         let filename = format!("{}/{}", foldername, "transcripts.txt");
         let transcript_dict = parse_transcript(&filename);
 
         // read transcript to gene file
-        println!("Reading t2g_dict");
         let t2g_dict = parse_t2g(t2g_file);
 
         // create the EC->gene mapping
-        println!("building EC->gene");
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
         let ecmapper = Ec2GeneMapper::new(ec2gene);
 

@@ -22,6 +22,7 @@ enum MyCommand {
     busmerge(BusMergeArgs),
     count(CountArgs),
     count2(CountArgs),
+    resolve_ec(ResolveArgs),
 }
 #[derive(Args)]
 struct CountArgs{
@@ -51,6 +52,16 @@ struct BusMergeArgs{
     outbus2: String,  
 }
 
+#[derive(Args)]
+struct ResolveArgs{
+    /// input busfolder
+    #[clap(long= "ifolder")] 
+    inbus: String,
+    #[clap(long= "t2g")] 
+    t2g: String,    
+    #[clap(long= "ec")] 
+    ec: u32,    
+}
 // mod count;
 use rustbustools::count2;
 use rustbustools::count;
@@ -112,6 +123,19 @@ fn main() {
             // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
 
+        MyCommand::resolve_ec(args) => {
+            println!("Doing resolve");
+            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
+            let mut genes: Vec<&u32> = bfolder.ec2gene.get_genes(args.ec).into_iter().collect();
+            genes.sort();
+            println!("EC {} -> {:?}", args.ec, genes);
+
+            let mut genenames: Vec<String> = bfolder.ec2gene.get_genenames(args.ec).into_iter().collect();
+            genenames.sort();
+
+            println!("EC {} -> {:?}", args.ec, genenames);
+
+        }
 
         }
 }
