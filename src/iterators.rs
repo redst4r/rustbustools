@@ -1,30 +1,20 @@
-use std::collections::{HashSet, HashMap};
+use crate::{io::{BusRecord}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}};
 
-use crate::{io::{BusIteratorBuffered, BusRecord, setup_busfile}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}, disjoint::DisjointSubsets, utils::vec2set};
-
-pub struct CbUmiIterator {
-    pub(crate) busiter: BusIteratorBuffered,
-    pub(crate) last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
+pub struct CbUmiGroup<I> {
+    iter: I,
+    last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
 }
 
-impl CbUmiIterator {
-
-    pub fn new(fname: &str) ->CbUmiIterator{
-        let mut busiter = BusIteratorBuffered::new(fname);
-        let last_record = busiter.next(); //initilize with the first record in the file
-        CbUmiIterator {busiter, last_record}
-    }
-}
-
-impl Iterator for CbUmiIterator {
+impl<I> Iterator for CbUmiGroup<I>
+where I: Iterator<Item = BusRecord>
+{
     type Item = ((u64, u64), Vec<BusRecord>);
-
     fn next(&mut self) -> Option<Self::Item> {
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
     
         loop {
             // anything left in the basic iterator (if not, just emit whatever is stored in self.last_element)
-            if let Some(new_record) = self.busiter.next(){
+            if let Some(new_record) = self.iter.next(){
 
                 // the newly seen record
                 let (new_cb, new_umi) = (new_record.CB, new_record.UMI);
@@ -69,36 +59,43 @@ impl Iterator for CbUmiIterator {
                     return None
                 }          
             }
-        }
+        }        
+    }    
+}
+
+impl<I> CbUmiGroup<I> 
+where I: Iterator<Item = BusRecord>
+{
+    pub fn new(mut iter: I) -> Self {
+        let last_record = iter.next(); //initilize with the first record in the file
+        Self { iter, last_record }
     }
 }
+
+pub trait CbUmiGroupIterator: Iterator<Item = BusRecord> + Sized {
+    fn groupby_cbumi(self) -> CbUmiGroup<Self> {
+        CbUmiGroup::new(self)
+    }
+}
+impl<I: Iterator<Item = BusRecord>> CbUmiGroupIterator for I {}
+
 
 //=================================================================================
-pub struct CellIterator {
-    pub(crate) busiter: BusIteratorBuffered,
-    pub(crate) last_record: Option<BusRecord>,  //option needed to mark the final element of the iteration
-    // buffersize: usize
+pub struct CellGroup<I> {
+    iter: I,
+    last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
 }
 
-impl CellIterator {
-    pub fn new(fname: &str) ->CellIterator{
-        let mut busiter = BusIteratorBuffered::new(fname);
-        let last_record = busiter.next(); //initilize with the first record in the file
-        CellIterator {busiter, last_record}
-        // CellIterator {busiter, last_record, buffersize:1}
-    }
-}
-
-impl Iterator for CellIterator {
+impl<I> Iterator for CellGroup<I>
+where I: Iterator<Item = BusRecord>
+{
     type Item = (u64, Vec<BusRecord>);
-
     fn next(&mut self) -> Option<Self::Item> {
-
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
         // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
     
         loop {
-            if let Some(new_record) = self.busiter.next(){
+            if let Some(new_record) = self.iter.next(){
                 // the newly seen record
                 let new_cb = new_record.CB;
 
@@ -138,19 +135,32 @@ impl Iterator for CellIterator {
                 }          
             }
         }
+    }    
+}
+
+impl<I> CellGroup<I> 
+where I: Iterator<Item = BusRecord>
+{
+    pub fn new(mut iter: I) -> Self {
+        let last_record = iter.next(); //initilize with the first record in the file
+        Self { iter, last_record }
     }
 }
+pub trait CellGroupIterator: Iterator<Item = BusRecord> + Sized {
+    fn groupby_cb(self) -> CellGroup<Self> {
+        CellGroup::new(self)
+    }
+}
+impl<I: Iterator<Item = BusRecord>> CellGroupIterator for I {}
 
 
 /* adaptor to be able to group things by gene 
 CbUmiIterator.iter().group_by_gene()
-
 */
 pub struct GroupbyGene<I> {
     iter: I,
     ecmapper: Ec2GeneMapper
 }
-
 
 impl<I> Iterator for GroupbyGene<I>
 where I: Iterator<Item = Vec<BusRecord>>
@@ -180,15 +190,14 @@ pub trait GroupbyGeneIterator<T>: Iterator<Item = T> + Sized {
 impl<T, I: Iterator<Item = T>> GroupbyGeneIterator<T> for I {}
 
 
-
-
 #[cfg(test)]
 mod tests{
     use std::collections::{HashSet, HashMap};
 
     use crate::consistent_genes::Ec2GeneMapper;
     use crate::io::{BusRecord, setup_busfile};
-    use crate::iterators::{CbUmiIterator, CellIterator, GroupbyGeneIterator};
+    use crate::iterators::{CellGroupIterator, CellGroup, CbUmiGroupIterator};
+    use crate::io::BusIteratorBuffered;
     use crate::utils::vec2set;
 
     #[test]
@@ -201,13 +210,24 @@ mod tests{
         let records = vec![r1.clone(),r2.clone(),r3.clone()];
         let (busname, _dir) = setup_busfile(&records);
 
-        let n: Vec<_> = CellIterator::new(&busname).map(|(_cb, records)| records).collect();
+        let b = BusIteratorBuffered::new(&busname);
+        let n: Vec<_> = b.groupby_cb().map(|(_cb, records)| records).collect();
+
         // println!("{:?}", n);
         // assert_eq!(n, vec![vec![r1, r2], vec![r3]]);
         assert_eq!(n.len(), 2);
 
         let rlist = &n[1];
         assert_eq!(rlist.len(), 1);
+
+        // another wayto initialize,  no chaining
+        let b = BusIteratorBuffered::new(&busname);
+        let n: Vec<_> = CellGroup::new(b).map(|(_cb, records)| records).collect();
+        assert_eq!(n.len(), 2);
+
+        let rlist = &n[1];
+        assert_eq!(rlist.len(), 1);
+
     }
 
     #[test]
@@ -220,7 +240,9 @@ mod tests{
         let records = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
         let (busname, _dir) = setup_busfile(&records);
 
-        let n: Vec<_> = CellIterator::new(&busname).collect();
+        let b = BusIteratorBuffered::new(&busname);
+        let n: Vec<_> = b.groupby_cb().collect();
+
         // println!("{:?}", n);
 
         assert_eq!(n.len(), 2);
@@ -244,9 +266,8 @@ mod tests{
     
         let (busname, _dir) = setup_busfile(&records);
     
-
-        let cb_iter = CellIterator::new(&busname);
-        let n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
+        let b = BusIteratorBuffered::new(&busname);
+        let n: Vec<(u64, Vec<BusRecord>)> = b.groupby_cb().collect();
     
         assert_eq!(n.len(), 4);
         // println!("{:?}", n);
@@ -274,7 +295,9 @@ mod tests{
         use std::time::Instant;
         let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
         let n=100000;
-        let biter2= CellIterator::new(foldername);
+
+        let b = BusIteratorBuffered::new(foldername);
+        let biter2= b.groupby_cb();
     
         let now = Instant::now();
         let s2: Vec<_> = biter2.take(n).map(|(_a, records)|records).collect();
@@ -296,7 +319,8 @@ mod tests{
 
         let (busname, _dir) = setup_busfile(&records);
 
-        let cb_iter = CbUmiIterator::new(&busname);
+        let b = BusIteratorBuffered::new(&busname);
+        let cb_iter = b.groupby_cbumi();
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<((u64, u64), Vec<BusRecord>)> = cb_iter.collect();
         // println!("{:?}", n);
@@ -335,11 +359,11 @@ mod tests{
 
         // let busname = "/tmp/test_panic_on_unsorted.bus";
         let (busname, _dir) = setup_busfile(&records);
-
-        let cb_iter = CellIterator::new(&busname);
+        let b = BusIteratorBuffered::new(&busname);
+        let cb_iter = b.groupby_cb();
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
     }
-
+    use crate::iterators::GroupbyGeneIterator;
     #[test]
     fn test_groupby_genes(){
         let ec0: HashSet<String> = vec2set(vec!["A".to_string()]);
@@ -368,7 +392,9 @@ mod tests{
     
          let (busname, _dir) = setup_busfile(&records);
     
-         let cb_iter = CbUmiIterator::new(&busname);
+         let b = BusIteratorBuffered::new(&busname);
+    
+         let cb_iter = b.groupby_cbumi();
     
          let results: Vec<_> = cb_iter
             .map(|(cbumi, r)| r).group_by_gene(es).collect();

@@ -256,6 +256,11 @@ impl BusFolder {
         }
     }
 
+    pub fn get_iterator(&self) -> BusIteratorBuffered{
+        let bfile = self.get_busfile();
+        BusIteratorBuffered::new(&bfile)
+    }
+
     pub fn get_busfile(&self) -> String{
         format!("{}/output.corrected.sort.bus", self.foldername)
     }
@@ -285,8 +290,7 @@ impl BusFolder {
         let ec_dict = self.parse_ecmatrix();
         let transcript_dict = self.parse_transcript();
         let t2g_dict = parse_t2g(&self.t2g_file);
-        let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
-        ec2gene
+        build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
     }
 
 }

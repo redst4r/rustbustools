@@ -255,9 +255,9 @@ pub fn multinomial_speed_eval(){
 
     let mut fh = File::create("/tmp/multinom_speed.csv").unwrap();
     use std::io::Write;
-    write!(fh, "N,d,time\n").unwrap();
+    writeln!(fh, "N,d,time").unwrap();
 
     for r in results{
-        write!(fh, "{},{},{}\n", r.n, r.d, r.time).unwrap();
+        writeln!(fh, "{},{},{}", r.n, r.d, r.time).unwrap();
     }
 }

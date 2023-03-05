@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use crate::count2::CountMatrix;
 use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusIteratorBuffered};
-use crate::iterators::CellIterator;
+use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
 use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
@@ -53,12 +53,12 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
-    let bfile = bfolder.get_busfile();
-    println!("{}",bfile);
 
-    let cb_iter = CellIterator::new(&bfile);
+    let cb_iter = bfolder.get_iterator().groupby_cb();
+    
+    // let cb_iter_tmp = CellIterator::new(&bfile);
+    let cb_iter_tmp = bfolder.get_iterator().groupby_cb();
 
-    let cb_iter_tmp = CellIterator::new(&bfile);
     println!("determine size of iterator");
     let now = Instant::now();
     let total_records = cb_iter_tmp.count();

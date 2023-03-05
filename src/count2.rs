@@ -5,7 +5,7 @@ use sprs::DenseVector;
 use sprs::io::write_matrix_market;
 
 use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
-use crate::iterators::CbUmiIterator;
+use crate::iterators::CbUmiGroupIterator;
 use crate::io::{BusFolder, BusRecord};
 use crate::multinomial::multinomial_sample;
 use crate::utils::{get_progressbar, int_to_seq};
@@ -102,24 +102,25 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
     let bfile = bfolder.get_busfile();
     println!("{}",bfile);
 
-    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
     println!("determine size of iterator");
+    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
     let now = Instant::now();
     let total_records = cbumi_iter_tmp.count();
 
-    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
+    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
+
     let max_length_records = cbumi_iter_tmp.map(|(_cbumi, rlist)| rlist.len()).max().unwrap();
 
     let elapsed_time = now.elapsed();
     println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
 
     // handles the mapping between EC and gene
-    let egm = bfolder.ec2gene;
-
+    let egm = &bfolder.ec2gene;
 
     // prep for the multinomial sample
     println!("Preparing the probability vector for mutlinomial");
-    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
+    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
+
     let count_vec:Vec<_> = cbumi_iter_tmp
         .flat_map(|(_cbumi, rlist)| rlist.into_iter().map(|r|r.COUNT as f64))
         .collect();
@@ -144,7 +145,8 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
         let new_count_sample = multinomial_sample(total_counts as u64, &p_vec, &mut random_source);
         println!("Done");
 
-        let cbumi_iter = CbUmiIterator::new(&bfile);
+        let cbumi_iter = bfolder.get_iterator().groupby_cbumi();
+
         let now = Instant::now();
         let bar = get_progressbar(total_records as u64);
         let mut current_record_counter: usize = 0;
@@ -177,8 +179,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
                 continue;
             }
 
-
-            if let Some(g) = count_from_record_list(injected_records, &egm, ignore_multimapped){
+            if let Some(g) = count_from_record_list(injected_records, egm, ignore_multimapped){
                 // the records could be made into a single count for gene g
                 let key = (cb, g);
                 let current_count = all_expression_vector.entry(key).or_insert(0);
@@ -248,14 +249,15 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     let bfile = bfolder.get_busfile();
     println!("{}",bfile);
 
-    let cbumi_iter = CbUmiIterator::new(&bfile);
+    let cbumi_iter = bfolder.get_iterator().groupby_cbumi();
+    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
 
-    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
     println!("determine size of iterator");
     let now = Instant::now();
     let total_records = cbumi_iter_tmp.count();
 
-    let cbumi_iter_tmp = CbUmiIterator::new(&bfile);
+    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
+
     let max_length_records = cbumi_iter_tmp.map(|(_cbumi, rlist)| rlist.len()).max().unwrap();
 
     let elapsed_time = now.elapsed();
