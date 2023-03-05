@@ -382,9 +382,7 @@ mod tests {
         let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
 
         let rlist = vec![r1,r2];   // note: this clones r1, r2!
-        // let mut rlist = Vec::new();
-        // rlist.push(r1);
-        // rlist.push(r2);
+
         let (busname, _dir) = setup_busfile(&rlist);
 
         let reader = BusIteratorBuffered::new(&busname);

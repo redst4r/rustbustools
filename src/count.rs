@@ -297,11 +297,9 @@ mod test{
         let t2g_file = "/home/michi/bus_testing/transcripts_to_genes.txt";
         let foldername ="/home/michi/bus_testing/bus_output";
     
-    
         let b = BusFolder::new(foldername, t2g_file);
         let count_matrix = count(b, false);
     
-        
         // write_sprs_to_file(count_matrix.matrix, "/tmp/test.mtx");
         write_matrix_market("/tmp/test.mtx", &count_matrix.matrix).unwrap();
 

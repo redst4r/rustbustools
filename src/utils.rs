@@ -1,4 +1,11 @@
+use std::collections::HashSet;
+use std::hash::Hash;
+
 use indicatif::{ProgressBar, ProgressStyle};
+
+pub fn vec2set<T:Eq+Hash>(x: Vec<T>) -> HashSet<T>{
+    x.into_iter().collect::<HashSet<T>>()
+}
 
 pub fn seq_to_int(seq: String) -> u64{
     assert!(seq.len() <= 32); // cant handle longer sequences in a single 64bit integer!
@@ -88,7 +95,11 @@ pub mod argsort{
 
     pub fn argsort_float(fvec: &Vec<f64>, ascending: bool) -> Vec<usize>{
 
-        let _fvec: Vec<NonNan> = fvec.iter().map(|x|NonNan::new( *x).unwrap()).collect();
+        let _fvec: Vec<NonNan> = fvec.iter()
+            .map(|x|
+                NonNan::new(*x).unwrap_or_else(||panic!("Nan values in {fvec:?}"))
+            ).collect();
+
         let mut fvec_sorted_ix = argsort(&_fvec);
         if ascending{
             fvec_sorted_ix.reverse();

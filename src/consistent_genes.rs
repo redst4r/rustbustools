@@ -253,10 +253,10 @@ impl Ec2GeneMapper{
 #[test]
 fn test_ec_struct(){
 
-    let ec0: HashSet<String> = vec!["A".to_string()].into_iter().collect();
-    let ec1: HashSet<String> = vec!["B".to_string()].into_iter().collect();
-    let ec2: HashSet<String> = vec!["A".to_string(), "B".to_string()].into_iter().collect();
-    let ec3: HashSet<String> = vec!["C".to_string(), "D".to_string()].into_iter().collect();
+    let ec0: HashSet<String> = vec2set(vec!["A".to_string()]);
+    let ec1: HashSet<String> = vec2set(vec!["B".to_string()]);
+    let ec2: HashSet<String> = vec2set(vec!["A".to_string(), "B".to_string()]);
+    let ec3: HashSet<String> = vec2set(vec!["C".to_string(), "D".to_string()]);
 
     let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
         (0, ec0.clone()), 
