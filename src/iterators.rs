@@ -1,4 +1,6 @@
-use crate::io::{BusIteratorBuffered, BusRecord};
+use std::collections::{HashSet, HashMap};
+
+use crate::{io::{BusIteratorBuffered, BusRecord, setup_busfile}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}, disjoint::DisjointSubsets, utils::vec2set};
 
 pub struct CbUmiIterator {
     pub(crate) busiter: BusIteratorBuffered,
@@ -140,11 +142,54 @@ impl Iterator for CellIterator {
 }
 
 
+/* adaptor to be able to group things by gene 
+CbUmiIterator.iter().group_by_gene()
+
+*/
+pub struct GroupbyGene<I> {
+    iter: I,
+    ecmapper: Ec2GeneMapper
+}
+
+
+impl<I> Iterator for GroupbyGene<I>
+where I: Iterator<Item = Vec<BusRecord>>
+{
+    type Item = Vec<CUGset>;
+    fn next(&mut self) -> Option<Self::Item> {
+
+        self.iter.next()
+            .map(|v| 
+                groubygene(v, &self.ecmapper)
+            )
+    }
+}
+
+impl<I> GroupbyGene<I> {
+    pub fn new(iter: I, ecmapper: Ec2GeneMapper) -> Self {
+        Self { iter, ecmapper }
+    }
+}
+
+/* Stuff to get the iterator chaining working! Just a wrapper around GroupbyGene::new() */
+pub trait GroupbyGeneIterator<T>: Iterator<Item = T> + Sized {
+    fn group_by_gene(self, ecmapper: Ec2GeneMapper) -> GroupbyGene<Self> {
+        GroupbyGene::new(self, ecmapper)
+    }
+}
+impl<T, I: Iterator<Item = T>> GroupbyGeneIterator<T> for I {}
+
+
+
 
 #[cfg(test)]
 mod tests{
+    use std::collections::{HashSet, HashMap};
+
+    use crate::consistent_genes::Ec2GeneMapper;
     use crate::io::{BusRecord, setup_busfile};
-    use crate::iterators::{CbUmiIterator, CellIterator};
+    use crate::iterators::{CbUmiIterator, CellIterator, GroupbyGeneIterator};
+    use crate::utils::vec2set;
 
     #[test]
     fn test_cb_iter_last_element1(){   
@@ -294,4 +339,44 @@ mod tests{
         let cb_iter = CellIterator::new(&busname);
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
     }
+
+    #[test]
+    fn test_groupby_genes(){
+        let ec0: HashSet<String> = vec2set(vec!["A".to_string()]);
+        let ec1: HashSet<String> = vec2set(vec!["B".to_string()]);
+        let ec2: HashSet<String> = vec2set(vec!["A".to_string(), "B".to_string()]);
+        let ec3: HashSet<String> = vec2set(vec!["C".to_string(), "D".to_string()]);
+    
+        let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
+            (0, ec0.clone()), 
+            (1, ec1.clone()), 
+            (2, ec2.clone()), 
+            (3, ec3.clone()), 
+            ]);
+    
+        let es = Ec2GeneMapper::new(ec_dict);
+    
+        // first sample: two records, with consistent gene A
+        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
+        let r2 =BusRecord{CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0};
+    
+         // second sample: two records, with consistent gene A the other consistent with gene B
+         let s1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 3, FLAG: 0}; // A
+         let s2 = BusRecord{CB: 0, UMI: 2, EC: 1, COUNT: 4, FLAG: 0}; //B
+    
+         let records = vec![r1.clone(),r2.clone(),s1.clone(),s2.clone()];
+    
+         let (busname, _dir) = setup_busfile(&records);
+    
+         let cb_iter = CbUmiIterator::new(&busname);
+    
+         let results: Vec<_> = cb_iter
+            .map(|(cbumi, r)| r).group_by_gene(es).collect();
+    
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].len(), 1);
+        assert_eq!(results[1].len(), 2);
+    
+        println!("{:?}", results)
+    }    
  }
