@@ -11,3 +11,4 @@ pub mod utils;
 pub mod multinomial;
 pub mod consistent_genes;
 pub mod disjoint;
+pub mod inspect;

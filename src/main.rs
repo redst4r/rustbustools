@@ -2,6 +2,7 @@
 
 use std::fs;
 
+use rustbustools::inspect::inspect;
 use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
 
@@ -23,6 +24,7 @@ enum MyCommand {
     count(CountArgs),
     count2(CountArgs),
     resolve_ec(ResolveArgs),
+    inspect(InspectArgs),
 }
 #[derive(Args)]
 struct CountArgs{
@@ -62,6 +64,15 @@ struct ResolveArgs{
     #[clap(long= "ec")] 
     ec: u32,    
 }
+
+#[derive(Args)]
+struct InspectArgs{
+    /// input busfolder
+    #[clap(short ='i', long = "input")] 
+    inbus: String,  
+}
+
+
 // mod count;
 use rustbustools::count2;
 use rustbustools::count;
@@ -134,9 +145,10 @@ fn main() {
             genenames.sort();
 
             println!("EC {} -> {:?}", args.ec, genenames);
-
         }
-
+        MyCommand::inspect(args) => {
+            inspect(&args.inbus);
+        }
         }
 }
 
