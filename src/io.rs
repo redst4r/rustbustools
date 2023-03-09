@@ -62,6 +62,14 @@ pub struct BusIteratorBuffered {
 
 impl BusIteratorBuffered {
     pub fn new(filename: &str) -> BusIteratorBuffered{
+
+        // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
+        // further increase buffers dont speed things up more (just need more mem)
+        // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
+        const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
+        BusIteratorBuffered::new_with_capacity(filename, DEFAULT_BUF_SIZE)
+    }
+    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusIteratorBuffered{
         let bus_header = BusHeader::from_file(filename);
         let mut file_handle = File::open(filename).expect("FAIL");
     
@@ -69,8 +77,7 @@ impl BusIteratorBuffered {
         let to_seek = BUS_HEADER_SIZE as u64 + bus_header.tlen as u64;
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
-        let buf = BufReader::new(file_handle);
-        // let mut buf = BufReader::with_capacity(8000, file_handle);
+        let buf = BufReader::with_capacity(bufsize, file_handle);
         BusIteratorBuffered {bus_header, buf }
     }
 }
