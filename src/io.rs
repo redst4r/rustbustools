@@ -145,7 +145,6 @@ impl BusWriter {
 
 pub struct BusFolder {
     pub foldername: String,
-    pub t2g_file: String,
     pub ec2gene: Ec2GeneMapper,
 }
 
@@ -252,7 +251,6 @@ impl BusFolder {
         BusFolder{
             foldername : foldername.to_string(),
             ec2gene: ecmapper,
-            t2g_file: t2g_file.to_owned()
         }
     }
 
@@ -286,12 +284,12 @@ impl BusFolder {
         let filename = self.get_transcript_file();
         parse_transcript(&filename)
     }
-    pub fn build_ec2gene(&self, ) -> HashMap<u32, HashSet<String>>{
-        let ec_dict = self.parse_ecmatrix();
-        let transcript_dict = self.parse_transcript();
-        let t2g_dict = parse_t2g(&self.t2g_file);
-        build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
-    }
+    // pub fn build_ec2gene(&self, ) -> HashMap<u32, HashSet<String>>{
+    //     let ec_dict = self.parse_ecmatrix();
+    //     let transcript_dict = self.parse_transcript();
+    //     let t2g_dict = parse_t2g(&self.t2g_file);
+    //     build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
+    // }
 
 }
 
@@ -318,7 +316,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
     use tempfile::tempdir;
     let dir = tempdir().unwrap();
 
-    let file_path = dir.path().join("busfile_temp.bus");   
+    let file_path = dir.path().join("output.corrected.sort.bus");   
     let tmpfilename = file_path.to_str().unwrap();
 
     let header = BusHeader::new(16, 12, 20);
@@ -340,12 +338,13 @@ pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
     }
 }
 
-fn test_write(){
-    let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-    let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-
-    write_partial_busfile(fname, outname, 10_000_000)
-}
+// // #[test]
+// fn test_write(){
+//     // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+//     let fname = "/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output/output.corrected.sort.bus";
+//     let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+//     write_partial_busfile(fname, outname, 10_000_000)
+// }
 
 // #[test]
 // fn testing2(){

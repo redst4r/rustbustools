@@ -156,6 +156,8 @@ impl<I: Iterator<Item = BusRecord>> CellGroupIterator for I {}
 
 /* adaptor to be able to group things by gene 
 CbUmiIterator.iter().group_by_gene()
+
+works for any iterator yielding Vec<BusRecord>
 */
 pub struct GroupbyGene<I> {
     iter: I,
