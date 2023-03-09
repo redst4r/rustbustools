@@ -225,7 +225,7 @@ pub fn multinomial_speed_eval(){
     // let N: Vec<usize> = vec![1_000, 10_000, 100_000, 1_000_000];
 
     let dims: Vec<usize> = linspace(4.0,7.0, 20).iter().map(|x| 10_f64.powf(*x) as usize).collect();
-    let N: Vec<usize> = linspace(4.0,7.0, 20).iter().map(|x| 10_f64.powf(*x) as usize).collect();
+    let nvector: Vec<usize> = linspace(4.0,7.0, 20).iter().map(|x| 10_f64.powf(*x) as usize).collect();
 
     println!("{:?}", dims);
 
@@ -238,7 +238,7 @@ pub fn multinomial_speed_eval(){
     }
 
     let mut results:Vec<Res> = Vec::new();
-    for n in N{
+    for n in nvector{
         for d in dims.clone(){
 
             println!("n={} d={}", n, d);

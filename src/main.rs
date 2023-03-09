@@ -149,7 +149,7 @@ fn main() {
         MyCommand::inspect(args) => {
             inspect(&args.inbus);
         }
-        }
+    }
 }
 
 

@@ -247,7 +247,7 @@ impl BusFolder {
         // create the EC->gene mapping
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
         let ecmapper = Ec2GeneMapper::new(ec2gene);
-
+        
         BusFolder{
             foldername : foldername.to_string(),
             ec2gene: ecmapper,
