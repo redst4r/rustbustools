@@ -199,7 +199,7 @@ mod tests{
     use crate::consistent_genes::Ec2GeneMapper;
     use crate::io::{BusRecord, setup_busfile};
     use crate::iterators::{CellGroupIterator, CellGroup, CbUmiGroupIterator};
-    use crate::io::BusIteratorBuffered;
+    use crate::io::BusReader;
     use crate::utils::vec2set;
 
     #[test]
@@ -212,7 +212,7 @@ mod tests{
         let records = vec![r1.clone(),r2.clone(),r3.clone()];
         let (busname, _dir) = setup_busfile(&records);
 
-        let b = BusIteratorBuffered::new(&busname);
+        let b = BusReader::new(&busname);
         let n: Vec<_> = b.groupby_cb().map(|(_cb, records)| records).collect();
 
         // println!("{:?}", n);
@@ -223,7 +223,8 @@ mod tests{
         assert_eq!(rlist.len(), 1);
 
         // another wayto initialize,  no chaining
-        let b = BusIteratorBuffered::new(&busname);
+        let (busname, _dir) = setup_busfile(&records);
+        let b = BusReader::new(&busname);
         let n: Vec<_> = CellGroup::new(b).map(|(_cb, records)| records).collect();
         assert_eq!(n.len(), 2);
 
@@ -242,7 +243,7 @@ mod tests{
         let records = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
         let (busname, _dir) = setup_busfile(&records);
 
-        let b = BusIteratorBuffered::new(&busname);
+        let b = BusReader::new(&busname);
         let n: Vec<_> = b.groupby_cb().collect();
 
         // println!("{:?}", n);
@@ -268,7 +269,7 @@ mod tests{
     
         let (busname, _dir) = setup_busfile(&records);
     
-        let b = BusIteratorBuffered::new(&busname);
+        let b = BusReader::new(&busname);
         let n: Vec<(u64, Vec<BusRecord>)> = b.groupby_cb().collect();
     
         assert_eq!(n.len(), 4);
@@ -298,7 +299,7 @@ mod tests{
         let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
         let n=100000;
 
-        let b = BusIteratorBuffered::new(foldername);
+        let b = BusReader::new(foldername);
         let biter2= b.groupby_cb();
     
         let now = Instant::now();
@@ -321,7 +322,7 @@ mod tests{
 
         let (busname, _dir) = setup_busfile(&records);
 
-        let b = BusIteratorBuffered::new(&busname);
+        let b = BusReader::new(&busname);
         let cb_iter = b.groupby_cbumi();
         // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
         let n: Vec<((u64, u64), Vec<BusRecord>)> = cb_iter.collect();
@@ -361,7 +362,7 @@ mod tests{
 
         // let busname = "/tmp/test_panic_on_unsorted.bus";
         let (busname, _dir) = setup_busfile(&records);
-        let b = BusIteratorBuffered::new(&busname);
+        let b = BusReader::new(&busname);
         let cb_iter = b.groupby_cb();
         let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
     }
@@ -394,7 +395,7 @@ mod tests{
     
          let (busname, _dir) = setup_busfile(&records);
     
-         let b = BusIteratorBuffered::new(&busname);
+         let b = BusReader::new(&busname);
     
          let cb_iter = b.groupby_cbumi();
     

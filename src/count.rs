@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use crate::count2::CountMatrix;
-use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusIteratorBuffered};
+use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusReader};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
@@ -30,7 +30,7 @@ pub fn count_bayesian(bfolder: BusFolder) {
 
     // println!("{}, {}", total_reads,norm_constant);
 
-    let busiter = BusIteratorBuffered::new(&bfile);
+    let busiter = BusReader::new(&bfile);
     println!("Getting counts");
     let counts: Vec<f64> = busiter.map(|record| record.COUNT as f64).collect();
     let total_counts:f64 = counts.iter().sum();

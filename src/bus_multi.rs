@@ -1,22 +1,22 @@
 use std::collections::HashMap;
 use crate::iterators::{CellGroup, CbUmiGroup};
-use crate::io::{BusRecord, BusIteratorBuffered};
+use crate::io::{BusRecord, BusReader, setup_busfile};
 
 
 pub struct CellIteratorMulti {
-    pub iterators: HashMap<String, CellGroup<BusIteratorBuffered>>,
+    pub iterators: HashMap<String, CellGroup<BusReader>>,
     pub current_items: HashMap<String, (u64, Vec<BusRecord>)> // filename - > (CB, ListOfRecords)
 }
 impl CellIteratorMulti {
 
     pub fn new(fnames: &HashMap<String, String>) ->CellIteratorMulti{
 
-        let mut iterators: HashMap<String, CellGroup<BusIteratorBuffered>> = HashMap::new();
+        let mut iterators: HashMap<String, CellGroup<BusReader>> = HashMap::new();
         let mut current_items: HashMap<String, (u64, Vec<BusRecord>)> = HashMap::new();
 
         for (name, fname) in fnames{
             // create new cell iterator
-            let mut the_iter = CellGroup::new(BusIteratorBuffered::new(fname));
+            let mut the_iter = CellGroup::new(BusReader::new(fname));
 
             // populate first elements from that iterator
             let item = the_iter.next();
@@ -121,7 +121,7 @@ impl Iterator for CellIteratorMulti {
 
 // =================================================================
 pub struct CellUmiIteratorMulti {
-    pub iterators: HashMap<String, CbUmiGroup<BusIteratorBuffered>>,
+    pub iterators: HashMap<String, CbUmiGroup<BusReader>>,
     // last_record: BusRecord
     pub current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)> // filename - > (CB, ListOfRecords)
 }
@@ -129,12 +129,12 @@ impl CellUmiIteratorMulti {
 
     pub fn new(fnames: &HashMap<String, String>) ->CellUmiIteratorMulti{
 
-        let mut iterators: HashMap<String, CbUmiGroup<BusIteratorBuffered>> = HashMap::new();
+        let mut iterators: HashMap<String, CbUmiGroup<BusReader>> = HashMap::new();
         let mut current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)> = HashMap::new();
 
         for (name, fname) in fnames{
             // create new cell iterator
-            let mut the_iter = CbUmiGroup::new(BusIteratorBuffered::new(fname));
+            let mut the_iter = CbUmiGroup::new(BusReader::new(fname));
 
             // populate first elements from that iterator
             let item = the_iter.next();
@@ -230,7 +230,7 @@ impl Iterator for CellUmiIteratorMulti {
 
 #[cfg(test)]
 mod tests {
-    use crate::io::{BusRecord, setup_busfile};
+    use crate::{io::{BusRecord, setup_busfile}, utils::get_progressbar, iterators::CbUmiGroupIterator};
     use std::collections::HashMap;
     use super::*;
 
@@ -270,14 +270,12 @@ mod tests {
             ("test2".to_string(), busname2.to_string())
         ]);
 
-
         // what we expect to get
         let expected_pairs = vec![
             HashMap::from([("test1".to_string(), vec![r1]), ("test2".to_string(), vec![s1])]),
             HashMap::from([("test1".to_string(), vec![r2, r3]), ("test2".to_string(), vec![s2])]),
             HashMap::from([("test2".to_string(), vec![s3])]),
             HashMap::from([("test1".to_string(), vec![r4])]),
-
         ];
 
         // iterate, see if it meets the expectations

@@ -54,22 +54,21 @@ impl BusHeader {
     pub fn get_tlen(&self) -> u32{
         self.tlen
     }
-}
-pub struct BusIteratorBuffered {
+pub struct BusReader {
     pub bus_header: BusHeader,
     buf: BufReader<File>
 }
 
-impl BusIteratorBuffered {
+impl BusReader {
     pub fn new(filename: &str) -> BusIteratorBuffered{
-
+    pub fn new(filename: &str) -> BusReader{
         // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
         // further increase buffers dont speed things up more (just need more mem)
         // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
         const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
-        BusIteratorBuffered::new_with_capacity(filename, DEFAULT_BUF_SIZE)
+        BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
     }
-    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusIteratorBuffered{
+    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader{
         let bus_header = BusHeader::from_file(filename);
         let mut file_handle = File::open(filename).expect("FAIL");
     
@@ -78,11 +77,11 @@ impl BusIteratorBuffered {
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusIteratorBuffered {bus_header, buf }
+        BusReader {bus_header, buf }
     }
 }
 
-impl Iterator for BusIteratorBuffered {
+impl Iterator for BusReader {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -263,7 +262,7 @@ impl BusFolder {
 
     pub fn get_iterator(&self) -> BusIteratorBuffered{
         let bfile = self.get_busfile();
-        BusIteratorBuffered::new(&bfile)
+        BusReader::new(&bfile)
     }
 
     pub fn get_busfile(&self) -> String{
@@ -336,7 +335,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
 
 pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
     // write the first nrecords of the intput file into the output
-    let busiter = BusIteratorBuffered::new(bfile);
+    let busiter = BusReader::new(bfile);
     let newheader = BusHeader::new(busiter.bus_header.cb_len, busiter.bus_header.umi_len, busiter.bus_header.tlen);
     let mut buswriter = BusWriter::new(boutfile,newheader);
 
@@ -370,7 +369,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
 #[cfg(test)]
 mod tests {
     use std::io::Write;
-    use crate::io::{BusRecord, BusHeader, BusWriter, BusIteratorBuffered, setup_busfile};
+    use crate::io::{BusRecord, BusHeader, BusWriter, BusReader, setup_busfile};
 
     #[test]
     fn test_read_write_header(){
@@ -395,7 +394,7 @@ mod tests {
 
         let (busname, _dir) = setup_busfile(&rlist);
 
-        let reader = BusIteratorBuffered::new(&busname);
+        let reader = BusReader::new(&busname);
 
         let records: Vec<BusRecord> = reader.into_iter().collect();
         assert_eq!(records, rlist)

@@ -3,13 +3,13 @@ use crate::{io::BusIteratorBuffered, iterators::{CellGroupIterator, CbUmiGroupIt
 
 pub fn inspect(busfile: &str){
 
-    let n_cbumi = BusIteratorBuffered::new(busfile).groupby_cbumi().count();
-    let n_cells =  BusIteratorBuffered::new(busfile).groupby_cb().count();
+    let n_cbumi = BusReader::new(busfile).groupby_cbumi().count();
+    let n_cells =  BusReader::new(busfile).groupby_cb().count();
 
     let mut nreads = 0;
     let mut nrecords = 0;
 
-    let bus = BusIteratorBuffered::new(busfile);
+    let bus = BusReader::new(busfile);
     for r in bus{
         nrecords+=1;
         nreads+= r.COUNT

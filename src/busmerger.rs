@@ -29,11 +29,11 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
 
 #[cfg(test)]
 mod tests {
-    use crate::io::{BusRecord, BusIteratorBuffered, setup_busfile};
+    use crate::io::{BusRecord, BusReader, setup_busfile};
     use super::*;
 
     fn get_records(fname: &str) -> Vec<BusRecord>{
-        let reader = BusIteratorBuffered::new(fname);
+        let reader = BusReader::new(fname);
         let records: Vec<BusRecord> = reader.into_iter().collect();
         records
     }
