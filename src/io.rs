@@ -25,12 +25,22 @@ pub struct BusRecord {
     // PAD: u32 // just padding to fill 32bytes
 }
 
+/// Header of a bsufile, as specified by kallisto
+/// the only things that are variable are:
+/// - cb_len: The number of bases in the cellbarcode (usually 16BP)
+/// - umi_len: The number of bases in the cellbarcode (usually 12BP)
+/// # Example
+/// ```
+/// let header = BusHeader::new(16, 12, 1)
+/// // can also be obtained from an existing busfile
+/// let header = BusHeader::from_file("somefile.bus")
+/// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct BusHeader {
 //4sIIII: 20bytes
     magic: [u8; 4],
     version: u32,
-    cb_len: u32,
+    pub cb_len: u32,
     umi_len: u32,
     tlen: u32
 }
@@ -43,9 +53,9 @@ impl BusHeader {
 
     pub fn from_file(fname: &str) -> BusHeader{
         // getting 20 bytes out of the file, which is the header
-        let file = std::fs::File::open(fname);
+        let file = std::fs::File::open(fname).unwrap_or_else(|_| panic!("file not found: {fname}"));
         let mut header = Vec::with_capacity(BUS_HEADER_SIZE);
-        let _n = file.as_ref().unwrap().take(BUS_HEADER_SIZE as u64).read_to_end(&mut header).unwrap();
+        let _n = file.take(BUS_HEADER_SIZE as u64).read_to_end(&mut header).unwrap();
         let header_struct: BusHeader = bincode::deserialize(&header).expect("FAILED to deserialze header");
         assert_eq!(&header_struct.magic, b"BUS\x00", "Header struct not matching");
         header_struct
@@ -54,13 +64,13 @@ impl BusHeader {
     pub fn get_tlen(&self) -> u32{
         self.tlen
     }
+}
 pub struct BusReader {
     pub bus_header: BusHeader,
     buf: BufReader<File>
 }
 
 impl BusReader {
-    pub fn new(filename: &str) -> BusIteratorBuffered{
     pub fn new(filename: &str) -> BusReader{
         // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
         // further increase buffers dont speed things up more (just need more mem)
@@ -260,7 +270,7 @@ impl BusFolder {
         }
     }
 
-    pub fn get_iterator(&self) -> BusIteratorBuffered{
+    pub fn get_iterator(&self) -> BusReader{
         let bfile = self.get_busfile();
         BusReader::new(&bfile)
     }

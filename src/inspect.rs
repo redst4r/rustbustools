@@ -1,4 +1,4 @@
-use crate::{io::BusIteratorBuffered, iterators::{CellGroupIterator, CbUmiGroupIterator}};
+use crate::{io::BusReader, iterators::{CellGroupIterator, CbUmiGroupIterator}};
 
 
 pub fn inspect(busfile: &str){

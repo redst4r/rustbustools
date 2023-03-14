@@ -210,6 +210,7 @@ mod tests{
         let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
 
         let records = vec![r1.clone(),r2.clone(),r3.clone()];
+        // let n: Vec<_> = records.into_iter().groupby_cb().map(|(_cb, records)| records).collect();
         let (busname, _dir) = setup_busfile(&records);
 
         let b = BusReader::new(&busname);
@@ -265,8 +266,9 @@ mod tests{
         let r6 = BusRecord{CB: 3, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
     
         let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
-        // let records = vec![r1,r2,r3,r4,r5, r6].to_vec();
     
+        // let n: Vec<(u64, Vec<BusRecord>)> = records.into_iter().groupby_cb().collect();
+
         let (busname, _dir) = setup_busfile(&records);
     
         let b = BusReader::new(&busname);
@@ -319,6 +321,8 @@ mod tests{
         let r6 = BusRecord{CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
 
         let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
+        // let n: Vec<((u64, u64), Vec<BusRecord>)> = records.into_iter().groupby_cbumi().collect();
+
 
         let (busname, _dir) = setup_busfile(&records);
 

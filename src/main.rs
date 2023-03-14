@@ -1,8 +1,9 @@
-// #![feature(slice_group_by)]
-
-use std::fs;
-
+use std::fs::{self, File};
+use std::io::{Write, BufWriter};
 use rustbustools::inspect::inspect;
+use rustbustools::io::{BusReader, BusHeader};
+use rustbustools::iterators::CellGroupIterator;
+use rustbustools::utils::int_to_seq;
 use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
 
@@ -25,7 +26,16 @@ enum MyCommand {
     count2(CountArgs),
     resolve_ec(ResolveArgs),
     inspect(InspectArgs),
+    getcb(GetCBArgs),
 }
+
+#[derive(Args)]
+struct GetCBArgs{
+    /// input busfolder
+    #[clap(long= "ifile", short='i')] 
+    inbus: String, 
+}
+
 #[derive(Args)]
 struct CountArgs{
     /// input busfolder
@@ -149,6 +159,24 @@ fn main() {
         MyCommand::inspect(args) => {
             inspect(&args.inbus);
         }
+
+        MyCommand::getcb(args) => {
+            let fh = File::open(cli.output).unwrap();
+            let mut writer = BufWriter::new(fh);
+            // let cb_len = 16;
+
+            let header = BusHeader::from_file(&args.inbus);
+            let cb_len = header.cb_len;
+            let bus_cb = BusReader::new(&args.inbus)
+                .groupby_cb()
+                .map(|(cb, _r)| 
+                    int_to_seq(cb, cb_len.into())
+                ) ;
+
+            for cb in bus_cb{
+                writeln!(writer, "{}", cb).unwrap();
+            }
+        },
     }
 }
 
