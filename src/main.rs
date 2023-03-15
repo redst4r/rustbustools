@@ -1,5 +1,6 @@
 use std::fs::{self, File};
 use std::io::{Write, BufWriter};
+use itertools::Itertools;
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusReader, BusHeader};
 use rustbustools::iterators::CellGroupIterator;
@@ -161,7 +162,7 @@ fn main() {
         }
 
         MyCommand::getcb(args) => {
-            let fh = File::open(cli.output).unwrap();
+            let fh = File::create(cli.output).unwrap();
             let mut writer = BufWriter::new(fh);
             // let cb_len = 16;
 
@@ -169,12 +170,20 @@ fn main() {
             let cb_len = header.cb_len;
             let bus_cb = BusReader::new(&args.inbus)
                 .groupby_cb()
-                .map(|(cb, _r)| 
-                    int_to_seq(cb, cb_len.into())
+                .map(|(cb, records)| 
+                    (
+                        // CB,decoded
+                        int_to_seq(cb, cb_len.into()), 
+                        // number of UMIs
+                        records.iter()
+                            .map(|r|r.UMI)
+                            .unique()
+                            .count()
+                    )
                 ) ;
 
-            for cb in bus_cb{
-                writeln!(writer, "{}", cb).unwrap();
+            for (cb, nrecords) in bus_cb{
+                writeln!(writer, "{},{}", cb, nrecords).unwrap();
             }
         },
     }
