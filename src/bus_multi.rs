@@ -79,8 +79,7 @@ impl Iterator for CellIteratorMulti {
         .filter_map(|(sname, (cb, _r))| {
             if *cb == current_min_cb{
                 Some(sname.clone())
-            }
-            else{
+            }else{
                 None
             }
         }).collect();

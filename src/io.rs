@@ -24,7 +24,20 @@ pub struct BusRecord {
     pub FLAG: u32, // 4v byte    including this, we have 28 bytes, missing 4 to fill up
     // PAD: u32 // just padding to fill 32bytes
 }
+impl BusRecord {
+    pub fn to_bytes(&self) -> Vec<u8>{
+        let mut binrecord = bincode::serialize(self).expect("FAILED to serialze record");
 
+        // the struct is only 28bytes, so we need 4 padding bytes
+        for _i in 0..4{  //TODO feel like theres a better way to do this
+            binrecord.push(0);
+        }   
+        binrecord
+    }
+    pub fn from_bytes(bytes: &[u8])->Self{
+        bincode::deserialize(bytes).expect("deserial error")
+    }
+}
 /// Header of a bsufile, as specified by kallisto
 /// the only things that are variable are:
 /// - cb_len: The number of bases in the cellbarcode (usually 16BP)
@@ -56,9 +69,17 @@ impl BusHeader {
         let file = std::fs::File::open(fname).unwrap_or_else(|_| panic!("file not found: {fname}"));
         let mut header = Vec::with_capacity(BUS_HEADER_SIZE);
         let _n = file.take(BUS_HEADER_SIZE as u64).read_to_end(&mut header).unwrap();
-        let header_struct: BusHeader = bincode::deserialize(&header).expect("FAILED to deserialze header");
-        assert_eq!(&header_struct.magic, b"BUS\x00", "Header struct not matching");
+        BusHeader::from_bytes(&header)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> BusHeader{
+        let header_struct: BusHeader = bincode::deserialize(bytes).expect("FAILED to deserialze header");
+        assert_eq!(&header_struct.magic, b"BUS\x00", "Header struct not matching; MAGIC is wrong");
         header_struct
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8>{
+        bincode::serialize(self).expect("FAILED to serialze header")
     }
 
     pub fn get_tlen(&self) -> u32{
@@ -70,12 +91,12 @@ pub struct BusReader {
     buf: BufReader<File>
 }
 
+// benchmarking had a sligh incrase of speed using 800KB instead of *Kb
+// further increase buffers dont speed things up more (just need more mem)
+// const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
+const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 impl BusReader {
     pub fn new(filename: &str) -> BusReader{
-        // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
-        // further increase buffers dont speed things up more (just need more mem)
-        // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
-        const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
         BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
     }
     pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader{
@@ -87,7 +108,7 @@ impl BusReader {
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusReader {bus_header, buf }
+        BusReader {bus_header, buf}
     }
 }
 
@@ -97,11 +118,11 @@ impl Iterator for BusReader {
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0;BUS_ENTRY_SIZE];
         let r = match self.buf.read(&mut buffer){
-            Ok(BUS_ENTRY_SIZE) => Some(bincode::deserialize(&buffer).expect("deserial error")),
+            Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,
             Ok(n) => {
-                let s: BusRecord = bincode::deserialize(&buffer).expect("deserial error");
-                panic!("{:?} {:?} {:?}", n, buffer, s)
+                let s: BusRecord = BusRecord::from_bytes(&buffer);
+                panic!("Wrong number of bytes {:?}. Buffer: {:?} record: {:?}", n, buffer, s)
             }
             Err(e) => panic!("{:?}", e),
         };
@@ -120,7 +141,7 @@ impl BusWriter {
         let mut buf = BufWriter::new(file_handle);
 
         // write the header into the file
-        let binheader = bincode::serialize(&header).expect("FAILED to serialze header");
+        let binheader =header.to_bytes();
         buf.write_all(&binheader).expect("FAILED to write header");
 
         // write the variable header
@@ -138,13 +159,10 @@ impl BusWriter {
         BusWriter::from_filehandle(file_handle, header)
     }
 
-    pub fn write_record(&mut self, record: &BusRecord){
-        let mut binrecord = bincode::serialize(record).expect("FAILED to serialze record");
 
-        // the struct is only 28bytes, so we need 4 padding bytes
-        for _i in 0..4{  //TODO feel like theres a better way to do this
-            binrecord.push(0);
-        }
+
+    pub fn write_record(&mut self, record: &BusRecord){
+        let binrecord = record.to_bytes();
         self.buf.write_all(&binrecord).expect("FAILED to write record");
     }
     pub fn write_records(&mut self, records: &Vec<BusRecord>){
@@ -397,18 +415,14 @@ mod tests {
 
     #[test]
     fn test_read_write(){
-        let r1 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-
+        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r2 = BusRecord{CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
         let rlist = vec![r1,r2];   // note: this clones r1, r2!
-
         let (busname, _dir) = setup_busfile(&rlist);
-
         let reader = BusReader::new(&busname);
 
         let records: Vec<BusRecord> = reader.into_iter().collect();
         assert_eq!(records, rlist)
-
     }
 
     use std::fs::File;
