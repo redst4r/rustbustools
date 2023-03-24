@@ -88,7 +88,7 @@ impl BusHeader {
 }
 pub struct BusReader {
     pub bus_header: BusHeader,
-    buf: BufReader<File>
+    reader: BufReader<File>
 }
 
 // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
@@ -108,7 +108,7 @@ impl BusReader {
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusReader {bus_header, buf}
+        BusReader {bus_header, reader: buf}
     }
 }
 
@@ -117,7 +117,7 @@ impl Iterator for BusReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0;BUS_ENTRY_SIZE];
-        let r = match self.buf.read(&mut buffer){
+        let r = match self.reader.read(&mut buffer){
             Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,
             Ok(n) => {
@@ -132,26 +132,13 @@ impl Iterator for BusReader {
 
 // ========================================
 pub struct BusWriter{
-    pub buf: BufWriter<File>,
+    pub writer: BufWriter<File>,
     pub header: BusHeader
 }
+
 impl BusWriter {
-
     pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter{
-        let mut buf = BufWriter::new(file_handle);
-
-        // write the header into the file
-        let binheader =header.to_bytes();
-        buf.write_all(&binheader).expect("FAILED to write header");
-
-        // write the variable header
-        let mut varheader: Vec<u8> = Vec::new();
-        for _i in 0..header.tlen{
-            varheader.push(0);
-        }
-        buf.write_all(&varheader).expect("FAILED to write var header");
-
-        BusWriter {buf , header}
+        BusWriter::new_with_capacity(file_handle, header, DEFAULT_BUF_SIZE)
     }
 
     pub fn new(filename: &str, header: BusHeader) -> BusWriter{
@@ -159,18 +146,33 @@ impl BusWriter {
         BusWriter::from_filehandle(file_handle, header)
     }
 
-
-
     pub fn write_record(&mut self, record: &BusRecord){
         let binrecord = record.to_bytes();
-        self.buf.write_all(&binrecord).expect("FAILED to write record");
+        self.writer.write_all(&binrecord).expect("FAILED to write record");
     }
     pub fn write_records(&mut self, records: &Vec<BusRecord>){
         // writes several recordsd and flushes
         for r in records{
             self.write_record(r)
         }
-        self.buf.flush().unwrap();
+    }
+
+    pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self{
+
+        let mut writer = BufWriter::with_capacity(bufsize, file_handle);
+
+        // write the header into the file
+        let binheader =header.to_bytes();
+        writer.write_all(&binheader).expect("FAILED to write header");
+
+        // write the variable header
+        let mut varheader: Vec<u8> = Vec::new();
+        for _i in 0..header.tlen{
+            varheader.push(0);
+        }
+        writer.write_all(&varheader).expect("FAILED to write var header");
+
+        BusWriter {writer , header}
     }
 
 }
@@ -406,7 +408,7 @@ mod tests {
         let busname = "/tmp/test_read_write_header.bus";
         let mut writer = BusWriter::new(busname, header);
         writer.write_record(&r1);
-        writer.buf.flush().unwrap();
+        writer.writer.flush().unwrap();
 
         let bheader = BusHeader::from_file(&busname);
         let header = BusHeader::new(16, 12, 20);
