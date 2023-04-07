@@ -45,7 +45,7 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) ->HashSet
     
         // initial element, make a copy of that
         for el in s1{
-            shared_genes.insert(el.clone());
+            shared_genes.insert(*el);
         }
     }
     // pretty much just a clone of s1
