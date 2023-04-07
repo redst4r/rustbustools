@@ -155,6 +155,7 @@ impl BusWriter {
         for r in records{
             self.write_record(r)
         }
+        self.writer.flush().unwrap();
     }
 
     pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self{
