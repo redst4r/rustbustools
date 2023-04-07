@@ -9,7 +9,7 @@ use std::hash::Hash;
 just some wrappers for Strings and ints that we use for genes and equivalence classes
  */
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
-struct EC(u32);
+pub struct EC(u32);
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Debug)]
 pub struct Genename(String);
 
@@ -83,6 +83,9 @@ pub struct Ec2GeneMapper {
 
     // TODO this could be a simple Vec, indexing into it
     int_to_gene: HashMap<u32, Genename>,  // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
+
+    // for each gene get a EC that uniquely maps to that gene
+    geneid2ec: HashMap<u32, EC>
 
     // consistent_ec_sets: HashSet<HashSet<EC>>  // what general EC combinations are allowed
 }
@@ -163,11 +166,21 @@ impl Ec2GeneMapper{
         // mapping from EC to a set of gene_id
         // this is the main struct we'll be using!
         let mut ec2geneid: HashMap<EC, HashSet<u32>>= HashMap::new();
-        for (ec, genes) in ec2gene{
+        for (ec, genes) in ec2gene.iter(){
             let geneids: HashSet<u32> = genes.iter().map(|gname| *gene_to_int.get(&Genename(gname.to_string())).unwrap()).collect();
-            ec2geneid.insert(EC(ec), geneids);
+            ec2geneid.insert(EC(*ec), geneids);
         }        
-        Ec2GeneMapper { ec2geneid, int_to_gene}
+
+        let mut geneid2ec: HashMap<u32, EC> = HashMap::new();
+        for (ec, genes) in ec2gene{
+            if genes.len() == 1{
+                let gname = genes.iter().next().unwrap().clone();
+                let gid = *gene_to_int.get(&Genename(gname)).unwrap();
+                geneid2ec.insert(gid, EC(ec));
+            }
+        }
+
+        Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec}
     }
 
     pub fn get_genes(&self, ec: u32) -> &HashSet<u32>{
@@ -196,6 +209,12 @@ impl Ec2GeneMapper{
         let ngenes = self.int_to_gene.len();
         let genelist_vector: Vec<String> = (0..ngenes).map(|k| self.resolve_gene_id(k as u32)).collect();
         genelist_vector
+    }
+
+    pub fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC>{
+        // just dereferencing whats inside the Option returned by the dict
+        // self.geneid2ec.get(&geneid).map(|ec| *ec)
+        self.geneid2ec.get(&geneid).copied()
     }
 
 }
@@ -248,9 +267,9 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 mod testing{
     use std::collections::{HashMap, HashSet};
 
-    use crate::{utils::vec2set, io::BusRecord, consistent_genes::{groubygene, find_consistent}};
+    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent}};
 
-    use super::Ec2GeneMapper;
+    use super::{Ec2GeneMapper, EC};
 
     #[test]
     fn test_consistent(){
@@ -363,6 +382,19 @@ mod testing{
         let r2 = &r[1];
         assert_eq!(r1.COUNT, 3);
         assert_eq!(r2.COUNT, 4);
+    }
+
+    // #[test]
+    fn test_ec(){
+        let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
+        let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
+        let b = BusFolder::new(folder, t2g_file);
+        let ecmapper = b.ec2gene;
+
+        for g in 0..ecmapper.int_to_gene.len(){
+            ecmapper.resolve_geneid_to_ec_uniquely(g as u32).unwrap();
+            // let ec = ecmapper.geneid2ec.get(&(g as u32)).unwrap().0;
+        }
     }
 
 }
