@@ -1,12 +1,12 @@
-use crate::{io::{BusRecord}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}};
+use crate::{io::{BusRecord, CUGIterator}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}};
 
-pub struct CbUmiGroup<I> {
+pub struct CbUmiGroup<I: CUGIterator> {
     iter: I,
     last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
 }
 
 impl<I> Iterator for CbUmiGroup<I>
-where I: Iterator<Item = BusRecord>
+where I: CUGIterator
 {
     type Item = ((u64, u64), Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
@@ -64,7 +64,7 @@ where I: Iterator<Item = BusRecord>
 }
 
 impl<I> CbUmiGroup<I> 
-where I: Iterator<Item = BusRecord>
+where I: CUGIterator
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
@@ -72,22 +72,22 @@ where I: Iterator<Item = BusRecord>
     }
 }
 
-pub trait CbUmiGroupIterator: Iterator<Item = BusRecord> + Sized {
+pub trait CbUmiGroupIterator: CUGIterator + Sized {
     fn groupby_cbumi(self) -> CbUmiGroup<Self> {
         CbUmiGroup::new(self)
     }
 }
-impl<I: Iterator<Item = BusRecord>> CbUmiGroupIterator for I {}
+impl<I: CUGIterator> CbUmiGroupIterator for I {}
 
 
 //=================================================================================
-pub struct CellGroup<I> {
+pub struct CellGroup<I:CUGIterator> {
     iter: I,
     last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
 }
 
 impl<I> Iterator for CellGroup<I>
-where I: Iterator<Item = BusRecord>
+where I: CUGIterator
 {
     type Item = (u64, Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
@@ -139,19 +139,19 @@ where I: Iterator<Item = BusRecord>
 }
 
 impl<I> CellGroup<I> 
-where I: Iterator<Item = BusRecord>
+where I: CUGIterator
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
         Self { iter, last_record }
     }
 }
-pub trait CellGroupIterator: Iterator<Item = BusRecord> + Sized {
+pub trait CellGroupIterator: CUGIterator + Sized {
     fn groupby_cb(self) -> CellGroup<Self> {
         CellGroup::new(self)
     }
 }
-impl<I: Iterator<Item = BusRecord>> CellGroupIterator for I {}
+impl<I: CUGIterator> CellGroupIterator for I {}
 
 
 /* adaptor to be able to group things by gene 

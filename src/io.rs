@@ -86,6 +86,34 @@ impl BusHeader {
         self.tlen
     }
 }
+
+/// A marker trait for iterators over CB/UMI/gene_EC iterators
+/// to create an iterator compatible with this framework, 
+/// just implement the usual iterator trait (giving the next() function)
+/// and also tag the iterator with CUGIterator: `impl CUGIterator for Dummy {}`
+/// ## Example
+/// ```
+/// struct Dummy{
+///     f: i64
+/// }
+///
+/// impl Iterator for Dummy {
+///     type Item=BusRecord;
+///
+///     fn next(&mut self) -> Option<Self::Item> {
+///         Some(BusRecord{CB: 0,UMI: 0, EC: 0, COUNT: self.f, FLAG:0})
+///     }
+/// }
+/// impl CUGIterator for Dummy {}
+/// let mut x =  Dummy{f:1};
+/// let s = x.next();
+/// println!("{s:?}")
+/// ```
+/// 
+/// pretty much a type alias for Iterator<Item=BusRecord>
+pub trait CUGIterator: Iterator<Item = BusRecord> {}
+
+
 pub struct BusReader {
     pub bus_header: BusHeader,
     reader: BufReader<File>
@@ -129,6 +157,8 @@ impl Iterator for BusReader {
         r
     }
 }
+// tag our iterator to be compatible with our framework
+impl CUGIterator for BusReader {} 
 
 // ========================================
 pub struct BusWriter{
