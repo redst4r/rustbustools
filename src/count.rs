@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
-use crate::count2::CountMatrix;
+use crate::countmatrix::CountMatrix;
 use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusReader};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};

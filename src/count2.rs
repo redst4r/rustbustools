@@ -1,56 +1,11 @@
 use std::collections::{HashMap, HashSet, BTreeSet};
 use std::fs::File;
 use std::time::Instant;
-use sprs::DenseVector;
-use sprs::io::write_matrix_market;
-
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
+use crate::countmatrix::CountMatrix;
 use crate::iterators::CbUmiGroupIterator;
 use crate::io::{BusFolder, BusRecord};
 use crate::multinomial::multinomial_sample;
 use crate::utils::{get_progressbar, int_to_seq};
-
-use std::io::Write;
-
-pub struct CountMatrix{
-    /*
-    Represents a count matrix of Cells vs Genes
-    Cells are encoded a Strings already!
-    */
-    pub matrix: sprs::CsMat<usize>,
-    pub cbs: Vec<String>,
-    pub genes: Vec<String>,
-}
-impl CountMatrix {
-    pub fn new(matrix: sprs::CsMat<usize>, cbs:Vec<String>, genes: Vec<String>) ->CountMatrix{
-        CountMatrix{
-            matrix,
-            cbs,
-            genes,
-        }
-    }
-
-    pub fn write(self, foldername: &str){
-
-        let mfile = format!("{}/gene.mtx", foldername);
-        let cbfile = format!("{}/gene.barcodes.txt", foldername);
-        let genefile = format!("{}/gene.genes.txt", foldername);
-
-
-        write_matrix_market(mfile, &self.matrix).unwrap();
-
-        let mut fh_cb = File::create(cbfile).unwrap();
-        let mut fh_gene = File::create(genefile).unwrap();
-
-        for cb in self.cbs{
-            fh_cb.write_all(format!("{}\n", cb).as_bytes()).unwrap();
-        }
-
-        for g in self.genes{
-            fh_gene.write_all(format!("{}\n", g).as_bytes()).unwrap();
-        }
-    }
-}
 
 fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<String>) -> CountMatrix{
 
