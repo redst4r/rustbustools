@@ -197,7 +197,7 @@ fn count_from_record_list(records: Vec<BusRecord>, egmapper: &Ec2GeneMapper, ign
 
 }
 
-pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
@@ -219,10 +219,6 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
 
     println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
 
-    // handles the mapping between EC and gene
-    let eg_mapper = bfolder.ec2gene;
-
-
     // CB,gene_id -> count
     let mut all_expression_vector: HashMap<(u64, u32), usize> = HashMap::new();
     let bar = get_progressbar(total_records as u64);
@@ -235,7 +231,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     for (counter, ((cb, _umi), record_list)) in cbumi_iter.enumerate() {
 
         // try to map the records of this CB/UMI into a single gene
-        if let Some(g) = count_from_record_list(record_list, &eg_mapper, ignore_multimapped){
+        if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped){
             // the records could be made into a single count for gene g
             let key = (cb, g);
             let current_count = all_expression_vector.entry(key).or_insert(0);
@@ -256,7 +252,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped:bool) -> CountMatrix {
     let elapsed_time = now.elapsed();
     println!("Mapped {}, multi-discard {} in {:?}", n_mapped, n_multi_inconsistent, elapsed_time); 
 
-    let genelist_vector: Vec<String> = eg_mapper.get_gene_list();
+    let genelist_vector: Vec<String> = bfolder.ec2gene.get_gene_list();
 
     // this is how genes are ordered as by EGM
     // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]

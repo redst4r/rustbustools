@@ -49,7 +49,7 @@ pub fn count_bayesian(bfolder: BusFolder) {
 
 
 
-pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
@@ -78,7 +78,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     for (counter, (cb, record_list)) in cb_iter.enumerate() {//}.take(1_000_000){
         // let s = records_to_expression_vector(record_list, &ec2gene, ignore_multimapped);
-        let s = records_to_expression_vector(record_list, &eg_mapper, ignore_multimapped);
+        let s = records_to_expression_vector(record_list, &bfolder.ec2gene, ignore_multimapped);
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
         all_expression_vector.insert(cb, s);
@@ -92,7 +92,7 @@ pub fn count(bfolder: BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("done in {:?}", elapsed_time); 
     
     //collect all genes
-    let genelist_vector: Vec<String> = eg_mapper.get_gene_list();
+    let genelist_vector: Vec<String> = bfolder.ec2gene.get_gene_list();
     println!(" genes {}", genelist_vector.len());
 
     let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&String>>();
@@ -298,7 +298,7 @@ mod test{
         let foldername ="/home/michi/bus_testing/bus_output";
     
         let b = BusFolder::new(foldername, t2g_file);
-        let count_matrix = count(b, false);
+        let count_matrix = count(&b, false);
     
         // write_sprs_to_file(count_matrix.matrix, "/tmp/test.mtx");
         write_matrix_market("/tmp/test.mtx", &count_matrix.matrix).unwrap();
