@@ -148,7 +148,7 @@ fn main() {
         MyCommand::resolve_ec(args) => {
             println!("Doing resolve");
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let mut genes: Vec<&u32> = bfolder.ec2gene.get_genes(args.ec).into_iter().collect();
+            let mut genes: Vec<&GeneId> = bfolder.ec2gene.get_genes(args.ec).into_iter().collect();
             genes.sort();
             println!("EC {} -> {:?}", args.ec, genes);
 

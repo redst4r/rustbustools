@@ -1,13 +1,15 @@
 use std::collections::{HashMap, HashSet, BTreeSet};
 use std::fs::File;
 use std::time::Instant;
+use sprs::{DenseVector};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, CB};
 use crate::countmatrix::CountMatrix;
 use crate::iterators::CbUmiGroupIterator;
 use crate::io::{BusFolder, BusRecord};
 use crate::multinomial::multinomial_sample;
 use crate::utils::{get_progressbar, int_to_seq};
 
-fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<String>) -> CountMatrix{
+fn countmap_to_matrix(countmap: &HashMap<(CB, GeneId), usize>, gene_vector: Vec<String>) -> CountMatrix{
 
     // get all CBs, a BTreeSet gives us order for free
     // let cb_set: BTreeSet<u64> = BTreeSet::new();
@@ -29,7 +31,7 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<St
     for ((cb, geneid), counter) in countmap{
 
         let cbi = cb_ix.get(cb).unwrap();
-        let genei = *geneid as usize;
+        let genei = (*geneid).0 as usize;
         ii.push(*cbi);
         jj.push(genei);
         vv.push(*counter);
@@ -44,14 +46,13 @@ fn countmap_to_matrix(countmap: &HashMap<(u64, u32), usize>, gene_vector: Vec<St
 
     let b: sprs::CsMat<_> = c.to_csr();
 
-    let cbs_seq: Vec<String> = all_cbs.into_iter().map(|x|int_to_seq(*x, 16)).collect();
+    let cbs_seq: Vec<String> = all_cbs.into_iter().map(|x|int_to_seq((*x).0, 16)).collect();
     // let gene_seq: Vec<String> = gene_vector.into_iter().map(|x|x.clone()).collect();
     let gene_seq: Vec<String> = gene_vector.into_iter().collect(); //not sure if this does anything
     
     CountMatrix::new(b, cbs_seq, gene_seq)
 
 }
-
 
 pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usize){
     let bfile = bfolder.get_busfile();
@@ -91,7 +92,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
     for i in 0..n_samples{
 
         // CB,gene_id -> count
-        let mut all_expression_vector: HashMap<(u64, u32), usize> = HashMap::new();
+        let mut all_expression_vector: HashMap<(CB, GeneId), usize> = HashMap::new();
         let mut n_mapped = 0;
         let mut n_multi_inconsistent = 0;
 
@@ -134,9 +135,9 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
                 continue;
             }
 
-            if let Some(g) = count_from_record_list(injected_records, egm, ignore_multimapped){
+            if let Some(g) = count_from_record_list(&injected_records, egm, ignore_multimapped){
                 // the records could be made into a single count for gene g
-                let key = (cb, g);
+                let key = (CB(cb), g);
                 let current_count = all_expression_vector.entry(key).or_insert(0);
                 *current_count+=1;
     
@@ -167,16 +168,14 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
     }
 }
 
-
-
-fn count_from_record_list(records: Vec<BusRecord>, egmapper: &Ec2GeneMapper, ignore_multimapped:bool) -> Option<u32>{
+fn count_from_record_list(records: &Vec<BusRecord>, egmapper: &Ec2GeneMapper, ignore_multimapped:bool) -> Option<GeneId>{
 
     // given a set of Records from the same CB/UMI, are they consistent with a particular gene
     // which would yield a signel count
-    let consistent_genes: HashSet<u32>;
+    let consistent_genes: HashSet<GeneId>;
 
     if !ignore_multimapped{
-            consistent_genes= find_consistent(&records, egmapper);
+            consistent_genes= find_consistent(records, egmapper);
     }else if records.len() > 1{
         return None
     }
@@ -220,7 +219,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
     println!("determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI", total_records, elapsed_time, max_length_records);
 
     // CB,gene_id -> count
-    let mut all_expression_vector: HashMap<(u64, u32), usize> = HashMap::new();
+    let mut all_expression_vector: HashMap<(CB, GeneId), usize> = HashMap::new();
     let bar = get_progressbar(total_records as u64);
 
     let mut n_mapped = 0;
@@ -233,7 +232,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
         // try to map the records of this CB/UMI into a single gene
         if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped){
             // the records could be made into a single count for gene g
-            let key = (cb, g);
+            let key = (CB(cb), g);
             let current_count = all_expression_vector.entry(key).or_insert(0);
             *current_count+=1;
 
@@ -270,16 +269,18 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
 mod test{
     use std::collections::HashMap;
     use ndarray::{arr2};
+    use crate::consistent_genes::{GeneId, CB};
+
     use super::countmap_to_matrix;
 
     #[test]
     fn test_countmatrix(){
 
-        let mut countmap: HashMap<(u64, u32), usize> = HashMap::new();
-        countmap.insert((0, 0), 10);
-        countmap.insert((0, 1), 1);
-        countmap.insert((1, 0), 0);  // lets see what happens with empty counts
-        countmap.insert((1, 1), 5);
+        let mut countmap: HashMap<(CB, GeneId), usize> = HashMap::new();
+        countmap.insert((CB(0), GeneId(0)), 10);
+        countmap.insert((CB(0), GeneId(1)), 1);
+        countmap.insert((CB(1), GeneId(0)), 0);  // lets see what happens with empty counts
+        countmap.insert((CB(1), GeneId(1)), 5);
 
         let gene_vector = vec!["geneA".to_string(), "geneB".to_string()];
 

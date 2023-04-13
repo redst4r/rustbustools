@@ -5,7 +5,7 @@ use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusReader};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId};
 
 
 pub fn count_bayesian(bfolder: BusFolder) {
@@ -64,10 +64,6 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let total_records = cb_iter_tmp.count();
     let elapsed_time = now.elapsed();
     println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
-
-    println!("creating EC2M");
-    let eg_mapper =  bfolder.ec2gene;
-    println!("done creating EC2M");
 
 
     let mut all_expression_vector: HashMap<u64, HashMap<String, u32>> = HashMap::new();
@@ -181,7 +177,7 @@ fn records_to_expression_vector(
     for ((_cb, _umi), records) in cb_umi_grouped{
         // all records coresponding to the same UMI
 
-        let consistent_genes: HashSet<u32>;
+        let consistent_genes: HashSet<GeneId>;
         // let consistent_genes: HashSet<String>;
         if ! ignore_multimapped{
             consistent_genes= find_consistent(&records, eg_mapper);

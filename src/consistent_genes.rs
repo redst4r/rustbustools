@@ -10,6 +10,14 @@ just some wrappers for Strings and ints that we use for genes and equivalence cl
  */
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct EC(u32);
+
+#[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
+pub struct GeneId(pub u32);
+
+#[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
+pub struct CB(pub u64);
+
+
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Debug)]
 pub struct Genename(String);
 
@@ -22,7 +30,7 @@ pub fn update_intersection_via_retain<T:Hash+Eq>(inter:  &mut HashSet<T>, newset
 }
 
 // pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
-pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) ->HashSet<u32> {
+pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) ->HashSet<GeneId> {
 
     /*
     set intersection in Rust is a MESS due to ownership etc!!
@@ -79,13 +87,13 @@ pub struct Ec2GeneMapper {
     equivalence class (EC) and genes:
     A single EC maps to a SET of genes
     */
-    ec2geneid: HashMap<EC, HashSet<u32>>,  // maps each EC to a set of geneids (integers)
+    ec2geneid: HashMap<EC, HashSet<GeneId>>,  // maps each EC to a set of geneids (integers)
 
     // TODO this could be a simple Vec, indexing into it
-    int_to_gene: HashMap<u32, Genename>,  // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
+    int_to_gene: HashMap<GeneId, Genename>,  // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
 
     // for each gene get a EC that uniquely maps to that gene
-    geneid2ec: HashMap<u32, EC>
+    geneid2ec: HashMap<GeneId, EC>
 
     // consistent_ec_sets: HashSet<HashSet<EC>>  // what general EC combinations are allowed
 }
@@ -154,24 +162,24 @@ impl Ec2GeneMapper{
 
         // we're going to encode genes by ints hence we need
         // a mapping from gene-> int
-        let gene_to_int: HashMap<Genename, u32> = gene_vector
+        let gene_to_int: HashMap<Genename, GeneId> = gene_vector
             .into_iter()
             .enumerate()
-            .map(|(i, g)| (g, i as u32))
+            .map(|(i, g)| (g, GeneId(i as u32)))
             .collect();
 
         // the reverse
-        let int_to_gene: HashMap<u32, Genename> = gene_to_int.iter().map(|(g, i)| (*i as u32, g.clone())).collect();
+        let int_to_gene: HashMap<GeneId, Genename> = gene_to_int.iter().map(|(g, i)| (*i, g.clone())).collect();
 
         // mapping from EC to a set of gene_id
         // this is the main struct we'll be using!
-        let mut ec2geneid: HashMap<EC, HashSet<u32>>= HashMap::new();
+        let mut ec2geneid: HashMap<EC, HashSet<GeneId>>= HashMap::new();
         for (ec, genes) in ec2gene.iter(){
-            let geneids: HashSet<u32> = genes.iter().map(|gname| *gene_to_int.get(&Genename(gname.to_string())).unwrap()).collect();
+            let geneids: HashSet<GeneId> = genes.iter().map(|gname| *gene_to_int.get(&Genename(gname.to_string())).unwrap()).collect();
             ec2geneid.insert(EC(*ec), geneids);
         }        
 
-        let mut geneid2ec: HashMap<u32, EC> = HashMap::new();
+        let mut geneid2ec: HashMap<GeneId, EC> = HashMap::new();
         for (ec, genes) in ec2gene{
             if genes.len() == 1{
                 let gname = genes.iter().next().unwrap().clone();
@@ -183,9 +191,9 @@ impl Ec2GeneMapper{
         Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec}
     }
 
-    pub fn get_genes(&self, ec: u32) -> &HashSet<u32>{
+    pub fn get_genes(&self, ec: u32) -> &HashSet<GeneId>{
         // resolves an EC into a set of gene_ids
-        return self.ec2geneid.get(&EC(ec)).unwrap();
+         self.ec2geneid.get(&EC(ec)).unwrap()
     }
 
     pub fn get_genenames(&self, ec: u32) -> HashSet<String>{
@@ -198,7 +206,7 @@ impl Ec2GeneMapper{
         genenames
     }
 
-    pub fn resolve_gene_id(&self, gene_id: u32) -> String{
+    pub fn resolve_gene_id(&self, gene_id: GeneId) -> String{
         // turns a gene_id into a genename (ENSEMBL)
         let r = self.int_to_gene.get(&gene_id).unwrap();
         r.0.to_string()
@@ -207,14 +215,14 @@ impl Ec2GeneMapper{
     pub fn get_gene_list(&self) -> Vec<String>{
         // returns a list of all genes in the mapping, sorted by int-id
         let ngenes = self.int_to_gene.len();
-        let genelist_vector: Vec<String> = (0..ngenes).map(|k| self.resolve_gene_id(k as u32)).collect();
+        let genelist_vector: Vec<String> = (0..ngenes).map(|k| self.resolve_gene_id(GeneId(k as u32))).collect();
         genelist_vector
     }
 
     pub fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC>{
         // just dereferencing whats inside the Option returned by the dict
         // self.geneid2ec.get(&geneid).map(|ec| *ec)
-        self.geneid2ec.get(&geneid).copied()
+        self.geneid2ec.get(&GeneId(geneid)).copied()
     }
 
 }
@@ -267,7 +275,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 mod testing{
     use std::collections::{HashMap, HashSet};
 
-    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent}};
+    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent, GeneId}};
 
     use super::{Ec2GeneMapper, EC};
 
