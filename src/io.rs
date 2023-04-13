@@ -4,7 +4,7 @@ use std::io::{BufWriter, Read, BufReader, BufRead, Write, Seek, SeekFrom};
 use serde::{Serialize, Deserialize};
 use bincode;
 use tempfile::TempDir;
-use crate::consistent_genes::Ec2GeneMapper;
+use crate::consistent_genes::{Ec2GeneMapper, EC, GeneId, Genename};
 
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
@@ -215,11 +215,11 @@ pub struct BusFolder {
     pub ec2gene: Ec2GeneMapper,
 }
 
-pub fn parse_ecmatrix(filename: &str) -> HashMap<u32, Vec<u32>>{
+pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>>{
     // parsing an ec.matrix into a Hashmap EC->list_of_transcript_ids
-    let file = File::open(filename).unwrap();
+    let file = File::open(filename).unwrap_or_else(|_| panic!("{} not found", filename));
     let reader = BufReader::new(file);
-    let mut ec_dict: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut ec_dict: HashMap<EC, Vec<u32>> = HashMap::new();
 
     for line in reader.lines(){
         if let Ok(l) = line{
@@ -231,7 +231,7 @@ pub fn parse_ecmatrix(filename: &str) -> HashMap<u32, Vec<u32>>{
             let transcript_list: Vec<u32> = tmp
                                              .split(',')
                                              .map(|x|x.parse::<u32>().unwrap()).collect();
-            ec_dict.insert(ec, transcript_list);
+            ec_dict.insert(EC(ec), transcript_list);
         }
         else {
             panic!("Error reading file {}", filename)
@@ -252,10 +252,10 @@ fn parse_transcript(filename: &str) -> HashMap<u32, String>{
     transcript_dict
 }
 
-fn parse_t2g(t2g_file: &str) -> HashMap<String, String>{
+fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename>{
 
-    let mut t2g_dict: HashMap<String, String> = HashMap::new();        
-    let file = File::open(t2g_file).unwrap();
+    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();        
+    let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
     let reader = BufReader::new(file);
     for (_i, line) in reader.lines().enumerate(){
         if let Ok(l) = line{
@@ -265,30 +265,32 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, String>{
             let _symbol = s.next().unwrap();
 
             assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
-            t2g_dict.insert(transcript_id.to_string(), ensemble_id.to_string());
+            t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
         }
     }
     t2g_dict
 }
 
 fn build_ec2gene(
-    ec_dict: &HashMap<u32, Vec<u32>>,
+    ec_dict: &HashMap<EC, Vec<u32>>,
     transcript_dict: &HashMap<u32, String>,
-    t2g_dict: &HashMap<String, String>
- ) -> HashMap<u32, HashSet<String>>{
-    let mut ec2gene: HashMap<u32, HashSet<String>> = HashMap::new();
+    t2g_dict: &HashMap<String, Genename>
+ ) -> HashMap<EC, HashSet<Genename>>{
+    let mut ec2gene: HashMap<EC, HashSet<Genename>> = HashMap::new();
 
     for (ec, transcript_ints) in ec_dict.iter(){
 
-        let mut genes: HashSet<String> = HashSet::new();
+        let mut genes: HashSet<Genename> = HashSet::new();
 
         for t_int in transcript_ints{
             let t_name = transcript_dict.get(t_int).unwrap();
 
             // if we can resolve, put the genename, otherwsise use the transcript name instead
+            // actually, turns out that kallisto/bustools treats it differently:
+            // if the transcript doenst resolve, just drop the entire EC
             match t2g_dict.get(t_name){
                 Some(genename) => genes.insert(genename.clone()),
-                None =>  genes.insert(t_name.clone()),
+                None =>  genes.insert(Genename(t_name.clone())),
             };
         }
         ec2gene.insert(*ec, genes);
@@ -474,10 +476,10 @@ mod tests {
         let ec= parse_ecmatrix("/tmp/foo");
         // println!("{}", ec.len());
         // println!("{:?}", ec);
-        let e1 = ec.get(&0).unwrap();
+        let e1 = ec.get(&EC(0)).unwrap();
         assert_eq!(*e1, vec![1,2,3]);
 
-        let e1 = ec.get(&1).unwrap();
+        let e1 = ec.get(&EC(1)).unwrap();
         assert_eq!(*e1, vec![3 ,4]);
     }
 

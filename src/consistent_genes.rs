@@ -9,7 +9,7 @@ use std::hash::Hash;
 just some wrappers for Strings and ints that we use for genes and equivalence classes
  */
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
-pub struct EC(u32);
+pub struct EC(pub u32);
 
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct GeneId(pub u32);
@@ -19,7 +19,7 @@ pub struct CB(pub u64);
 
 
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Debug)]
-pub struct Genename(String);
+pub struct Genename(pub String);
 
 // #[inline(never)]
 pub fn update_intersection_via_retain<T:Hash+Eq>(inter:  &mut HashSet<T>, newset: &HashSet<T>){        
@@ -43,7 +43,7 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) ->HashSet
 
     // get the genes per BusRecord
     // let mut setlist = records.iter().map(|r| ec2gene.get(&r.EC).unwrap());
-    let mut setlist = records.iter().map(|r| ec2gene.get_genes(r.EC));
+    let mut setlist = records.iter().map(|r| ec2gene.get_genes(EC(r.EC)));
 
     let s1 = setlist.next().unwrap();
 
@@ -140,7 +140,7 @@ pub struct Ec2GeneMapper {
 // }
 impl Ec2GeneMapper{
 
-    pub fn new(ec2gene: HashMap<u32, HashSet<String>>) ->  Self{
+    pub fn new(ec2gene: HashMap<EC, HashSet<Genename>>) ->  Self{
 
         // get all genes and sort them
         // could be done with a flatmap?
@@ -154,7 +154,7 @@ impl Ec2GeneMapper{
         let mut gene_list : HashSet<Genename> = HashSet::new();
         for genes in ec2gene.values(){
             for g in genes{
-                gene_list.insert(Genename(g.to_string()));
+                gene_list.insert(*g);
             }
         }
         let mut gene_vector: Vec<Genename> = gene_list.into_iter().collect();
@@ -175,28 +175,28 @@ impl Ec2GeneMapper{
         // this is the main struct we'll be using!
         let mut ec2geneid: HashMap<EC, HashSet<GeneId>>= HashMap::new();
         for (ec, genes) in ec2gene.iter(){
-            let geneids: HashSet<GeneId> = genes.iter().map(|gname| *gene_to_int.get(&Genename(gname.to_string())).unwrap()).collect();
-            ec2geneid.insert(EC(*ec), geneids);
+            let geneids: HashSet<GeneId> = genes.iter().map(|gname| *gene_to_int.get(gname).unwrap()).collect();
+            ec2geneid.insert(*ec, geneids);
         }        
 
         let mut geneid2ec: HashMap<GeneId, EC> = HashMap::new();
         for (ec, genes) in ec2gene{
             if genes.len() == 1{
                 let gname = genes.iter().next().unwrap().clone();
-                let gid = *gene_to_int.get(&Genename(gname)).unwrap();
-                geneid2ec.insert(gid, EC(ec));
+                let gid = *gene_to_int.get(&gname).unwrap();
+                geneid2ec.insert(gid, ec);
             }
         }
 
         Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec}
     }
 
-    pub fn get_genes(&self, ec: u32) -> &HashSet<GeneId>{
+    pub fn get_genes(&self, ec: EC) -> &HashSet<GeneId>{
         // resolves an EC into a set of gene_ids
-         self.ec2geneid.get(&EC(ec)).unwrap()
+         self.ec2geneid.get(&ec).unwrap()
     }
 
-    pub fn get_genenames(&self, ec: u32) -> HashSet<String>{
+    pub fn get_genenames(&self, ec: EC) -> HashSet<Genename>{
         // resolves an EC into a set of gene_names
         let geneids = self.get_genes(ec);
         let genenames = geneids
@@ -206,16 +206,16 @@ impl Ec2GeneMapper{
         genenames
     }
 
-    pub fn resolve_gene_id(&self, gene_id: GeneId) -> String{
+    pub fn resolve_gene_id(&self, gene_id: GeneId) -> Genename{
         // turns a gene_id into a genename (ENSEMBL)
         let r = self.int_to_gene.get(&gene_id).unwrap();
-        r.0.to_string()
+        r.clone()
     }
 
-    pub fn get_gene_list(&self) -> Vec<String>{
+    pub fn get_gene_list(&self) -> Vec<Genename>{
         // returns a list of all genes in the mapping, sorted by int-id
         let ngenes = self.int_to_gene.len();
-        let genelist_vector: Vec<String> = (0..ngenes).map(|k| self.resolve_gene_id(GeneId(k as u32))).collect();
+        let genelist_vector: Vec<Genename> = (0..ngenes).map(|k| self.resolve_gene_id(GeneId(k as u32))).collect();
         genelist_vector
     }
 
@@ -247,9 +247,9 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
     let mut emissions: Vec<CUGset> = Vec::with_capacity(records.len());  //with capacity worst case scenario
 
     // aggregate by overlpping genes
-    let mut inter: Intersector<String, BusRecord> = Intersector::new();
+    let mut inter: Intersector<Genename, BusRecord> = Intersector::new();
     for r in records{
-        let gset = ec2gene.get_genenames(r.EC);
+        let gset = ec2gene.get_genenames(EC(r.EC));
         inter.add(gset, r);
     };
 
@@ -275,23 +275,23 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 mod testing{
     use std::collections::{HashMap, HashSet};
 
-    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent, GeneId}};
+    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent, GeneId, Genename}};
 
     use super::{Ec2GeneMapper, EC};
 
     #[test]
     fn test_consistent(){
     
-        let ec0= vec2set(vec!["A".to_string()]);
-        let ec1= vec2set(vec!["B".to_string()]);
-        let ec2= vec2set(vec!["A".to_string(), "B".to_string()]);
-        let ec3= vec2set(vec!["C".to_string(), "D".to_string()]);
+        let ec0= vec2set(vec![Genename("A".to_string())]);
+        let ec1= vec2set(vec![Genename("B".to_string())]);
+        let ec2= vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3= vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
     
-        let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
-            (0, ec0), 
-            (1, ec1), 
-            (2, ec2), 
-            (3, ec3), 
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0), 
+            (EC(1), ec1), 
+            (EC(2), ec2), 
+            (EC(3), ec3), 
             ]);
     
         let es_mapper = Ec2GeneMapper::new(ec_dict);
@@ -334,16 +334,16 @@ mod testing{
     #[test]
     fn test_ec_struct(){
 
-        let ec0 = vec2set(vec!["A".to_string()]);
-        let ec1 = vec2set(vec!["B".to_string()]);
-        let ec2 = vec2set(vec!["A".to_string(), "B".to_string()]);
-        let ec3 = vec2set(vec!["C".to_string(), "D".to_string()]);
+        let ec0 = vec2set(vec![Genename("A".to_string())]);
+        let ec1 = vec2set(vec![Genename("B".to_string())]);
+        let ec2 = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3 = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
 
-        let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
-            (0, ec0.clone()), 
-            (1, ec1.clone()), 
-            (2, ec2.clone()), 
-            (3, ec3.clone()), 
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()), 
+            (EC(1), ec1.clone()), 
+            (EC(2), ec2.clone()), 
+            (EC(3), ec3.clone()), 
             ]);
 
         let es = Ec2GeneMapper::new(ec_dict);
@@ -357,16 +357,16 @@ mod testing{
 
     #[test]
     fn test_groubygene(){
-        let ec0: HashSet<String> = vec2set(vec!["A".to_string()]);
-        let ec1: HashSet<String> = vec2set(vec!["B".to_string()]);
-        let ec2: HashSet<String> = vec2set(vec!["A".to_string(), "B".to_string()]);
-        let ec3: HashSet<String> = vec2set(vec!["C".to_string(), "D".to_string()]);
+        let ec0: HashSet<Genename> = vec2set(vec![Genename("A".to_string())]);
+        let ec1: HashSet<Genename> = vec2set(vec![Genename("B".to_string())]);
+        let ec2: HashSet<Genename> = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3: HashSet<Genename> = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
     
-        let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
-            (0, ec0.clone()), 
-            (1, ec1.clone()), 
-            (2, ec2.clone()), 
-            (3, ec3.clone()), 
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()), 
+            (EC(1), ec1.clone()), 
+            (EC(2), ec2.clone()), 
+            (EC(3), ec3.clone()), 
             ]);
     
         let es = Ec2GeneMapper::new(ec_dict);
