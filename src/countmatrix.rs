@@ -36,14 +36,14 @@ impl CountMatrix {
     }
 
     pub fn from_disk(mtx_file: &str, cbfile: &str, genefile: &str) -> CountMatrix{
-        let mat: TriMat<usize> = read_matrix_market(mtx_file).expect(&format!("{} not found", mtx_file));
+        let mat: TriMat<usize> = read_matrix_market(mtx_file).unwrap_or_else(|_| panic!("{} not found", mtx_file));
         let matrix: sprs::CsMat<usize> = mat.to_csr();
 
-        let fh = File::open(cbfile).expect(&format!("{} not found", cbfile)); 
+        let fh = File::open(cbfile).unwrap_or_else(|_| panic!("{} not found", cbfile)); 
         // Read the file line by line, and return an iterator of the lines of the file.
         let cbs: Vec<String> = BufReader::new(fh).lines().collect::<Result<_, _>>().unwrap(); 
 
-        let fh = File::open(genefile).expect(&format!("{} not found", genefile)); 
+        let fh = File::open(genefile).unwrap_or_else(|_| panic!("{} not found", genefile)); 
         let genes: Vec<String> = BufReader::new(fh).lines().collect::<Result<_, _>>().unwrap(); 
 
         CountMatrix{

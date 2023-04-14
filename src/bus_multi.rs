@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::iterators::{CellGroup, CbUmiGroup};
-use crate::io::{BusRecord, BusReader, setup_busfile};
+use crate::io::{BusRecord, BusReader};
 
 
 pub struct CellIteratorMulti {

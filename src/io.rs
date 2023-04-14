@@ -38,7 +38,7 @@ impl BusRecord {
         bincode::deserialize(bytes).expect("deserial error")
     }
 }
-/// Header of a bsufile, as specified by kallisto
+/// Header of a busfile, as specified by kallisto
 /// the only things that are variable are:
 /// - cb_len: The number of bases in the cellbarcode (usually 16BP)
 /// - umi_len: The number of bases in the cellbarcode (usually 12BP)
@@ -405,13 +405,17 @@ pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
     }
 }
 
-// // #[test]
-// fn test_write(){
-//     // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-//     let fname = "/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output/output.corrected.sort.bus";
-//     let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-//     write_partial_busfile(fname, outname, 10_000_000)
-// }
+#[test]
+fn test_write(){
+    // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    // let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+    // write_partial_busfile(fname, outname, 10_000_000);
+
+    let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
+    write_partial_busfile(fname, outname, 10);
+
+}
 
 // #[test]
 // fn testing2(){
@@ -430,6 +434,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
 #[cfg(test)]
 mod tests {
     use std::io::Write;
+    use crate::consistent_genes::EC;
     use crate::io::{BusRecord, BusHeader, BusWriter, BusReader, setup_busfile};
 
     #[test]

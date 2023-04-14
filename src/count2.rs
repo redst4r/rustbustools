@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet, BTreeSet};
-use std::fs::File;
 use std::time::Instant;
 use sprs::{DenseVector};
 use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, CB};
@@ -241,6 +240,13 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
         else{
             // multimapped, or not consistently mapped
             n_multi_inconsistent += 1;
+            let cbstr = int_to_seq(cb, 16);
+            let umistr = int_to_seq(_umi, 12);
+            println!("not countable {cbstr}/{umistr} {:?}", record_list);
+            let cgeneids= find_consistent(&record_list, &bfolder.ec2gene);
+            let cgenes: Vec<_> = cgeneids.iter().map(|gid| bfolder.ec2gene.resolve_gene_id(*gid)).collect();
+            println!("{cgenes:?}")
+
         }
 
         if counter % 1_000_000 == 0{
@@ -292,5 +298,42 @@ mod test{
         assert_eq!(dense_mat, expected);
 
         assert_eq!(cmat.cbs, vec!["AAAAAAAAAAAAAAAA".to_string(),"AAAAAAAAAAAAAAAC".to_string()]);
+    }
+
+    #[test]
+    fn test_countmatrix_equal(){
+
+        // two cells two genes
+        // first cell has both genes
+        // second cell has only the second gene
+        let mut countmap1: HashMap<(CB, GeneId), usize> = HashMap::new();
+        countmap1.insert((CB(0), GeneId(0)), 10);
+        countmap1.insert((CB(0), GeneId(1)), 1);
+        countmap1.insert((CB(1), GeneId(0)), 0);  // lets see what happens with empty counts
+        countmap1.insert((CB(1), GeneId(1)), 5);
+
+        let gene_vector = vec!["geneA".to_string(), "geneB".to_string()];
+
+        let cmat1 = countmap_to_matrix(&countmap1, gene_vector);
+
+        // a version with permuated genes
+        let mut countmap2: HashMap<(CB, GeneId), usize> = HashMap::new();
+        countmap2.insert((CB(0), GeneId(1)), 10);
+        countmap2.insert((CB(0), GeneId(0)), 1);
+        countmap2.insert((CB(1), GeneId(1)), 0);  // lets see what happens with empty counts
+        countmap2.insert((CB(1), GeneId(0)), 5);
+
+        let gene_vector = vec!["geneB".to_string(), "geneA".to_string()];
+        let cmat2 = countmap_to_matrix(&countmap2, gene_vector);
+
+        println!("{:?}", cmat1.to_map());
+        println!("{:?}", cmat2.to_map());
+
+        assert!(cmat1.is_equal(&cmat2))
+
+    }
+
+    fn test_against_bustools_count(){
+
     }
 }

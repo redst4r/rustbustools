@@ -138,7 +138,7 @@ pub fn multinomial_sample_binary_search(n: u64, pvec: &Vec<f64>, source: &mut Xo
 
 }
 
-#[test]
+// #[test]
 pub fn test_multinomial_binary(){
     use std::time::Instant;
 

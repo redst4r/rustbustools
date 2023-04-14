@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::{Write, BufWriter};
 use itertools::Itertools;
+use rustbustools::consistent_genes::GeneId;
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusReader, BusHeader};
 use rustbustools::iterators::CellGroupIterator;
