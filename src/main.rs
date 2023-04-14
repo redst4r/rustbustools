@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::{Write, BufWriter};
 use itertools::Itertools;
+use rustbustools::consistent_genes::{GeneId, EC, Genename};
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusReader, BusHeader};
 use rustbustools::iterators::CellGroupIterator;
@@ -148,11 +149,11 @@ fn main() {
         MyCommand::resolve_ec(args) => {
             println!("Doing resolve");
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let mut genes: Vec<&GeneId> = bfolder.ec2gene.get_genes(args.ec).into_iter().collect();
+            let mut genes: Vec<&GeneId> = bfolder.ec2gene.get_genes(EC(args.ec)).into_iter().collect();
             genes.sort();
             println!("EC {} -> {:?}", args.ec, genes);
 
-            let mut genenames: Vec<String> = bfolder.ec2gene.get_genenames(args.ec).into_iter().collect();
+            let mut genenames: Vec<Genename> = bfolder.ec2gene.get_genenames(EC(args.ec)).into_iter().collect();
             genenames.sort();
 
             println!("EC {} -> {:?}", args.ec, genenames);

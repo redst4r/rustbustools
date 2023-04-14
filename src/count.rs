@@ -5,7 +5,7 @@ use crate::io::{BusFolder, BusRecord, group_record_by_cb_umi, BusReader};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, EC, CB};
 
 
 pub fn count_bayesian(bfolder: BusFolder) {
@@ -66,7 +66,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
 
 
-    let mut all_expression_vector: HashMap<u64, HashMap<String, u32>> = HashMap::new();
+    let mut all_expression_vector: HashMap<CB, HashMap<Genename, u32>> = HashMap::new();
     let now = Instant::now();
 
     // let bar = ProgressBar::new_spinner();
@@ -77,7 +77,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
         let s = records_to_expression_vector(record_list, &bfolder.ec2gene, ignore_multimapped);
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
-        all_expression_vector.insert(cb, s);
+        all_expression_vector.insert(CB(cb), s);
 
         if counter % 10_000 == 0{
             bar.inc(10_000)
@@ -88,14 +88,14 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("done in {:?}", elapsed_time); 
     
     //collect all genes
-    let genelist_vector: Vec<String> = bfolder.ec2gene.get_gene_list();
+    let genelist_vector: Vec<Genename> = bfolder.ec2gene.get_gene_list();
     println!(" genes {}", genelist_vector.len());
 
-    let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&String>>();
+    let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&Genename>>();
 
     genelist_vector2.sort();
 
-    assert!(genelist_vector2.contains(&&"ENSG00000000003.14".to_string()));
+    assert!(genelist_vector2.contains(&&Genename("ENSG00000000003.14".to_string())));
 
     
     let countmatrix = expression_vectors_to_matrix(all_expression_vector, genelist_vector2 );
@@ -161,12 +161,12 @@ fn records_to_expression_vector(
     // ec2gene: &HashMap<u32, HashSet<String>>, 
     eg_mapper: &Ec2GeneMapper, 
     ignore_multimapped: bool
-) -> HashMap<String, u32>{
+) -> HashMap<Genename, u32>{
     /*
     turn the list of records of a single CB into a expression vector: per gene, how many umis are observed
     TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
     */
-    let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
+    let mut expression_vector: HashMap<Genename, u32> = HashMap::new(); // gene -> count
     let mut _multimapped = 0_u32;
     let mut _inconsistant= 0_u32;
 
@@ -187,7 +187,7 @@ fn records_to_expression_vector(
         }
         else{
             // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
-            consistent_genes = eg_mapper.get_genes(records[0].EC).clone();
+            consistent_genes = eg_mapper.get_genes(EC(records[0].EC)).clone();
         }
         
         
@@ -223,8 +223,8 @@ fn records_to_expression_vector(
 }
 
 fn expression_vectors_to_matrix(
-    all_expression_vector: HashMap<u64, HashMap<String, u32>>, 
-    genelist: Vec<&String>
+    all_expression_vector: HashMap<CB, HashMap<Genename, u32>>, 
+    genelist: Vec<&Genename>
 ) -> CountMatrix {
     /*
     turn an collection of expression vector (from many cells)
@@ -237,7 +237,7 @@ fn expression_vectors_to_matrix(
     let mut vv: Vec<usize> = Vec::new();
 
     // the cell barcodes, same order as in the matrix
-    let mut cbs: Vec<u64> = Vec::new(); 
+    let mut cbs: Vec<CB> = Vec::new(); 
 
     // we need matrix to be sorted
     // for each CB, map it to an index in sorted order
@@ -245,7 +245,7 @@ fn expression_vectors_to_matrix(
 
 
     // mapping for gene-> index/order
-    let mut gene2index: HashMap<&String, usize> = HashMap::new();
+    let mut gene2index: HashMap<&Genename, usize> = HashMap::new();
     for (i, g) in genelist.iter().enumerate(){
         gene2index.insert(g, i);
     }
@@ -254,7 +254,7 @@ fn expression_vectors_to_matrix(
         for (gene, count) in expr_vec{
             ii.push(i);
 
-            let gindex = gene2index.get(gene).unwrap_or_else(|| panic!("{} not found", gene));
+            let gindex = gene2index.get(gene).unwrap_or_else(|| panic!("{:?} not found", gene));
             jj.push(*gindex);
             vv.push(*count as usize)
         }
@@ -270,9 +270,9 @@ fn expression_vectors_to_matrix(
     let b: sprs::CsMat<_> = c.to_csr();
 
 
-    let cbs_seq: Vec<String> = cbs.into_iter().map(|x|int_to_seq(x, 16)).collect();
+    let cbs_seq: Vec<String> = cbs.into_iter().map(|x|int_to_seq(x.0, 16)).collect();
     // let gene_seq: Vec<String> = genelist.into_iter().map(|x|x.clone()).collect();
-    let gene_seq: Vec<String> = genelist.into_iter().cloned().collect();
+    let gene_seq: Vec<String> = genelist.into_iter().map(|x| x.0.to_string()).collect();
     CountMatrix::new(b, cbs_seq, gene_seq)
 }
 

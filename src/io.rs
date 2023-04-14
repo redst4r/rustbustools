@@ -344,7 +344,7 @@ impl BusFolder {
         format!("{}/transcripts.txt", self.foldername)
     }
 
-    pub fn parse_ecmatrix(&self) -> HashMap<u32, Vec<u32>>{
+    pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<u32>>{
         let filename= self.get_ecmatrix_file();
         parse_ecmatrix(&filename)
     }
@@ -432,6 +432,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
 #[cfg(test)]
 mod tests {
     use std::io::Write;
+    use crate::consistent_genes::EC;
     use crate::io::{BusRecord, BusHeader, BusWriter, BusReader, setup_busfile};
 
     #[test]

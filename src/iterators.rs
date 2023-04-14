@@ -196,7 +196,7 @@ impl<T, I: Iterator<Item = T>> GroupbyGeneIterator<T> for I {}
 mod tests{
     use std::collections::{HashSet, HashMap};
 
-    use crate::consistent_genes::Ec2GeneMapper;
+    use crate::consistent_genes::{Ec2GeneMapper, EC, Genename};
     use crate::io::{BusRecord, setup_busfile};
     use crate::iterators::{CellGroupIterator, CellGroup, CbUmiGroupIterator};
     use crate::io::BusReader;
@@ -373,16 +373,16 @@ mod tests{
     use crate::iterators::GroupbyGeneIterator;
     #[test]
     fn test_groupby_genes(){
-        let ec0: HashSet<String> = vec2set(vec!["A".to_string()]);
-        let ec1: HashSet<String> = vec2set(vec!["B".to_string()]);
-        let ec2: HashSet<String> = vec2set(vec!["A".to_string(), "B".to_string()]);
-        let ec3: HashSet<String> = vec2set(vec!["C".to_string(), "D".to_string()]);
+        let ec0: HashSet<Genename> = vec2set(vec![Genename("A".to_string())]);
+        let ec1: HashSet<Genename> = vec2set(vec![Genename("B".to_string())]);
+        let ec2: HashSet<Genename> = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3: HashSet<Genename> = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
     
-        let ec_dict: HashMap<u32, HashSet<String>> = HashMap::from([
-            (0, ec0.clone()), 
-            (1, ec1.clone()), 
-            (2, ec2.clone()), 
-            (3, ec3.clone()), 
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()), 
+            (EC(1), ec1.clone()), 
+            (EC(2), ec2.clone()), 
+            (EC(3), ec3.clone()), 
             ]);
     
         let es = Ec2GeneMapper::new(ec_dict);

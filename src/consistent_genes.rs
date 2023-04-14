@@ -154,7 +154,7 @@ impl Ec2GeneMapper{
         let mut gene_list : HashSet<Genename> = HashSet::new();
         for genes in ec2gene.values(){
             for g in genes{
-                gene_list.insert(*g);
+                gene_list.insert(g.clone());
             }
         }
         let mut gene_vector: Vec<Genename> = gene_list.into_iter().collect();
@@ -233,7 +233,7 @@ impl Ec2GeneMapper{
 pub struct CUGset {
     pub CB: u64, //8byte
     pub UMI: u64, // 8byte
-    pub GENESET: HashSet<String> ,  // 4v byte
+    pub GENESET: HashSet<Genename> ,  // 4v byte
     pub COUNT: u32, // 4v byte
 }
 
@@ -300,25 +300,25 @@ mod testing{
     
         // single read, consistent with A
         let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-        let res1: Vec<String> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(vec!["A"], res1);
+        let res1: Vec<Genename> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        assert_eq!(vec![Genename("A".to_string())], res1);
     
         // single read, consistent with A and B, hence multimapped
         let r2 =BusRecord{CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0};
-        let res2: Vec<String> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res2: Vec<Genename> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
         // assert_eq!(vec!["A", "B"], res2);  WRNING the order matters here, the function might return the vec ordered differently
         assert_eq!(res2.len(), 2);
     
         // two reads, consistent with A
         let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r4 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        let res3: Vec<String> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(vec!["A"], res3);
+        let res3: Vec<Genename> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        assert_eq!(vec![Genename("A".to_string())], res3);
     
         // two reads, inconsistent with A, B
         let r5 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r6 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
-        let res4: Vec<String> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res4: Vec<Genename> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
         assert_eq!(res4.len(), 0);
     
         // three reads,  A, B, (A,B)
@@ -326,7 +326,7 @@ mod testing{
         let r7 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r8 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
         let r9 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        let res5: Vec<String> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res5: Vec<Genename> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
         assert_eq!(res5.len(), 0);
     
     }
@@ -348,10 +348,10 @@ mod testing{
 
         let es = Ec2GeneMapper::new(ec_dict);
 
-        for (i, ec) in vec![ec0, ec1, ec2, ec3].iter().enumerate(){
-            let gids = es.get_genes(i as u32);
+        for (i, ec_set) in vec![ec0, ec1, ec2, ec3].iter().enumerate(){
+            let gids = es.get_genes(EC(i as u32));
             let gnames: HashSet<_> = gids.iter().map(|i| es.resolve_gene_id(*i)).collect();
-            assert_eq!(&gnames, ec);
+            assert_eq!(&gnames, ec_set);
         }
     }
 
@@ -379,7 +379,7 @@ mod testing{
         assert_eq!(r.len(), 1);
         let r1 = r.first().unwrap();
         assert_eq!(r1.COUNT, 4);
-        assert_eq!(r1.GENESET, vec!["A".to_string()].into_iter().collect::<HashSet<String>>());
+        assert_eq!(r1.GENESET, vec![Genename("A".to_string())].into_iter().collect::<HashSet<Genename>>());
         
         // second sample: two records, with consistent gene A the other consistent with gene B
         let s1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 3, FLAG: 0}; // A
