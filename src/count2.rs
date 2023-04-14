@@ -1,14 +1,14 @@
 use std::collections::{HashMap, HashSet, BTreeSet};
 use std::time::Instant;
 use sprs::{DenseVector};
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, CB};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, CB, Genename, EC};
 use crate::countmatrix::CountMatrix;
 use crate::iterators::CbUmiGroupIterator;
 use crate::io::{BusFolder, BusRecord};
 use crate::multinomial::multinomial_sample;
 use crate::utils::{get_progressbar, int_to_seq};
 
-fn countmap_to_matrix(countmap: &HashMap<(CB, GeneId), usize>, gene_vector: Vec<String>) -> CountMatrix{
+fn countmap_to_matrix(countmap: &HashMap<(CB, GeneId), usize>, gene_vector: Vec<Genename>) -> CountMatrix{
 
     // get all CBs, a BTreeSet gives us order for free
     // let cb_set: BTreeSet<u64> = BTreeSet::new();
@@ -47,7 +47,7 @@ fn countmap_to_matrix(countmap: &HashMap<(CB, GeneId), usize>, gene_vector: Vec<
 
     let cbs_seq: Vec<String> = all_cbs.into_iter().map(|x|int_to_seq((*x).0, 16)).collect();
     // let gene_seq: Vec<String> = gene_vector.into_iter().map(|x|x.clone()).collect();
-    let gene_seq: Vec<String> = gene_vector.into_iter().collect(); //not sure if this does anything
+    let gene_seq: Vec<String> = gene_vector.into_iter().map(|x| x.0.to_string()).collect(); //not sure if this does anything
     
     CountMatrix::new(b, cbs_seq, gene_seq)
 
@@ -157,7 +157,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped:bool, n_samples: usi
         let fraction_mapped = n_multi_inconsistent as f64 /(n_mapped as f64+n_multi_inconsistent as f64);
         println!("Iteration {}: Mapped {}, multi-discard {} ({}%) in {:?}",i, n_mapped, n_multi_inconsistent, 100.0*fraction_mapped, elapsed_time);
 
-        let genelist_vector: Vec<String> = egm.get_gene_list();
+        let genelist_vector: Vec<Genename> = egm.get_gene_list();
         // this is how genes are ordered as by EGM
         // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
     
@@ -180,7 +180,7 @@ fn count_from_record_list(records: &Vec<BusRecord>, egmapper: &Ec2GeneMapper, ig
     }
     else{
         // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
-        consistent_genes = egmapper.get_genes(records[0].EC).clone();
+        consistent_genes = egmapper.get_genes(EC(records[0].EC)).clone();
     }
        
     // uniquely mapped to a single gene
@@ -257,7 +257,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
     let elapsed_time = now.elapsed();
     println!("Mapped {}, multi-discard {} in {:?}", n_mapped, n_multi_inconsistent, elapsed_time); 
 
-    let genelist_vector: Vec<String> = bfolder.ec2gene.get_gene_list();
+    let genelist_vector: Vec<Genename> = bfolder.ec2gene.get_gene_list();
 
     // this is how genes are ordered as by EGM
     // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
@@ -275,7 +275,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped:bool) -> CountMatrix {
 mod test{
     use std::collections::HashMap;
     use ndarray::{arr2};
-    use crate::consistent_genes::{GeneId, CB};
+    use crate::consistent_genes::{GeneId, CB, Genename};
 
     use super::countmap_to_matrix;
 
@@ -288,7 +288,7 @@ mod test{
         countmap.insert((CB(1), GeneId(0)), 0);  // lets see what happens with empty counts
         countmap.insert((CB(1), GeneId(1)), 5);
 
-        let gene_vector = vec!["geneA".to_string(), "geneB".to_string()];
+        let gene_vector = vec![Genename("geneA".to_string()), Genename("geneB".to_string())];
 
         let cmat = countmap_to_matrix(&countmap, gene_vector);
 
