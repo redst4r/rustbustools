@@ -185,7 +185,7 @@ fn records_to_expression_vector(
             // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
             consistent_genes = eg_mapper.get_genes(EC(records[0].EC)).clone();
         }
-        
+
         if consistent_genes.len() > 1{
             //multimapped
             _multimapped += 1;
@@ -297,7 +297,7 @@ mod test{
             (EC(1), ec1.clone()), 
             (EC(2), ec2.clone()), 
             (EC(3), ec3.clone()), 
-        ]);
+            ]);
     
         let es = Ec2GeneMapper::new(ec_dict);
 
@@ -347,33 +347,44 @@ mod test{
 
     #[test]
     fn test_vs_bustools(){
+        // comparing our implementation vs kallisto-bustools on a real bus file
+        // run: 
+        // RUST_BACKTRACE=1 cargo test --release --package rustbustools --lib -- --nocapture count::test::test_vs_bustools
         use std::process::Command;
 
         let outfolder = "/tmp/bustest_rust";
         let outfolder_kallisto = "/tmp/bustest_kallisto";
 
-
         let busfolder = "/home/michi/bus_testing/bus_output_shorter";
         // let t2g = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
         let t2g = "/home/michi/bus_testing/transcripts_to_genes.txt";
         
-        
         let bfolder = BusFolder::new(busfolder, t2g);
-        // let bfolder2 = bfolder.clone();
-
         let tfile = bfolder.get_transcript_file();
         let ecfile = bfolder.get_ecmatrix_file();
         let bfile = bfolder.get_busfile();
 
-        // fs::create_dir(outfolder).unwrap();
+        fs::create_dir_all(outfolder).expect("Failed to create outfolder");
+        fs::create_dir_all(outfolder_kallisto).expect("Failed to create outfolder_kallisto");
+        
+        // -------------------
+        // Doing our own count
+        // -------------------
+        let now = Instant::now();
         let c = count(&bfolder, false);
+        let elapsed_time = now.elapsed();
+        println!("count::count in in {:?}", elapsed_time);
         c.write(outfolder);
 
+        let now = Instant::now();
         let c2 = count2::count(&bfolder, false);
-
+        let elapsed_time = now.elapsed();
+        println!("count2::count in in {:?}", elapsed_time);
         assert!(c2.is_equal(&c));
 
-        
+        // -------------------
+        // Bustools count
+        // -------------------
         // Command
         // println!("source ~/miniconda3_newtry/bin/activate June2021");
         println!("bustools count -o {outfolder_kallisto}/gene -e {ecfile} -g {t2g} -t {tfile} --genecounts  {bfile}");
