@@ -286,15 +286,25 @@ fn build_ec2gene(
             let t_name = transcript_dict.get(t_int).unwrap();
 
             // if we can resolve, put the genename, otherwsise use the transcript name instead
+            //
             // actually, turns out that kallisto/bustools treats it differently:
-            // if the transcript doenst resolve, just drop the entire EC
+            // if the transcript doenst resolve, just drop tha trasncrip from the EC set
+            // TODO what happens if non of the EC transcripts resolve
             match t2g_dict.get(t_name){
-                Some(genename) => genes.insert(genename.clone()),
-                None =>  genes.insert(Genename(t_name.clone())),
+                Some(genename) => {genes.insert(genename.clone());},
+                // None =>  genes.insert(Genename(t_name.clone())),
+                None =>  {},
             };
         }
         ec2gene.insert(*ec, genes);
     }
+    // // sanity check, make sure no Ec set is empty
+    // for (ec, gset) in ec2gene.iter(){
+    //     if gset.is_empty(){
+    //         println!("{ec:?}'s geneset is empty");
+    //     }
+    // }
+
     ec2gene
 }
 
