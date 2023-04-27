@@ -275,7 +275,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 mod testing{
     use std::collections::{HashMap, HashSet};
 
-    use crate::{utils::vec2set, io::{BusRecord, parse_ecmatrix, BusFolder}, consistent_genes::{groubygene, find_consistent, GeneId, Genename}};
+    use crate::{utils::vec2set, io::{BusRecord, BusFolder}, consistent_genes::{groubygene, find_consistent, Genename}};
 
     use super::{Ec2GeneMapper, EC};
 
