@@ -1,18 +1,19 @@
-use crate::{io::BusReader, iterators::{CellGroupIterator, CbUmiGroupIterator}};
+use crate::{
+    io::BusReader,
+    iterators::{CbUmiGroupIterator, CellGroupIterator},
+};
 
-
-pub fn inspect(busfile: &str){
-
+pub fn inspect(busfile: &str) {
     let n_cbumi = BusReader::new(busfile).groupby_cbumi().count();
-    let n_cells =  BusReader::new(busfile).groupby_cb().count();
+    let n_cells = BusReader::new(busfile).groupby_cb().count();
 
     let mut nreads = 0;
     let mut nrecords = 0;
 
     let bus = BusReader::new(busfile);
-    for r in bus{
-        nrecords+=1;
-        nreads+= r.COUNT
+    for r in bus {
+        nrecords += 1;
+        nreads += r.COUNT
     }
 
     println!("{nrecords} BUS records");
@@ -22,10 +23,10 @@ pub fn inspect(busfile: &str){
 }
 
 #[cfg(test)]
-mod testing{
-    use crate::io::{BusRecord, setup_busfile};
+mod testing {
     use super::inspect;
-    
+    use crate::io::{setup_busfile, BusRecord};
+
     #[test]
     fn test_inspect(){
         let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};

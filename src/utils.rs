@@ -56,7 +56,7 @@ pub fn int_to_seq(i: u64, seq_len:u64) -> String{
 pub fn get_progressbar(total: u64) -> ProgressBar{
     let bar = ProgressBar::new(total);
     bar.set_style(ProgressStyle::default_bar()
-        .template("[{elapsed_precise} ETA {eta}] {bar:40.cyan/blue} {pos}/{len} {per_sec}")
+        .template("[{elapsed_precise} ETA {eta}] {bar:40.cyan/blue} {pos}/{len} {per_sec}").unwrap()
         .progress_chars("##-"));
     bar
 }

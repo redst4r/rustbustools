@@ -1,12 +1,18 @@
-use crate::{io::{BusRecord, CUGIterator}, consistent_genes::{Ec2GeneMapper, CUGset, groubygene}};
+use itertools::{GroupBy, Itertools};
+
+use crate::{
+    consistent_genes::{groubygene, CUGset, Ec2GeneMapper},
+    io::{BusRecord, CUGIterator},
+};
 
 pub struct CbUmiGroup<I: CUGIterator> {
     iter: I,
-    last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
+    last_record: Option<BusRecord>, //option needed to mark the final element of the iteration
 }
 
 impl<I> Iterator for CbUmiGroup<I>
-where I: CUGIterator
+where
+    I: CUGIterator,
 {
     type Item = ((u64, u64), Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
@@ -14,57 +20,59 @@ where I: CUGIterator
     
         loop {
             // anything left in the basic iterator (if not, just emit whatever is stored in self.last_element)
-            if let Some(new_record) = self.iter.next(){
-
+            if let Some(new_record) = self.iter.next() {
                 // the newly seen record
                 let (new_cb, new_umi) = (new_record.CB, new_record.UMI);
 
                 // take ownership of self.last_record, which we're goign to emit now (since we have a new item)
                 // replace by the new item
-                let last_record = std::mem::replace(&mut self.last_record, Some(new_record)).unwrap();
+                let last_record =
+                    std::mem::replace(&mut self.last_record, Some(new_record)).unwrap();
 
                 let (current_cb, current_umi) = (last_record.CB, last_record.UMI);
 
                 busrecords.push(last_record); // the stored element from the previous iteration
 
                 // now we just need to decide if we want to emit, or continue growing
-                if new_cb > current_cb || (new_cb == current_cb &&  new_umi > current_umi){  
+                if new_cb > current_cb || (new_cb == current_cb && new_umi > current_umi) {
                     // we ran into a new CB/UMI and its records
                     // println!("\tyielding {:?}", (current_cb, &busrecords));
 
                     return Some(((current_cb, current_umi), busrecords));
-                }
-                else if new_cb == current_cb && new_umi == current_umi {
+                } else if new_cb == current_cb && new_umi == current_umi {
                     // nothing happens, just keep growing busrecords
+                } else {
+                    // the new cb is smaller then the current state: this is a bug due to an UNOSORTED busfile
+                    panic!(
+                        "Unsorted busfile: {}/{} -> {}/{}",
+                        current_cb, current_umi, new_cb, new_umi
+                    )
                 }
-                else{  // the new cb is smaller then the current state: this is a bug due to an UNOSORTED busfile
-                    panic!("Unsorted busfile: {}/{} -> {}/{}", current_cb, current_umi, new_cb, new_umi)
-                }
-            }
-            else{ // emit whatever is left in last element
+            } else {
+                // emit whatever is left in last element
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
                 let last_record = std::mem::replace(&mut self.last_record, None);
 
                 // get the last element and emit
-                if let Some(r) = last_record {  
+                if let Some(r) = last_record {
                     // we ran pas the last entry of the file
                     // FINALize the last emit
                     let current_cb = r.CB;
                     let current_umi = r.UMI;
                     busrecords.push(r);
-                    return Some(((current_cb, current_umi), busrecords));    
-                }   
-                else{
-                    return None
-                }          
+                    return Some(((current_cb, current_umi), busrecords));
+                } else {
+                    return None;
+                }
             }
-        }        
-    }    
+        }
+    }
 }
 
-impl<I> CbUmiGroup<I> 
-where I: CUGIterator
+impl<I> CbUmiGroup<I>
+where
+    I: CUGIterator,
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
@@ -79,31 +87,32 @@ pub trait CbUmiGroupIterator: CUGIterator + Sized {
 }
 impl<I: CUGIterator> CbUmiGroupIterator for I {}
 
-
 //=================================================================================
-pub struct CellGroup<I:CUGIterator> {
+pub struct CellGroup<I: CUGIterator> {
     iter: I,
-    last_record: Option<BusRecord>  //option needed to mark the final element of the iteration
+    last_record: Option<BusRecord>, //option needed to mark the final element of the iteration
 }
 
 impl<I> Iterator for CellGroup<I>
-where I: CUGIterator
+where
+    I: CUGIterator,
 {
     type Item = (u64, Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
         // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
-    
+
         loop {
-            if let Some(new_record) = self.iter.next(){
+            if let Some(new_record) = self.iter.next() {
                 // the newly seen record
                 let new_cb = new_record.CB;
 
                 // take ownership of self.last_record, which we're goign to emit now (since we have a new item)
                 // replace by the new item
-                // note that before this line, self.last_record CANNOT logically be None, hence the unwrap. 
+                // note that before this line, self.last_record CANNOT logically be None, hence the unwrap.
                 // If it is somethings wrong with my logic
-                let last_record = std::mem::replace(&mut self.last_record, Some(new_record)).unwrap();
+                let last_record =
+                    std::mem::replace(&mut self.last_record, Some(new_record)).unwrap();
 
                 let current_cb = last_record.CB;
 
@@ -123,23 +132,23 @@ where I: CUGIterator
                 // to mark the end of iteration and all items emitted, set last_item to None
                 let last_record = std::mem::replace(&mut self.last_record, None);
 
-                if let Some(r) = last_record {  
+                if let Some(r) = last_record {
                     // we ran pas the last entry of the file
                     // FINALize the last emit
                     let current_cb = r.CB;
                     busrecords.push(r);
-                    return Some((current_cb, busrecords));    
-                }   
-                else{
-                    return None
-                }          
+                    return Some((current_cb, busrecords));
+                } else {
+                    return None;
+                }
             }
         }
-    }    
+    }
 }
 
-impl<I> CellGroup<I> 
-where I: CUGIterator
+impl<I> CellGroup<I>
+where
+    I: CUGIterator,
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
@@ -153,27 +162,23 @@ pub trait CellGroupIterator: CUGIterator + Sized {
 }
 impl<I: CUGIterator> CellGroupIterator for I {}
 
-
-/* adaptor to be able to group things by gene 
+/* adaptor to be able to group things by gene
 CbUmiIterator.iter().group_by_gene()
 
 works for any iterator yielding Vec<BusRecord>
 */
 pub struct GroupbyGene<I> {
     iter: I,
-    ecmapper: Ec2GeneMapper
+    ecmapper: Ec2GeneMapper,
 }
 
 impl<I> Iterator for GroupbyGene<I>
-where I: Iterator<Item = Vec<BusRecord>>
+where
+    I: Iterator<Item = Vec<BusRecord>>,
 {
     type Item = Vec<CUGset>;
     fn next(&mut self) -> Option<Self::Item> {
-
-        self.iter.next()
-            .map(|v| 
-                groubygene(v, &self.ecmapper)
-            )
+        self.iter.next().map(|v| groubygene(v, &self.ecmapper))
     }
 }
 
@@ -191,25 +196,24 @@ pub trait GroupbyGeneIterator<T>: Iterator<Item = T> + Sized {
 }
 impl<T, I: Iterator<Item = T>> GroupbyGeneIterator<T> for I {}
 
-
 #[cfg(test)]
-mod tests{
-    use std::collections::{HashSet, HashMap};
+mod tests {
+    use std::collections::{HashMap, HashSet};
 
-    use crate::consistent_genes::{Ec2GeneMapper, EC, Genename};
-    use crate::io::{BusRecord, setup_busfile};
-    use crate::iterators::{CellGroupIterator, CellGroup, CbUmiGroupIterator};
+    use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
     use crate::io::BusReader;
+    use crate::io::{setup_busfile, BusRecord};
+    use crate::iterators::{CbUmiGroupIterator, CellGroup, CellGroupIterator};
     use crate::utils::vec2set;
 
     #[test]
-    fn test_cb_iter_last_element1(){   
+    fn test_cb_iter_last_element1() {
         // make sure everything is emitted, even if the last element is its own group
         let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
         let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
         let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
 
-        let records = vec![r1.clone(),r2.clone(),r3.clone()];
+        let records = vec![r1.clone(), r2.clone(), r3.clone()];
         // let n: Vec<_> = records.into_iter().groupby_cb().map(|(_cb, records)| records).collect();
         let (busname, _dir) = setup_busfile(&records);
 
@@ -231,11 +235,10 @@ mod tests{
 
         let rlist = &n[1];
         assert_eq!(rlist.len(), 1);
-
     }
 
     #[test]
-    fn test_cb_iter_last_element2(){   
+    fn test_cb_iter_last_element2() {
         // make sure everything is emitted, even if the last element has mutiple elements
         let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
         let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
@@ -255,7 +258,6 @@ mod tests{
         assert_eq!(rlist.len(), 2);
     }
 
-
     #[test]
     fn test_cb_iter(){   
         let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
@@ -270,45 +272,47 @@ mod tests{
         // let n: Vec<(u64, Vec<BusRecord>)> = records.into_iter().groupby_cb().collect();
 
         let (busname, _dir) = setup_busfile(&records);
-    
+
         let b = BusReader::new(&busname);
         let n: Vec<(u64, Vec<BusRecord>)> = b.groupby_cb().collect();
-    
+
         assert_eq!(n.len(), 4);
         // println!("{:?}", n);
         // println!("First");
         let c1 = &n[0];
-        assert_eq!(*c1, (0, vec![r1,r2]));
-    
+        assert_eq!(*c1, (0, vec![r1, r2]));
+
         // println!("Second");
         let c2 = &n[1];
-        assert_eq!(*c2, (1,vec![r3]));
-    
+        assert_eq!(*c2, (1, vec![r3]));
+
         // println!("Third");
         let c3 = &n[2];
-        assert_eq!(*c3, (2, vec![r4,r5]));
-    
+        assert_eq!(*c3, (2, vec![r4, r5]));
+
         let c4 = &n[3];
         assert_eq!(*c4, (3, vec![r6]));
-    
+
         // assert_eq!(n, vec![vec![r1,r2], vec![r3], vec![r4,r5]])
-    
-     }
+    }
 
     // #[test]
-    fn test_cb_iter_speed(){
+    fn test_cb_iter_speed() {
         use std::time::Instant;
         let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-        let n=100000;
+        let n = 100000;
 
         let b = BusReader::new(foldername);
-        let biter2= b.groupby_cb();
-    
-        let now = Instant::now();
-        let s2: Vec<_> = biter2.take(n).map(|(_a, records)|records).collect();
-        let elapsed_time = now.elapsed();
-        println!("Running CellIterator({}) took {} seconds.", n, elapsed_time.as_secs());
+        let biter2 = b.groupby_cb();
 
+        let now = Instant::now();
+        let _s2: Vec<_> = biter2.take(n).map(|(_a, records)| records).collect();
+        let elapsed_time = now.elapsed();
+        println!(
+            "Running CellIterator({}) took {} seconds.",
+            n,
+            elapsed_time.as_secs()
+        );
     }
 
     #[test]
@@ -323,7 +327,6 @@ mod tests{
         let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
         // let n: Vec<((u64, u64), Vec<BusRecord>)> = records.into_iter().groupby_cbumi().collect();
 
-
         let (busname, _dir) = setup_busfile(&records);
 
         let b = BusReader::new(&busname);
@@ -336,7 +339,7 @@ mod tests{
         // println!("{:?}", n);
         // println!("First");
         let c1 = &n[0];
-        assert_eq!(*c1, ((0,1 ), vec![r1,r2]));
+        assert_eq!(*c1, ((0, 1), vec![r1, r2]));
 
         // println!("Second");
         let c2 = &n[1];
@@ -344,15 +347,14 @@ mod tests{
 
         // println!("Third");
         let c3 = &n[2];
-        assert_eq!(*c3, ((1,1), vec![r4]));
+        assert_eq!(*c3, ((1, 1), vec![r4]));
 
         let c4 = &n[3];
-        assert_eq!(*c4, ((1,2), vec![r5]));
+        assert_eq!(*c4, ((1, 2), vec![r5]));
 
         let c5 = &n[4];
-        assert_eq!(*c5, ((2,1), vec![r6]));
+        assert_eq!(*c5, ((2, 1), vec![r6]));
         // assert_eq!(n, vec![vec![r1,r2], vec![r3], vec![r4,r5]])
-
     }
     #[test]
     #[should_panic(expected = "Unsorted busfile: 2 -> 0")]
@@ -362,7 +364,7 @@ mod tests{
         let r3 = BusRecord{CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
         let r4 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
 
-        let records = vec![r1,r2,r3,r4];
+        let records = vec![r1, r2, r3, r4];
 
         // let busname = "/tmp/test_panic_on_unsorted.bus";
         let (busname, _dir) = setup_busfile(&records);
@@ -372,21 +374,21 @@ mod tests{
     }
     use crate::iterators::GroupbyGeneIterator;
     #[test]
-    fn test_groupby_genes(){
+    fn test_groupby_genes() {
         let ec0: HashSet<Genename> = vec2set(vec![Genename("A".to_string())]);
         let ec1: HashSet<Genename> = vec2set(vec![Genename("B".to_string())]);
         let ec2: HashSet<Genename> = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
         let ec3: HashSet<Genename> = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
     
         let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
-            (EC(0), ec0.clone()), 
-            (EC(1), ec1.clone()), 
-            (EC(2), ec2.clone()), 
-            (EC(3), ec3.clone()), 
-            ]);
-    
+            (EC(0), ec0.clone()),
+            (EC(1), ec1.clone()),
+            (EC(2), ec2.clone()),
+            (EC(3), ec3.clone()),
+        ]);
+
         let es = Ec2GeneMapper::new(ec_dict);
-    
+
         // first sample: two records, with consistent gene A
         let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
         let r2 =BusRecord{CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0};
@@ -409,7 +411,7 @@ mod tests{
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].len(), 1);
         assert_eq!(results[1].len(), 2);
-    
+
         println!("{:?}", results)
-    }    
- }
+    }
+}

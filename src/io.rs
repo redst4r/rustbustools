@@ -1,10 +1,10 @@
+use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
+use bincode;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufWriter, Read, BufReader, BufRead, Write, Seek, SeekFrom};
-use serde::{Serialize, Deserialize};
-use bincode;
+use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use tempfile::TempDir;
-use crate::consistent_genes::{Ec2GeneMapper, EC, GeneId, Genename};
 
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
@@ -15,26 +15,27 @@ const BUS_HEADER_SIZE: usize = 20;
 // i: 4byte int
 // I: unsigned int, 4byte
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]  // TODO take away the copy and clone
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] // TODO take away the copy and clone
 pub struct BusRecord {
-    pub CB: u64, //8byte
-    pub UMI: u64, // 8byte
-    pub EC: u32,  // 4v byte
+    pub CB: u64,    //8byte
+    pub UMI: u64,   // 8byte
+    pub EC: u32,    // 4v byte
     pub COUNT: u32, // 4v byte
-    pub FLAG: u32, // 4v byte    including this, we have 28 bytes, missing 4 to fill up
-    // PAD: u32 // just padding to fill 32bytes
+    pub FLAG: u32,  // 4v byte    including this, we have 28 bytes, missing 4 to fill up
+    // PAD: u32     // just padding to fill 32bytes
 }
 impl BusRecord {
-    pub fn to_bytes(&self) -> Vec<u8>{
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut binrecord = bincode::serialize(self).expect("FAILED to serialze record");
 
         // the struct is only 28bytes, so we need 4 padding bytes
-        for _i in 0..4{  //TODO feel like theres a better way to do this
+        for _i in 0..4 {
+            //TODO feel like theres a better way to do this
             binrecord.push(0);
-        }   
+        }
         binrecord
     }
-    pub fn from_bytes(bytes: &[u8])->Self{
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         bincode::deserialize(bytes).expect("deserial error")
     }
 }
@@ -50,45 +51,52 @@ impl BusRecord {
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct BusHeader {
-//4sIIII: 20bytes
+    //4sIIII: 20bytes
     magic: [u8; 4],
     version: u32,
     pub cb_len: u32,
     umi_len: u32,
-    tlen: u32
+    tlen: u32,
 }
 
 impl BusHeader {
-    pub fn new(cb_len: u32, umi_len: u32, tlen: u32) -> BusHeader{
+    pub fn new(cb_len: u32, umi_len: u32, tlen: u32) -> BusHeader {
         let magic: [u8; 4] = *b"BUS\x00";
         BusHeader {cb_len, umi_len, tlen, magic, version: 1}
     }
 
-    pub fn from_file(fname: &str) -> BusHeader{
+    pub fn from_file(fname: &str) -> BusHeader {
         // getting 20 bytes out of the file, which is the header
         let file = std::fs::File::open(fname).unwrap_or_else(|_| panic!("file not found: {fname}"));
         let mut header = Vec::with_capacity(BUS_HEADER_SIZE);
-        let _n = file.take(BUS_HEADER_SIZE as u64).read_to_end(&mut header).unwrap();
+        let _n = file
+            .take(BUS_HEADER_SIZE as u64)
+            .read_to_end(&mut header)
+            .unwrap();
         BusHeader::from_bytes(&header)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> BusHeader{
-        let header_struct: BusHeader = bincode::deserialize(bytes).expect("FAILED to deserialze header");
-        assert_eq!(&header_struct.magic, b"BUS\x00", "Header struct not matching; MAGIC is wrong");
+    pub fn from_bytes(bytes: &[u8]) -> BusHeader {
+        let header_struct: BusHeader =
+            bincode::deserialize(bytes).expect("FAILED to deserialze header");
+        assert_eq!(
+            &header_struct.magic, b"BUS\x00",
+            "Header struct not matching; MAGIC is wrong"
+        );
         header_struct
     }
 
-    pub fn to_bytes(&self) -> Vec<u8>{
+    pub fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).expect("FAILED to serialze header")
     }
 
-    pub fn get_tlen(&self) -> u32{
+    pub fn get_tlen(&self) -> u32 {
         self.tlen
     }
 }
 
 /// A marker trait for iterators over CB/UMI/gene_EC iterators
-/// to create an iterator compatible with this framework, 
+/// to create an iterator compatible with this framework,
 /// just implement the usual iterator trait (giving the next() function)
 /// and also tag the iterator with CUGIterator: `impl CUGIterator for Dummy {}`
 /// ## Example
@@ -109,14 +117,13 @@ impl BusHeader {
 /// let s = x.next();
 /// println!("{s:?}")
 /// ```
-/// 
+///
 /// pretty much a type alias for Iterator<Item=BusRecord>
 pub trait CUGIterator: Iterator<Item = BusRecord> {}
 
-
 pub struct BusReader {
     pub bus_header: BusHeader,
-    reader: BufReader<File>
+    reader: BufReader<File>,
 }
 
 // benchmarking had a sligh incrase of speed using 800KB instead of *Kb
@@ -124,13 +131,13 @@ pub struct BusReader {
 // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
 const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 impl BusReader {
-    pub fn new(filename: &str) -> BusReader{
+    pub fn new(filename: &str) -> BusReader {
         BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
     }
-    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader{
+    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader {
         let bus_header = BusHeader::from_file(filename);
         let mut file_handle = File::open(filename).expect("FAIL");
-    
+
         // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
         let to_seek = BUS_HEADER_SIZE as u64 + bus_header.tlen as u64;
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
@@ -144,13 +151,16 @@ impl Iterator for BusReader {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut buffer = [0;BUS_ENTRY_SIZE];
-        let r = match self.reader.read(&mut buffer){
+        let mut buffer = [0; BUS_ENTRY_SIZE];
+        let r = match self.reader.read(&mut buffer) {
             Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,
             Ok(n) => {
                 let s: BusRecord = BusRecord::from_bytes(&buffer);
-                panic!("Wrong number of bytes {:?}. Buffer: {:?} record: {:?}", n, buffer, s)
+                panic!(
+                    "Wrong number of bytes {:?}. Buffer: {:?} record: {:?}",
+                    n, buffer, s
+                )
             }
             Err(e) => panic!("{:?}", e),
         };
@@ -158,38 +168,39 @@ impl Iterator for BusReader {
     }
 }
 // tag our iterator to be compatible with our framework
-impl CUGIterator for BusReader {} 
+impl CUGIterator for BusReader {}
 
 // ========================================
-pub struct BusWriter{
+pub struct BusWriter {
     pub writer: BufWriter<File>,
-    pub header: BusHeader
+    pub header: BusHeader,
 }
 
 impl BusWriter {
-    pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter{
+    pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter {
         BusWriter::new_with_capacity(file_handle, header, DEFAULT_BUF_SIZE)
     }
 
-    pub fn new(filename: &str, header: BusHeader) -> BusWriter{
+    pub fn new(filename: &str, header: BusHeader) -> BusWriter {
         let file_handle: File = File::create(filename).expect("FAILED to open");
         BusWriter::from_filehandle(file_handle, header)
     }
 
-    pub fn write_record(&mut self, record: &BusRecord){
+    pub fn write_record(&mut self, record: &BusRecord) {
         let binrecord = record.to_bytes();
-        self.writer.write_all(&binrecord).expect("FAILED to write record");
+        self.writer
+            .write_all(&binrecord)
+            .expect("FAILED to write record");
     }
-    pub fn write_records(&mut self, records: &Vec<BusRecord>){
+    pub fn write_records(&mut self, records: &Vec<BusRecord>) {
         // writes several recordsd and flushes
-        for r in records{
+        for r in records {
             self.write_record(r)
         }
         self.writer.flush().unwrap();
     }
 
-    pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self{
-
+    pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(bufsize, file_handle);
 
         // write the header into the file
@@ -198,73 +209,68 @@ impl BusWriter {
 
         // write the variable header
         let mut varheader: Vec<u8> = Vec::new();
-        for _i in 0..header.tlen{
+        for _i in 0..header.tlen {
             varheader.push(0);
         }
         writer.write_all(&varheader).expect("FAILED to write var header");
 
-        BusWriter {writer , header}
+        BusWriter { writer, header }
     }
-
 }
 //=================================================================================
-
 
 pub struct BusFolder {
     pub foldername: String,
     pub ec2gene: Ec2GeneMapper,
 }
 
-pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>>{
+pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
     // parsing an ec.matrix into a Hashmap EC->list_of_transcript_ids
     let file = File::open(filename).unwrap_or_else(|_| panic!("{} not found", filename));
     let reader = BufReader::new(file);
     let mut ec_dict: HashMap<EC, Vec<u32>> = HashMap::new();
 
-    for line in reader.lines(){
-        if let Ok(l) = line{
+    for line in reader.lines() {
+        if let Ok(l) = line {
             // println!("{}", l);
             let mut s = l.split_whitespace();
             let ec = s.next().unwrap().parse::<u32>().unwrap();
             let tmp = s.next().unwrap();
 
-            let transcript_list: Vec<u32> = tmp
-                                             .split(',')
-                                             .map(|x|x.parse::<u32>().unwrap()).collect();
+            let transcript_list: Vec<u32> =
+                tmp.split(',').map(|x| x.parse::<u32>().unwrap()).collect();
             ec_dict.insert(EC(ec), transcript_list);
-        }
-        else {
+        } else {
             panic!("Error reading file {}", filename)
         }
     }
     ec_dict
 }
 
-fn parse_transcript(filename: &str) -> HashMap<u32, String>{
+fn parse_transcript(filename: &str) -> HashMap<u32, String> {
     let file = File::open(filename).unwrap();
     let reader = BufReader::new(file);
     let mut transcript_dict: HashMap<u32, String> = HashMap::new();
-    for (i, line) in reader.lines().enumerate(){
-        if let Ok(l) = line{
+    for (i, line) in reader.lines().enumerate() {
+        if let Ok(l) = line {
             transcript_dict.insert(i as u32, l);
         }
     }
     transcript_dict
 }
 
-fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename>{
-
-    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();        
+fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
+    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();
     let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
     let reader = BufReader::new(file);
-    for (_i, line) in reader.lines().enumerate(){
-        if let Ok(l) = line{
+    for (_i, line) in reader.lines().enumerate() {
+        if let Ok(l) = line {
             let mut s = l.split_whitespace();
             let transcript_id = s.next().unwrap();
             let ensemble_id = s.next().unwrap();
             let _symbol = s.next().unwrap();
 
-            assert!(!t2g_dict.contains_key(&transcript_id.to_string()));  //make sure transcripts dont map to multiple genes
+            assert!(!t2g_dict.contains_key(&transcript_id.to_string())); //make sure transcripts dont map to multiple genes
             t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
         }
     }
@@ -274,15 +280,14 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename>{
 fn build_ec2gene(
     ec_dict: &HashMap<EC, Vec<u32>>,
     transcript_dict: &HashMap<u32, String>,
-    t2g_dict: &HashMap<String, Genename>
- ) -> HashMap<EC, HashSet<Genename>>{
+    t2g_dict: &HashMap<String, Genename>,
+) -> HashMap<EC, HashSet<Genename>> {
     let mut ec2gene: HashMap<EC, HashSet<Genename>> = HashMap::new();
 
-    for (ec, transcript_ints) in ec_dict.iter(){
-
+    for (ec, transcript_ints) in ec_dict.iter() {
         let mut genes: HashSet<Genename> = HashSet::new();
 
-        for t_int in transcript_ints{
+        for t_int in transcript_ints {
             let t_name = transcript_dict.get(t_int).unwrap();
 
             // if we can resolve, put the genename, otherwsise use the transcript name instead
@@ -290,10 +295,12 @@ fn build_ec2gene(
             // actually, turns out that kallisto/bustools treats it differently:
             // if the transcript doenst resolve, just drop tha trasncrip from the EC set
             // TODO what happens if non of the EC transcripts resolve
-            match t2g_dict.get(t_name){
-                Some(genename) => {genes.insert(genename.clone());},
+            match t2g_dict.get(t_name) {
+                Some(genename) => {
+                    genes.insert(genename.clone());
+                }
                 // None =>  genes.insert(Genename(t_name.clone())),
-                None =>  {},
+                None => {}
             };
         }
         ec2gene.insert(*ec, genes);
@@ -309,11 +316,10 @@ fn build_ec2gene(
 }
 
 impl BusFolder {
-    pub fn new(foldername: &str, t2g_file:&str) ->BusFolder{
-
+    pub fn new(foldername: &str, t2g_file: &str) -> BusFolder {
         println!("building EC->gene for {}", foldername);
         // read EC dict
-        let filename= format!("{}/{}", foldername, "matrix.ec");
+        let filename = format!("{}/{}", foldername, "matrix.ec");
         let ec_dict = parse_ecmatrix(&filename);
 
         // read transcript dict
@@ -326,40 +332,40 @@ impl BusFolder {
         // create the EC->gene mapping
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
         let ecmapper = Ec2GeneMapper::new(ec2gene);
-        
-        BusFolder{
-            foldername : foldername.to_string(),
+
+        BusFolder {
+            foldername: foldername.to_string(),
             ec2gene: ecmapper,
         }
     }
 
-    pub fn get_iterator(&self) -> BusReader{
+    pub fn get_iterator(&self) -> BusReader {
         let bfile = self.get_busfile();
         BusReader::new(&bfile)
     }
 
-    pub fn get_busfile(&self) -> String{
+    pub fn get_busfile(&self) -> String {
         format!("{}/output.corrected.sort.bus", self.foldername)
     }
 
-    pub fn get_bus_header(&self) -> BusHeader{
+    pub fn get_bus_header(&self) -> BusHeader {
         BusHeader::from_file(&self.get_busfile())
     }
 
-    pub fn get_ecmatrix_file(&self)-> String{
+    pub fn get_ecmatrix_file(&self) -> String {
         format!("{}/matrix.ec", self.foldername)
     }
 
-    pub fn get_transcript_file(&self)-> String{
+    pub fn get_transcript_file(&self) -> String {
         format!("{}/transcripts.txt", self.foldername)
     }
 
-    pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<u32>>{
-        let filename= self.get_ecmatrix_file();
+    pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<u32>> {
+        let filename = self.get_ecmatrix_file();
         parse_ecmatrix(&filename)
     }
 
-    pub fn parse_transcript(&self) -> HashMap<u32, String>{
+    pub fn parse_transcript(&self) -> HashMap<u32, String> {
         let filename = self.get_transcript_file();
         parse_transcript(&filename)
     }
@@ -369,11 +375,9 @@ impl BusFolder {
     //     let t2g_dict = parse_t2g(&self.t2g_file);
     //     build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
     // }
-
 }
 
-
-pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>>{
+pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
     /*
     group a list of records by their CB/UMI (i.e. a single molecule)
 
@@ -381,21 +385,21 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     */
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
 
-    for r in record_list{
+    for r in record_list {
         let rlist = cbumi_map.entry((r.CB, r.UMI)).or_insert(Vec::new());
         rlist.push(r);
     }
     cbumi_map
 }
 
-pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
+pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     // just writes the records into a temporay file
     // returns the filename
     // returns TempDir so that it doesnt go out of scope and gets deleted right after tis function returns
     use tempfile::tempdir;
     let dir = tempdir().unwrap();
 
-    let file_path = dir.path().join("output.corrected.sort.bus");   
+    let file_path = dir.path().join("output.corrected.sort.bus");
     let tmpfilename = file_path.to_str().unwrap();
 
     let header = BusHeader::new(16, 12, 20);
@@ -405,28 +409,30 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir){
     (tmpfilename.to_string(), dir)
 }
 
-
-pub fn write_partial_busfile(bfile: &str, boutfile:&str, nrecords: usize){
+pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
     // write the first nrecords of the intput file into the output
     let busiter = BusReader::new(bfile);
-    let newheader = BusHeader::new(busiter.bus_header.cb_len, busiter.bus_header.umi_len, busiter.bus_header.tlen);
-    let mut buswriter = BusWriter::new(boutfile,newheader);
+    let newheader = BusHeader::new(
+        busiter.bus_header.cb_len,
+        busiter.bus_header.umi_len,
+        busiter.bus_header.tlen,
+    );
+    let mut buswriter = BusWriter::new(boutfile, newheader);
 
-    for record in busiter.take(nrecords){
+    for record in busiter.take(nrecords) {
         buswriter.write_record(&record);
     }
 }
 
 #[test]
-fn test_write(){
+fn test_write() {
     // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     // let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     // write_partial_busfile(fname, outname, 10_000_000);
 
     let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-    write_partial_busfile(fname, outname, 10);
-
+    write_partial_busfile(fname, outname, 1_500_000);
 }
 
 // #[test]
@@ -445,9 +451,9 @@ fn test_write(){
 //=================================================================================
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
     use crate::consistent_genes::EC;
-    use crate::io::{BusRecord, BusHeader, BusWriter, BusReader, setup_busfile};
+    use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter};
+    use std::io::Write;
 
     #[test]
     fn test_read_write_header(){
@@ -476,11 +482,11 @@ mod tests {
     }
 
     use std::fs::File;
-    use std::io::{BufWriter};
+    use std::io::BufWriter;
 
     use super::parse_ecmatrix;
     #[test]
-    fn test_ecmatrix(){
+    fn test_ecmatrix() {
         let f = File::create("/tmp/foo").expect("Unable to create file");
         let mut f = BufWriter::new(f);
 
@@ -488,14 +494,14 @@ mod tests {
         f.write_all(data.as_bytes()).expect("Unable to write data");
         f.flush().unwrap();
 
-        let ec= parse_ecmatrix("/tmp/foo");
+        let ec = parse_ecmatrix("/tmp/foo");
         // println!("{}", ec.len());
         // println!("{:?}", ec);
         let e1 = ec.get(&EC(0)).unwrap();
-        assert_eq!(*e1, vec![1,2,3]);
+        assert_eq!(*e1, vec![1, 2, 3]);
 
         let e1 = ec.get(&EC(1)).unwrap();
-        assert_eq!(*e1, vec![3 ,4]);
+        assert_eq!(*e1, vec![3, 4]);
     }
 
     use super::group_record_by_cb_umi;
@@ -512,19 +518,16 @@ mod tests {
         
         let grouped = group_record_by_cb_umi(records);
 
+        let g1 = grouped.get(&(0 as u64, 1 as u64)).unwrap();
+        assert_eq!(*g1, vec![r1, r2]);
 
-        let g1 = grouped.get(&(0 as u64,1 as u64)).unwrap();
-        assert_eq!(*g1, vec![r1,r2]);
-
-        let g2 = grouped.get(&(0 as u64,2 as u64)).unwrap();
+        let g2 = grouped.get(&(0 as u64, 2 as u64)).unwrap();
         assert_eq!(*g2, vec![r3]);
 
-        let g3 = grouped.get(&(1 as u64,1 as u64)).unwrap();
+        let g3 = grouped.get(&(1 as u64, 1 as u64)).unwrap();
         assert_eq!(*g3, vec![r4, r6]);
 
-        let g4 = grouped.get(&(1 as u64,2 as u64)).unwrap();
+        let g4 = grouped.get(&(1 as u64, 2 as u64)).unwrap();
         assert_eq!(*g4, vec![r5]);
-
     }
-
 }
