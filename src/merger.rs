@@ -1,71 +1,48 @@
-use std::collections::HashMap;
-use crate::io::BusRecord;
+use std::{collections::HashMap, fmt::Debug};
 
 //
 //  An iterator that merges mutliple sorted iterators by item
 //
 
-struct Testing2<T,S> 
-where S: Ord, T: Iterator<Item=S>
-{
-    iter: HashMap<usize, T>,
-}
-impl<T,S> Testing2<T,S> where S: Ord, T: Iterator<Item=S> {
-    pub fn new(iterators: HashMap<usize, T>) -> Self {
-        Testing2 { iter: iterators }
-    }
-}
-impl<T, S> Iterator for Testing2<T, S>
-where S: Ord, T: Iterator<Item=S> {
-    type Item = HashMap<usize, S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut h = HashMap::new();
-        for (name, the_iter) in self.iter.iter_mut() {
-            if let Some(el) = the_iter.next() {
-                h.insert(*name, el);
-            }
-        }
-        Some(h)
-    }
+pub struct MultiIterator<I,T, K> where I: Iterator<Item=(K, T)> , T: Debug, K: Ord+Eq+Debug+Copy {  // T is the type of elements we iterate (jointly). ie. each iterator to be merged emits T-type items
+    pub iterators: HashMap<String, I>,  // todo not sure about this dyn here; compiler asks for it
+    pub current_items: HashMap<String, (K,T)> // filename - > (CB, ListOfRecords)
 }
 
+impl<I, T, K> MultiIterator<I,T, K> 
+where I: Iterator<Item=(K,T)>, T: Debug , K: Ord+Eq+Debug+Copy {
 
-pub struct MultiIterator<T> {  // T is the type of elements we iterate (jointly). ie. each iterator to be merged emits T-type items
-    pub iterators: HashMap<String, dyn Iterator<Item=T>>,  // todo not sure about this dyn here; compiler asks for it
-    pub current_items: HashMap<String, T> // filename - > (CB, ListOfRecords)
-}
-impl<T> MultiIterator<T> {
+    pub fn new(iterators: HashMap<String, I>) -> Self {
 
-    pub fn new(iterators: HashMap<String, dyn Iterator<Item=T>>) ->MultiIterator<T>{
+        let mut current_items: HashMap<String, (K, T)> = HashMap::new();
 
-        let mut current_items: HashMap<String, T> = HashMap::new();
+        let mut eee: HashMap<String, I> = HashMap::new(); 
 
-        for (name, the_iter) in iterators{
+        for (name, mut the_iter) in iterators {
 
             // populate first elements from that iterator
             let item = the_iter.next();
             match item{
-                Some(record_list) => current_items.insert(name.clone(), record_list),
+                Some((key, record_list)) => current_items.insert(name.clone(), (key, record_list)),
                 None => None  //TODO we should probably drop this iterator here already
             };
 
             // store for later
-            iterators.insert(name.clone(), the_iter);
+            eee.insert(name.clone(), the_iter);
         }
 
-        MultiIterator { iterators, current_items}
+        MultiIterator { iterators: eee, current_items}
     }
 
-    fn advance_iter(&mut self, itername: &String) -> Option<T>{
+    fn advance_iter(&mut self, itername: &String) -> Option<(K, T)>{
         // advance the specified iterator and return the result
         if let Some(iter) = self.iterators.get_mut(itername){
-            if let Some(item) = iter.next(){
-                println!("Iterator {} yielding item {:?}", itername, item);
-                Some(item)
+            if let Some((key, item)) = iter.next(){
+                // println!("Iterator {} yielding item {:?}", itername, item);
+                Some((key, item))
             }
             else{
-                println!("Iterator {} empty", itername);
+                // println!("Iterator {} empty", itername);
                 None
             }
         }
@@ -76,7 +53,7 @@ impl<T> MultiIterator<T> {
         }
     }
 
-    fn get_current_min_items(&mut self) -> T{
+    fn get_current_min_items(&mut self) -> K{
         // gets the smallest current CB across the iterators
         let min = 
         self.current_items.values()
@@ -89,23 +66,22 @@ impl<T> MultiIterator<T> {
                                   cb2
                               }
                           }).unwrap();
-        min.clone() 
+        *min
     }
 }
 
-impl<T> Iterator for MultiIterator<T> {
+impl<I, T, K> Iterator for MultiIterator<I, T,K> where I: Iterator<Item=(K,T)> , T: Debug, K: Ord+Eq+Debug+Copy {
     // for each file, returns a vector of records for that cell
-    type Item = HashMap<String, T>;
+    type Item = (K, HashMap<String, T>);
 
     fn next(&mut self) -> Option<Self::Item> {
 
-        if self.iterators.len() == 0{
+        if self.iterators.is_empty() {
             return None
         }
 
         let current_min_cb = self.get_current_min_items();
-        println!("Current min {}", current_min_cb);
-        // let current_min_cb = &1;
+        // println!("Current min {:?}", current_min_cb);
 
         // all iterators/names that are at the minimum item will emit
         let names_to_emit: Vec<String>;
@@ -123,21 +99,16 @@ impl<T> Iterator for MultiIterator<T> {
                                 .map(|(name, (_cb, _r))| name.clone())
                                 .collect();
         }
-        // let items_to_emit: HashMap<&String, &Vec<BusRecord>> = 
-        //     self.current_items.iter()
-        //                       .filter(|(name, (cb, r))| cb == current_min_cb)
-        //                       .map(|(name, (cb, r))| (name, r))
-        //                       .collect();
         
         // advance all the iterators that did emit
         // for name in items_to_emit.iter().map(|(name, _rec| name)){
-        let mut the_emission: HashMap<String, Vec<BusRecord>> = HashMap::new();
+        let mut the_emission: HashMap<String, T> = HashMap::new();
 
         // lets pop out current items out of the struct: we need to modify it!
         for name in names_to_emit{
 
             // first pop that item out of current
-            let the_item = self.current_items.get(&name).unwrap().clone();  //todo bad clone: to get around the .insert in the next line
+            let the_item = self.current_items.remove(&name).unwrap();
             // and add to emission
             the_emission.insert(name.clone(), the_item.1);
 
@@ -147,12 +118,12 @@ impl<T> Iterator for MultiIterator<T> {
             match self.advance_iter(&name){
 
                 Some(cb_rlist) => {
-                println!("Advancing {} --> {:?}", name, cb_rlist);
+                // println!("Advancing {} --> {:?}", name, cb_rlist);
 
                     self.current_items.insert(name.clone(), cb_rlist); //overwrite the already emitted item
                 }, 
                 None => {
-                    println!("Advancing {} --> EMPTY", name);
+                    // println!("Advancing {} --> EMPTY", name);
 
                     self.current_items.remove(&name); // clean up the emitted item, remove the iterator itself
                     self.iterators.remove(&name);
@@ -168,4 +139,90 @@ impl<T> Iterator for MultiIterator<T> {
 
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::collections::HashMap;
+    use itertools::izip;
+    use crate::{io::{BusRecord, setup_busfile, BusReader}, bus_multi::CellUmiIteratorMulti, iterators::{CbUmiGroupIterator}};
+    use super::MultiIterator;
+
+
+    #[test]
+    fn test_basic() {
+        let h = HashMap::from([
+            ("A".to_owned(), izip!(0..10, 0..10)),
+            ("B".to_owned(), izip!(0..10, 10..20) ),
+        ]);
+
+        let mut multi = MultiIterator::new(h);
+        let x = multi.next().unwrap();
+        assert_eq!(
+            x, 
+            (0, HashMap::from([("A".to_owned(), 0), ("B".to_owned(), 10)])));
+        
+        let x = multi.next().unwrap();
+        assert_eq!(
+            x, 
+            (1, HashMap::from([("A".to_owned(), 1), ("B".to_owned(), 11)])));
+
+        let x = multi.next().unwrap();
+        assert_eq!(
+            x, 
+            (2, HashMap::from([("A".to_owned(), 2), ("B".to_owned(), 12)])));            
+    }
+    #[test]
+    fn test_compare() {
+        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
+        let r2 =BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
+        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
+        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
+
+        let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
+
+        let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
+        let s3 = BusRecord{CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0};
+        let s4 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
+        let s5 = BusRecord{CB: 2, UMI: 3, EC: 2, COUNT:  2, FLAG: 0}; 
+        let v2 = vec![s1.clone(),s2.clone(),s3.clone(), s4.clone(), s5.clone()];
+
+        // write the records to file
+        let (busname1, _dir1) = setup_busfile(&v1);
+        let (busname2, _dir2) = setup_busfile(&v2);
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), busname1.to_string()),
+            ("test2".to_string(), busname2.to_string()),
+        ]);
+
+        // // what we expect to get
+        // let expected_pairs = vec![
+        //     HashMap::from([
+        //         ("test1".to_string(), vec![r1]),
+        //         ("test2".to_string(), vec![s1]),
+        //     ]),
+        //     HashMap::from([("test1".to_string(), vec![r2])]),
+        //     HashMap::from([("test2".to_string(), vec![s2])]),
+        //     HashMap::from([
+        //         ("test1".to_string(), vec![r3]),
+        //         ("test2".to_string(), vec![s3]),
+        //     ]),
+        //     HashMap::from([("test2".to_string(), vec![s4, s5])]),
+        //     HashMap::from([("test1".to_string(), vec![r4])]),
+        // ];
+
+        // iterate, see if it meets the expectations
+        let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), BusReader::new(&busname1).groupby_cbumi()),
+            ("test2".to_string(), BusReader::new(&busname2).groupby_cbumi()),
+        ]);
+
+        let M = MultiIterator::new(hashmap);
+            for ((cbumi1, q),(cbumi2, w)) in izip!(iii, M){
+                assert_eq!(cbumi1, cbumi2);
+                assert_eq!(q, w);
+            }
+
+    }
+}
