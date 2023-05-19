@@ -14,3 +14,4 @@ pub mod disjoint;
 // pub mod butterfly;
 pub mod inspect;
 mod countmatrix;
+pub mod merger;
