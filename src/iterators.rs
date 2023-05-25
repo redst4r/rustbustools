@@ -16,8 +16,9 @@ where
 {
     type Item = ((u64, u64), Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
-        let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
-    
+        // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(10); // storing the result to be emitted; capacity is small, since we dont expect many records for the same CB/UMI
+        let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted; capacity is small, since we dont expect many records for the same CB/UMI
+
         loop {
             // anything left in the basic iterator (if not, just emit whatever is stored in self.last_element)
             if let Some(new_record) = self.iter.next() {
@@ -406,7 +407,7 @@ mod tests {
          let cb_iter = b.groupby_cbumi();
     
          let results: Vec<_> = cb_iter
-            .map(|(cbumi, r)| r).group_by_gene(es).collect();
+            .map(|(_cbumi, r)| r).group_by_gene(es).collect();
     
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].len(), 1);

@@ -151,7 +151,7 @@ impl Iterator for BusReader {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut buffer = [0; BUS_ENTRY_SIZE];
+        let mut buffer = [0; BUS_ENTRY_SIZE];  // TODO this gets allocated at each next(). We could move it out into the struct: Actually doesnt make a diference, bottleneck is the reading
         let r = match self.reader.read(&mut buffer) {
             Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,

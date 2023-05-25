@@ -11,8 +11,8 @@ bincode = "1.2.1"
 # flate2 = "1.0"
 # lazy_static = "1"
 # fastq = "0.6"
-indicatif = "0.16"
-clap = { version = "3.1.18", features = ["derive"] }
+indicatif = "0.17"
+clap = { version = "4", features = ["derive"] }
 sprs = "0.11"
 regex = "1"
 statrs = "0.16"
