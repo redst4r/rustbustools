@@ -5,6 +5,7 @@ use rustbustools::consistent_genes::{GeneId, EC, Genename};
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusReader, BusHeader};
 use rustbustools::iterators::CellGroupIterator;
+use rustbustools::sort::sort_on_disk;
 use rustbustools::utils::int_to_seq;
 use rustbustools::{busmerger, io::BusFolder};
 use clap::{self, Parser, Subcommand, Args};
@@ -28,7 +29,15 @@ enum MyCommand {
     count2(CountArgs),
     resolve_ec(ResolveArgs),
     inspect(InspectArgs),
+    sort(SortArgs),
     getcb(GetCBArgs),
+}
+
+#[derive(Args)]
+struct SortArgs{
+    /// input busfolder
+    #[clap(long= "ifile", short='i')] 
+    inbus: String, 
 }
 
 #[derive(Args)]
@@ -187,7 +196,9 @@ fn main() {
                 writeln!(writer, "{},{}", cb, nrecords).unwrap();
             }
         },
+        MyCommand::sort(args) => {
+            let chunksize = 10_000_000;  // roughly 300MB size 
+            sort_on_disk(&args.inbus, &cli.output, chunksize)
+        }
     }
 }
-
-

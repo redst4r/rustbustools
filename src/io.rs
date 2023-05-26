@@ -49,7 +49,7 @@ impl BusRecord {
 /// // can also be obtained from an existing busfile
 /// let header = BusHeader::from_file("somefile.bus")
 /// ```
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BusHeader {
     //4sIIII: 20bytes
     magic: [u8; 4],

@@ -15,3 +15,4 @@ pub mod disjoint;
 pub mod inspect;
 mod countmatrix;
 pub mod merger;
+pub mod sort;
