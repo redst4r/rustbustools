@@ -1,10 +1,10 @@
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, CB, EC};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, CB, MappingResult};
 use crate::countmatrix::CountMatrix;
 use crate::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::time::Instant;
 
 ///
@@ -17,9 +17,7 @@ use std::time::Instant;
 /// 2. Determine ALL genes: from the EC2Gene file
 /// 3. turn into a big sparse matrix via expression_vectors_to_matrix()
 
-
 type ExpressionVector = HashMap<Genename, u32>;
-
 
 pub fn count_bayesian(bfolder: BusFolder) {
     let bfile = bfolder.get_busfile();
@@ -99,6 +97,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let genelist_vector: Vec<Genename> = bfolder.ec2gene.get_gene_list();
     println!(" genes {}", genelist_vector.len());
 
+    // todo: whats the point of this conversion from Vec<Genename> -> Vec<&Genename>
     let mut genelist_vector2 = genelist_vector.iter().collect::<Vec<&Genename>>();
 
     genelist_vector2.sort();
@@ -136,31 +135,53 @@ fn records_to_expression_vector(
     for ((_cb, _umi), records) in cb_umi_grouped {
         // all records coresponding to the same UMI
 
-        let consistent_genes: HashSet<GeneId>;
-        // let consistent_genes: HashSet<String>;
-        if !ignore_multimapped {
-            consistent_genes = find_consistent(&records, eg_mapper);
-            // consistent_genes= find_consistent(&records, ec2gene);
-        } else if records.len() > 1 {
-            continue;
+        let m: MappingResult = if ignore_multimapped {
+            // means: If the records map to more than one gene, just treat as unmappable
+            match records.len() {
+                1 => find_consistent(&records, eg_mapper),  // single record, still has to resolve to a single gene!
+                0 => panic!(),
+                _ => MappingResult::Inconsistent  // if theres more than one record just skip (we dont even try to resolve)
+            }
         } else {
-            // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
-            consistent_genes = eg_mapper.get_genes(EC(records[0].EC)).clone();
+            find_consistent(&records, eg_mapper)
+        };
+
+        match m {
+            // mapped to a single gene: update count!
+            MappingResult::SingleGene(g) => {
+                let gname = eg_mapper.resolve_gene_id(g);
+                let val = expression_vector.entry(gname).or_insert(0);
+                *val += 1;
+            },
+            MappingResult::Multimapped(_) => _multimapped += 1,
+            MappingResult::Inconsistent => _inconsistant += 1,
         }
 
-        if consistent_genes.len() > 1 {
-            //multimapped
-            _multimapped += 1;
-        } else if consistent_genes.len() == 1 {
-            //single gene
-            let g = consistent_genes.iter().next().unwrap(); // Set to first element
-            let gname = eg_mapper.resolve_gene_id(*g);
-            let val = expression_vector.entry(gname).or_insert(0);
-            *val += 1;
-        } else {
-            // inconsistant
-            _inconsistant += 1
-        }
+        // let consistent_genes: HashSet<GeneId>;
+        // // let consistent_genes: HashSet<String>;
+        // if !ignore_multimapped {
+        //     consistent_genes = find_consistent(&records, eg_mapper);
+        //     // consistent_genes= find_consistent(&records, ec2gene);
+        // } else if records.len() > 1 {
+        //     continue;
+        // } else {
+        //     // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
+        //     consistent_genes = eg_mapper.get_genes(EC(records[0].EC)).clone();
+        // }
+
+        // if consistent_genes.len() > 1 {
+        //     //multimapped
+        //     _multimapped += 1;
+        // } else if consistent_genes.len() == 1 {
+        //     //single gene
+        //     let g = consistent_genes.iter().next().unwrap(); // Set to first element
+        //     let gname = eg_mapper.resolve_gene_id(*g);
+        //     let val = expression_vector.entry(gname).or_insert(0);
+        //     *val += 1;
+        // } else {
+        //     // inconsistant
+        //     _inconsistant += 1
+        // }
     }
     expression_vector
 }
@@ -187,6 +208,7 @@ fn expression_vectors_to_matrix(
     // let cbs: Vec<u64> = all_expression_vector.keys().;
 
     // mapping for gene-> index/order
+    // this tells us which column in the matrix we need to insert
     let mut gene2index: HashMap<&Genename, usize> = HashMap::new();
     for (i, g) in genelist.iter().enumerate() {
         gene2index.insert(g, i);

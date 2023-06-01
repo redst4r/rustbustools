@@ -28,8 +28,22 @@ pub fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, news
     inter.retain(|item| newset.contains(item));
 }
 
+/// MappingResult represents an attempt to unify several BusRecords with matching CB/UMI
+/// into an mRNA expressed from a single gene
+/// This is not always possible, as the records will have different EC
+/// Sometimes the ECs are inconsistent (no overlap in gene space)
+/// Sometimes the ECS are ambigous and can resolve to multipel genes
+/// TODO: MappingResult isnt the best name (mapping sounds like alignment!)
+/// 
+#[derive(Debug, PartialEq)]
+pub enum MappingResult {
+    SingleGene(GeneId),   // records mapped to a single Gene
+    Multimapped(HashSet<GeneId>),  // record multimapped, i.e. records are consistent with multiple genes
+    Inconsistent,        // records are inconsistent, pointing to different genes
+}
+
 // pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
-pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> HashSet<GeneId> {
+pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> MappingResult {
     /*
     set intersection in Rust is a MESS due to ownership etc!!
     Here's the strategy:
@@ -46,7 +60,7 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> HashSe
     let s1 = setlist.next().unwrap();
 
     let mut shared_genes;
-    if false {
+    if false {  // TODO get rid of this code!!
         shared_genes = HashSet::new(); // could spec capacity
 
         // initial element, make a copy of that
@@ -60,8 +74,16 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> HashSe
     }
 
     // save some time if its only one record
+    // actually not sure if this saves anything any more (after using MappingResult)
+    // if we have one record, shared_Genes will be len==1, we pull out s1 (shared_Genes is empty now)
+    // -> check if we can get rid of this block! 
     if records.len() == 1 {
-        return shared_genes;
+        if shared_genes.len() == 1{
+            let elem = *shared_genes.iter().next().unwrap();
+            return MappingResult::SingleGene(elem);
+        } else {
+            return MappingResult::Multimapped(shared_genes);
+        }
     }
 
     for current_set in setlist {
@@ -74,7 +96,16 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> HashSe
             break;
         }
     }
-    shared_genes
+    match shared_genes.len() {
+        0 => MappingResult::Inconsistent,
+        1 => {
+            let elem = *shared_genes.iter().next().unwrap();
+            MappingResult::SingleGene(elem)
+        }
+        _ => MappingResult::Multimapped(shared_genes)
+    }
+
+    
 }
 
 #[derive(Debug)]
@@ -273,7 +304,7 @@ mod testing {
     use std::collections::{HashMap, HashSet};
 
     use crate::{
-        consistent_genes::{find_consistent, groubygene, Genename},
+        consistent_genes::{find_consistent, groubygene, Genename, MappingResult},
         io::{BusFolder, BusRecord},
         utils::vec2set,
     };
@@ -296,34 +327,56 @@ mod testing {
 
         // single read, consistent with A
         let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-        let res1: Vec<Genename> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(vec![Genename("A".to_string())], res1);
+        // let res1: Vec<Genename> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res1: MappingResult = find_consistent(&vec![r1], &es_mapper);
+        match res1{
+            MappingResult::SingleGene(g) => assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g)), 
+            MappingResult::Multimapped(_) | MappingResult::Inconsistent => panic!(),
+        }
+        
 
         // single read, consistent with A and B, hence multimapped
         let r2 =BusRecord{CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0};
-        let res2: Vec<Genename> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        // assert_eq!(vec!["A", "B"], res2);  WRNING the order matters here, the function might return the vec ordered differently
-        assert_eq!(res2.len(), 2);
+        // let res2: Vec<Genename> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res2: MappingResult = find_consistent(&vec![r2], &es_mapper);
+        println!("{:?}", res2);
+        match res2{
+            MappingResult::SingleGene(_) | MappingResult::Inconsistent => panic!(),
+            MappingResult::Multimapped(gs) => {
+                let obs = gs.iter().map(|g| es_mapper.resolve_gene_id(*g)).collect::<HashSet<_>>();
+                assert_eq!(obs, vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]))
+            },
+        }
 
         // two reads, consistent with A
         let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r4 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        let res3: Vec<Genename> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(vec![Genename("A".to_string())], res3);
+        // let res3: Vec<Genename> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let res3: MappingResult = find_consistent(&vec![r3, r4], &es_mapper);
+        match res3{
+            MappingResult::SingleGene(g) => assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g)),
+            MappingResult::Multimapped(_) | MappingResult::Inconsistent => panic!(),
+        }
 
-        // two reads, inconsistent with A, B
+        // // two reads, inconsistent with A, B
         let r5 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r6 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
-        let res4: Vec<Genename> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(res4.len(), 0);
+        // let res4: Vec<Genename> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        // assert_eq!(res4.len(), 0);
+        let res4 = find_consistent(&vec![r5, r6], &es_mapper);
+        assert_eq!(res4, MappingResult::Inconsistent);
 
-        // three reads,  A, B, (A,B)
-        // inconsintent at the end
+        // // three reads,  A, B, (A,B)
+        // // inconsintent at the end
         let r7 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
         let r8 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
         let r9 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        let res5: Vec<Genename> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        assert_eq!(res5.len(), 0);
+        // let res5: Vec<Genename> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        // assert_eq!(res5.len(), 0);
+        let res5 = find_consistent(&vec![r7, r8, r9], &es_mapper);
+        assert_eq!(res5, MappingResult::Inconsistent)
+
+
     }
 
     #[test]

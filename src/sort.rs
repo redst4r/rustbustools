@@ -12,6 +12,7 @@ use tempfile::tempdir;
 ///    We easily could though: in `sort_into_btree` just aggregate the Vec<BusRecord> values
 
 // sorts/inserts an Iterator over records ito a BTreeMap
+// (B,UMI,EC) -> records
 fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     iterator: I,
 ) -> BTreeMap<(u64, u64, u32), Vec<BusRecord>> {

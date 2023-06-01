@@ -1,11 +1,11 @@
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, CB, EC};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, CB, MappingResult};
 use crate::countmatrix::CountMatrix;
 use crate::io::{BusFolder, BusRecord};
 use crate::iterators::CbUmiGroupIterator;
 use crate::multinomial::multinomial_sample;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs::DenseVector;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 
 ///
@@ -71,21 +71,15 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: us
     println!("{}", bfile);
 
     println!("determine size of iterator");
-    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
     let now = Instant::now();
-    let total_records = cbumi_iter_tmp.count();
-
-    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
-
-    let max_length_records = cbumi_iter_tmp
-        .map(|(_cbumi, rlist)| rlist.len())
-        .max()
-        .unwrap();
+    let total_records = bfolder.get_cbumi_size();
+    let elapsed_time: std::time::Duration = now.elapsed();
+    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
 
     let elapsed_time = now.elapsed();
     println!(
-        "determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI",
-        total_records, elapsed_time, max_length_records
+        "determined size of iterator {} in {:?}.",
+        total_records, elapsed_time
     );
 
     // handles the mapping between EC and gene
@@ -151,16 +145,14 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: us
                 continue;
             }
 
-            if let Some(g) = count_from_record_list(&injected_records, egm, ignore_multimapped) {
-                // the records could be made into a single count for gene g
-                let key = (CB(cb), g);
-                let current_count = all_expression_vector.entry(key).or_insert(0);
-                *current_count += 1;
-
-                n_mapped += 1;
-            } else {
-                // multimapped, or not consistently mapped
-                n_multi_inconsistent += 1;
+            match count_from_record_list(&injected_records, egm, ignore_multimapped) {
+                MappingResult::SingleGene(g) => {
+                    let key = (CB(cb), g);
+                    let current_count = all_expression_vector.entry(key).or_insert(0);
+                    *current_count += 1;
+                    n_mapped += 1;
+                },
+                MappingResult::Multimapped(_) | MappingResult::Inconsistent => n_multi_inconsistent += 1,
             }
 
             if counter % 1_000_000 == 0 {
@@ -199,27 +191,21 @@ fn count_from_record_list(
     records: &Vec<BusRecord>,
     egmapper: &Ec2GeneMapper,
     ignore_multimapped: bool,
-) -> Option<GeneId> {
+) -> MappingResult {
     // given a set of Records from the same CB/UMI, are they consistent with a particular gene
     // which would yield a signel count
-    let consistent_genes: HashSet<GeneId>;
 
-    if !ignore_multimapped {
-        consistent_genes = find_consistent(records, egmapper);
-    } else if records.len() > 1 {
-        return None;
+    // watch out for the convoluted logic with ignore_multimapped!!
+    
+    if ignore_multimapped {
+        // means: If the records map to more than one gene, just treat as unmappable
+        match records.len() {
+            1 => find_consistent(records, egmapper),  // single record, still has to resolve to a single gene!
+            0 => panic!(),
+            _ => MappingResult::Inconsistent  // if theres more than one record just skip (we dont even try to resolve)
+        }
     } else {
-        // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
-        consistent_genes = egmapper.get_genes(EC(records[0].EC)).clone();
-    }
-
-    // uniquely mapped to a single gene
-    if consistent_genes.len() == 1 {
-        let g = consistent_genes.into_iter().next().unwrap();
-        Some(g)
-    } else {
-        // multimapped or inconsistent
-        None
+        find_consistent(records, egmapper) 
     }
 }
 
@@ -249,23 +235,25 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     for (counter, ((cb, _umi), record_list)) in cbumi_iter.enumerate() {
         // try to map the records of this CB/UMI into a single gene
-        if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
+        // if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
+        match count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
         {
-            // the records could be made into a single count for gene g
-            let key = (CB(cb), g);
-            let current_count = all_expression_vector.entry(key).or_insert(0);
-            *current_count += 1;
-
-            n_mapped += 1;
-        } else {
-            // multimapped, or not consistently mapped
-            n_multi_inconsistent += 1;
-            // let cbstr = int_to_seq(cb, 16);
-            // let umistr = int_to_seq(_umi, 12);
-            //println!("not countable {cbstr}/{umistr} {:?}", record_list);
-            // let cgeneids= find_consistent(&record_list, &bfolder.ec2gene);
-            // let cgenes: Vec<_> = cgeneids.iter().map(|gid| bfolder.ec2gene.resolve_gene_id(*gid)).collect();
-            //println!("{cgenes:?}")
+            MappingResult::SingleGene(g) => {
+                let key = (CB(cb), g);
+                let current_count = all_expression_vector.entry(key).or_insert(0);
+                *current_count += 1;
+                n_mapped += 1;
+            },
+            MappingResult::Multimapped(_) | MappingResult::Inconsistent => {
+                // multimapped, or not consistently mapped
+                n_multi_inconsistent += 1;
+                // let cbstr = int_to_seq(cb, 16);
+                // let umistr = int_to_seq(_umi, 12);
+                //println!("not countable {cbstr}/{umistr} {:?}", record_list);
+                // let cgeneids= find_consistent(&record_list, &bfolder.ec2gene);
+                // let cgenes: Vec<_> = cgeneids.iter().map(|gid| bfolder.ec2gene.resolve_gene_id(*gid)).collect();
+                //println!("{cgenes:?}")
+            },
         }
 
         if counter % 1_000_000 == 0 {

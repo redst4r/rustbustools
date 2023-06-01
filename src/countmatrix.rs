@@ -24,7 +24,7 @@ impl CountMatrix {
     }
 
     pub fn to_map(&self) -> HashMap<(String, String), usize> {
-        // transforms the sparse count matrix into a Hashmap (CB,Gene)
+        // transforms the sparse count matrix into a Hashmap (CB,Gene)-> count
         let mut h1: HashMap<(String, String), usize> = HashMap::new();
 
         for (value, (i, j)) in self.matrix.iter() {
