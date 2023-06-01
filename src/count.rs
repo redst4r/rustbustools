@@ -7,6 +7,20 @@ use sprs;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
+///
+/// ## emulating bustools count
+/// This turns a busfolder into a count matrix.
+/// 
+/// The strategy:
+/// 1. iterate over CBs, turn each cell (Busrecords from same cell) into an ExpressionVector (HashMap<Genename, u32>).
+///    Those all have slightly different key sets
+/// 2. Determine ALL genes: from the EC2Gene file
+/// 3. turn into a big sparse matrix via expression_vectors_to_matrix()
+
+
+type ExpressionVector = HashMap<Genename, u32>;
+
+
 pub fn count_bayesian(bfolder: BusFolder) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);
@@ -64,7 +78,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
         total_records, elapsed_time
     );
 
-    let mut all_expression_vector: HashMap<CB, HashMap<Genename, u32>> = HashMap::new();
+    let mut all_expression_vector: HashMap<CB, ExpressionVector> = HashMap::new();
     let now = Instant::now();
 
     // let bar = ProgressBar::new_spinner();
@@ -104,64 +118,18 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     countmatrix
 }
 
-// fn records_to_expression_vector_groupby(record_list: Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) -> HashMap<String, u32>{
-//     let mut expression_vector: HashMap<String, u32> = HashMap::new(); // gene -> count
-//     let mut _multimapped = 0;
-//     let mut _inconsistant= 0;
-
-//     // first, group the records by UMI
-//     // TODO: EXPENSIVE!! 25k/s
-
-//     use itertools::Itertools;
-//     let cb_umi_grouped = record_list.into_iter().group_by(|a|(a.CB, a.UMI));
-
-//     for (_key, group) in cb_umi_grouped.into_iter(){
-//         let records: Vec<BusRecord> = group.collect();
-//         // all records coresponding to the same UMI
-//         // TODO: EXPENSIVE!! 25k/s
-//         let consistent_genes= find_consistent(&records, ec2gene);
-
-//         // let consistent_genes = ec2gene.get(&records[0].EC).unwrap();
-//         // let consistent_genes = vec![records[0].EC];
-
-//         if consistent_genes.len() > 1{
-//             //multimapped
-//             _multimapped += 1;
-//         }
-//         else if consistent_genes.len() == 1 {
-//             //single gene
-//             // let g = consistent_genes.drain().next().unwrap();
-
-//             // let v: Vec<String> = consistent_genes.into_iter().collect();  // Set to Vec
-//             // let g = &v[0];
-
-//             let g = consistent_genes.iter().next().unwrap();  // Set to first element
-
-//             let val = expression_vector.entry(g.to_string()).or_insert(0);
-//             *val += 1;
-//         }
-//         else{
-//             // inconsistant
-//             _inconsistant += 1
-//         }
-//     }
-//     // println!("{}, {}",_multimapped, _inconsistant);
-
-//     expression_vector
-
-// }
 
 fn records_to_expression_vector(
     record_list: Vec<BusRecord>,
     // ec2gene: &HashMap<u32, HashSet<String>>,
     eg_mapper: &Ec2GeneMapper,
     ignore_multimapped: bool,
-) -> HashMap<Genename, u32> {
+) -> ExpressionVector {
     /*
     turn the list of records of a single CB into a expression vector: per gene, how many umis are observed
     TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
     */
-    let mut expression_vector: HashMap<Genename, u32> = HashMap::new(); // gene -> count
+    let mut expression_vector: ExpressionVector = HashMap::new(); // gene -> count
     let mut _multimapped = 0_u32;
     let mut _inconsistant = 0_u32;
 
@@ -202,7 +170,7 @@ fn records_to_expression_vector(
 }
 
 fn expression_vectors_to_matrix(
-    all_expression_vector: HashMap<CB, HashMap<Genename, u32>>,
+    all_expression_vector: HashMap<CB, ExpressionVector>,
     genelist: Vec<&Genename>,
 ) -> CountMatrix {
     /*
