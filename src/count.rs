@@ -67,21 +67,17 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     */
 
     let cb_iter = bfolder.get_iterator().groupby_cb();
-    let cb_iter_tmp = bfolder.get_iterator().groupby_cb();
 
     println!("determine size of iterator");
     let now = Instant::now();
-    let total_records = cb_iter_tmp.count();
-    let elapsed_time = now.elapsed();
-    println!(
-        "determined size of iterator {} in {:?}",
-        total_records, elapsed_time
-    );
+    let total_records = bfolder.get_cb_size();
+    let elapsed_time: std::time::Duration = now.elapsed();
+    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
+
 
     let mut all_expression_vector: HashMap<CB, ExpressionVector> = HashMap::new();
     let now = Instant::now();
 
-    // let bar = ProgressBar::new_spinner();
     let bar = get_progressbar(total_records as u64);
 
     for (counter, (cb, record_list)) in cb_iter.enumerate() {

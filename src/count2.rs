@@ -8,6 +8,13 @@ use sprs::DenseVector;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Instant;
 
+///
+/// ## emulating bustools count
+/// This turns a busfolder into a count matrix.
+/// 
+/// Slightly different strategy as count.rs:
+/// 1. iterate over CB/UMI, turn into (possibly) count for a gene (if not multimapped) via count_from_record_list()
+/// 2. this creates  HashMap<(CB, GeneId), usize> directly, to be turned into a sparse CountMatrix
 pub fn countmap_to_matrix(
     countmap: &HashMap<(CB, GeneId), usize>,
     gene_vector: Vec<Genename>,
@@ -224,25 +231,12 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("{}", bfile);
 
     let cbumi_iter = bfolder.get_iterator().groupby_cbumi();
-    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
 
     println!("determine size of iterator");
     let now = Instant::now();
-    let total_records = cbumi_iter_tmp.count();
-
-    let cbumi_iter_tmp = bfolder.get_iterator().groupby_cbumi();
-
-    let max_length_records = cbumi_iter_tmp
-        .map(|(_cbumi, rlist)| rlist.len())
-        .max()
-        .unwrap();
-
-    let elapsed_time = now.elapsed();
-
-    println!(
-        "determined size of iterator {} in {:?}. Longest element: {} in a single CB/UMI",
-        total_records, elapsed_time, max_length_records
-    );
+    let total_records = bfolder.get_cbumi_size();
+    let elapsed_time: std::time::Duration = now.elapsed();
+    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
 
     // CB,gene_id -> count
     let mut all_expression_vector: HashMap<(CB, GeneId), usize> = HashMap::new();

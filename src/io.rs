@@ -1,4 +1,5 @@
 use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
+use crate::iterators::{CellGroupIterator, CbUmiGroupIterator};
 use bincode;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -375,6 +376,17 @@ impl BusFolder {
     //     let t2g_dict = parse_t2g(&self.t2g_file);
     //     build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
     // }
+
+    pub fn get_cb_size(&self) -> usize{
+        let cb_iter_tmp = self.get_iterator().groupby_cb();
+        cb_iter_tmp.count()
+    }
+
+    pub fn get_cbumi_size(&self) -> usize{
+        let cb_iter_tmp = self.get_iterator().groupby_cbumi();
+        cb_iter_tmp.count()
+    }
+
 }
 
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
