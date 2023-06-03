@@ -357,6 +357,7 @@ mod tests {
         assert_eq!(*c5, ((2, 1), vec![r6]));
         // assert_eq!(n, vec![vec![r1,r2], vec![r3], vec![r4,r5]])
     }
+
     #[test]
     #[should_panic(expected = "Unsorted busfile: 2 -> 0")]
     fn test_panic_on_unsorted(){  
@@ -370,9 +371,25 @@ mod tests {
         // let busname = "/tmp/test_panic_on_unsorted.bus";
         let (busname, _dir) = setup_busfile(&records);
         let b = BusReader::new(&busname);
-        let cb_iter = b.groupby_cb();
-        let _n: Vec<(u64, Vec<BusRecord>)> = cb_iter.collect();
+        b.groupby_cb().count();
+
     }
+
+    #[test]
+    #[should_panic(expected = "Unsorted busfile: 2/2 -> 0/1")]
+    fn test_panic_on_unsorted_cbumi(){  
+        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
+        let r3 = BusRecord{CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+        let r4 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+
+        let records = vec![r1, r2, r3, r4];
+
+        let (busname, _dir) = setup_busfile(&records);
+        let b = BusReader::new(&busname);
+        b.groupby_cbumi().count();
+    }
+
     use crate::iterators::GroupbyGeneIterator;
     #[test]
     fn test_groupby_genes() {

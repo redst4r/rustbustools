@@ -6,6 +6,7 @@ pub struct CellIteratorMulti {
     pub iterators: HashMap<String, CellGroup<BusReader>>,
     pub current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
 }
+
 impl CellIteratorMulti {
     pub fn new(fnames: &HashMap<String, String>) -> CellIteratorMulti {
         let mut iterators: HashMap<String, CellGroup<BusReader>> = HashMap::new();

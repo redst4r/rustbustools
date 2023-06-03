@@ -59,19 +59,7 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
 
     let s1 = setlist.next().unwrap();
 
-    let mut shared_genes;
-    if false {  // TODO get rid of this code!!
-        shared_genes = HashSet::new(); // could spec capacity
-
-        // initial element, make a copy of that
-        for el in s1 {
-            shared_genes.insert(*el);
-        }
-    }
-    // pretty much just a clone of s1
-    else {
-        shared_genes = s1.clone();
-    }
+    let mut shared_genes = s1.clone();
 
     // save some time if its only one record
     // actually not sure if this saves anything any more (after using MappingResult)
@@ -400,6 +388,64 @@ mod testing {
             let gnames: HashSet<_> = gids.iter().map(|i| es.resolve_gene_id(*i)).collect();
             assert_eq!(&gnames, ec_set);
         }
+    }
+    #[test]
+    fn test_get_gene_list() {
+        let ec0 = vec2set(vec![Genename("A".to_string())]);
+        let ec1 = vec2set(vec![Genename("B".to_string())]);
+        let ec2 = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3 = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
+
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()),
+            (EC(1), ec1.clone()),
+            (EC(2), ec2.clone()),
+            (EC(3), ec3.clone()),
+        ]);
+
+        let es = Ec2GeneMapper::new(ec_dict);
+        assert_eq!(
+            es.get_gene_list(),
+            vec![Genename("A".to_string()),Genename("B".to_string()),Genename("C".to_string()),Genename("D".to_string())]
+        )
+    }
+
+    #[test]
+    fn test_resolve_geneid_2_ec() {
+        let ec0 = vec2set(vec![Genename("A".to_string())]);
+        let ec1 = vec2set(vec![Genename("B".to_string())]);
+        let ec2 = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3 = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
+
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()),
+            (EC(1), ec1.clone()),
+            (EC(2), ec2.clone()),
+            (EC(3), ec3.clone()),
+        ]);
+        let es = Ec2GeneMapper::new(ec_dict);
+
+        // Gene A resolves to EC0
+        assert_eq!(
+            es.resolve_geneid_to_ec_uniquely(0),
+            Some(EC(0))
+        );
+        // Gene Bresolves to EC1
+        assert_eq!(
+            es.resolve_geneid_to_ec_uniquely(1),
+            Some(EC(1))
+        );
+
+        // Gene C cant be resolved uniquely (EC3 mapps to both C,D)
+        assert_eq!(
+            es.resolve_geneid_to_ec_uniquely(2),
+            None
+        );  
+        // Gene D cant be resolved uniquely (EC3 mapps to both C,D)
+        assert_eq!(
+            es.resolve_geneid_to_ec_uniquely(3),
+            None
+        ); 
     }
 
     #[test]
