@@ -46,9 +46,10 @@ impl BusRecord {
 /// - umi_len: The number of bases in the cellbarcode (usually 12BP)
 /// # Example
 /// ```
-/// let header = BusHeader::new(16, 12, 1)
+/// use rustbustools::io::BusHeader;
+/// let header = BusHeader::new(16, 12, 1);
 /// // can also be obtained from an existing busfile
-/// let header = BusHeader::from_file("somefile.bus")
+/// // let header = BusHeader::from_file("somefile.bus");
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BusHeader {
@@ -103,9 +104,9 @@ impl BusHeader {
 /// ## Example
 /// ```
 /// struct Dummy{
-///     f: i64
+///     f: u32
 /// }
-///
+/// use rustbustools::io::{BusRecord, CUGIterator};
 /// impl Iterator for Dummy {
 ///     type Item=BusRecord;
 ///
@@ -435,30 +436,6 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
         buswriter.write_record(&record);
     }
 }
-
-#[test]
-fn test_write() {
-    // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-    let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-    // let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-    // write_partial_busfile(fname, outname, 10_000_000);
-
-    let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-    write_partial_busfile(fname, outname, 1_500_000);
-}
-
-// #[test]
-// fn testing2(){
-//     use itertools::Itertools;
-//     let FOLDERNAME:&str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-//     let n =100000;
-//     let biter= BusIteratorBuffered::new(&FOLDERNAME);
-//     let s:Vec<Vec<BusRecord>> = biter
-//         .group_by(|r| r.CB)
-//         .into_iter().map(|(a, records)|records.collect())
-//         .take(n)
-//         .collect();
-// }
 
 //=================================================================================
 #[cfg(test)]

@@ -1,5 +1,3 @@
-use itertools::{GroupBy, Itertools};
-
 use crate::{
     consistent_genes::{groubygene, CUGset, Ec2GeneMapper},
     io::{BusRecord, CUGIterator},
@@ -295,25 +293,6 @@ mod tests {
         assert_eq!(*c4, (3, vec![r6]));
 
         // assert_eq!(n, vec![vec![r1,r2], vec![r3], vec![r4,r5]])
-    }
-
-    // #[test]
-    fn test_cb_iter_speed() {
-        use std::time::Instant;
-        let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-        let n = 100000;
-
-        let b = BusReader::new(foldername);
-        let biter2 = b.groupby_cb();
-
-        let now = Instant::now();
-        let _s2: Vec<_> = biter2.take(n).map(|(_a, records)| records).collect();
-        let elapsed_time = now.elapsed();
-        println!(
-            "Running CellIterator({}) took {} seconds.",
-            n,
-            elapsed_time.as_secs()
-        );
     }
 
     #[test]
