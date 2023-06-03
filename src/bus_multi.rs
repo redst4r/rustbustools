@@ -27,7 +27,7 @@ impl CellIteratorMulti {
             iterators.insert(name.clone(), the_iter);
         }
 
-        CellIteratorMulti { iterators, current_items}
+        CellIteratorMulti { iterators, current_items }
     }
 
     fn advance_iter(&mut self, itername: &String) -> Option<(u64, Vec<BusRecord>)> {
@@ -86,7 +86,7 @@ impl Iterator for CellIteratorMulti {
         for name in names_to_emit {
             // first pop that item out of current
             let (_cb, the_item) = self.current_items.remove(&name).unwrap(); //todo bad clone: to get around the .insert in the next line
-            
+
             // and add to emission
             the_emission.insert(name.clone(), the_item);
 
@@ -136,7 +136,7 @@ impl CellUmiIteratorMulti {
             // store for later
             iterators.insert(name.clone(), the_iter);
         }
-        CellUmiIteratorMulti { iterators, current_items}
+        CellUmiIteratorMulti { iterators, current_items }
     }
 
     fn advance_iter(&mut self, itername: &String) -> Option<((u64, u64), Vec<BusRecord>)> {
@@ -234,17 +234,17 @@ mod tests {
         r4
          */
         use std::iter::zip;
-        let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
-        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
+        let r1 = BusRecord { CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 3, UMI: 0, EC: 0, COUNT: 2, FLAG: 0 };
 
         let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
 
-        let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
-        let s3 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
-        let v2 = vec![s1.clone(),s2.clone(),s3.clone()];
+        let s1 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+        let s3 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let v2 = vec![s1.clone(), s2.clone(), s3.clone()];
 
         // write the records to file
         let (busname1, _dir1) = setup_busfile(&v1);
@@ -283,19 +283,19 @@ mod tests {
     #[test]
     fn test_cbumi_multi() {
         use std::iter::zip;
-        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
-        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 3, UMI: 0, EC: 0, COUNT: 2, FLAG: 0 };
 
         let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
 
-        let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
-        let s3 = BusRecord{CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0};
-        let s4 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
-        let s5 = BusRecord{CB: 2, UMI: 3, EC: 2, COUNT:  2, FLAG: 0}; 
-        let v2 = vec![s1.clone(),s2.clone(),s3.clone(), s4.clone(), s5.clone()];
+        let s1 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+        let s3 = BusRecord { CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0 };
+        let s4 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
+        let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
 
         // write the records to file
         let (busname1, _dir1) = setup_busfile(&v1);

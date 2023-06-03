@@ -52,8 +52,8 @@ where
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
                 // let last_record = std::mem::replace(&mut self.last_record, None);
-                let last_record = self.last_record.take();  // swaps the current value for None; clippy suggestion to std::mem::replace
-                // get the last element and emit
+                let last_record = self.last_record.take(); // swaps the current value for None; clippy suggestion to std::mem::replace
+                                                           // get the last element and emit
                 if let Some(r) = last_record {
                     // we ran pas the last entry of the file
                     // FINALize the last emit
@@ -99,7 +99,7 @@ where
     type Item = (u64, Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
-        // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
+                                                         // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
 
         loop {
             if let Some(new_record) = self.iter.next() {
@@ -118,19 +118,22 @@ where
                 busrecords.push(last_record); // the stored element from the previous iteration
 
                 // now we just need to decide if we want to emit, or continue growing
-                match new_cb.cmp(&current_cb){
-                    std::cmp::Ordering::Equal => { }, //nothing happens, just keep growing busrecords
-                    std::cmp::Ordering::Greater => {return Some((current_cb, busrecords));},
-                    std::cmp::Ordering::Less => {panic!("Unsorted busfile: {} -> {}", current_cb, new_cb)}
+                match new_cb.cmp(&current_cb) {
+                    std::cmp::Ordering::Equal => {} //nothing happens, just keep growing busrecords
+                    std::cmp::Ordering::Greater => {
+                        return Some((current_cb, busrecords));
+                    }
+                    std::cmp::Ordering::Less => {
+                        panic!("Unsorted busfile: {} -> {}", current_cb, new_cb)
+                    }
                 }
-            }
-            else{
+            } else {
                 // get the last element and emit
 
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
                 // let last_record = std::mem::replace(&mut self.last_record, None);
-                let last_record = self.last_record.take();  // swaps the current value for None; clippy suggestion to std::mem::replace
+                let last_record = self.last_record.take(); // swaps the current value for None; clippy suggestion to std::mem::replace
 
                 if let Some(r) = last_record {
                     // we ran pas the last entry of the file
@@ -209,9 +212,9 @@ mod tests {
     #[test]
     fn test_cb_iter_last_element1() {
         // make sure everything is emitted, even if the last element is its own group
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
 
         let records = vec![r1.clone(), r2.clone(), r3.clone()];
         // let n: Vec<_> = records.into_iter().groupby_cb().map(|(_cb, records)| records).collect();
@@ -240,11 +243,11 @@ mod tests {
     #[test]
     fn test_cb_iter_last_element2() {
         // make sure everything is emitted, even if the last element has mutiple elements
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
-        let r4 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};  
-        let records = vec![r1.clone(),r2.clone(),r3.clone(), r4.clone()];
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let records = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
         let (busname, _dir) = setup_busfile(&records);
 
         let b = BusReader::new(&busname);
@@ -259,16 +262,23 @@ mod tests {
     }
 
     #[test]
-    fn test_cb_iter(){   
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r4 = BusRecord{CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let r5 = BusRecord{CB: 2, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r6 = BusRecord{CB: 3, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-    
-        let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
-    
+    fn test_cb_iter() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 2, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 3, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+
+        let records = vec![
+            r1.clone(),
+            r2.clone(),
+            r3.clone(),
+            r4.clone(),
+            r5.clone(),
+            r6.clone(),
+        ];
+
         // let n: Vec<(u64, Vec<BusRecord>)> = records.into_iter().groupby_cb().collect();
 
         let (busname, _dir) = setup_busfile(&records);
@@ -297,15 +307,22 @@ mod tests {
     }
 
     #[test]
-    fn test_cbumi_iter(){   
-        let r1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r4 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let r5 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0};
-        let r6 = BusRecord{CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+    fn test_cbumi_iter() {
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
-        let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
+        let records = vec![
+            r1.clone(),
+            r2.clone(),
+            r3.clone(),
+            r4.clone(),
+            r5.clone(),
+            r6.clone(),
+        ];
         // let n: Vec<((u64, u64), Vec<BusRecord>)> = records.into_iter().groupby_cbumi().collect();
 
         let (busname, _dir) = setup_busfile(&records);
@@ -340,11 +357,11 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Unsorted busfile: 2 -> 0")]
-    fn test_panic_on_unsorted(){  
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r4 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+    fn test_panic_on_unsorted() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
         let records = vec![r1, r2, r3, r4];
 
@@ -352,16 +369,15 @@ mod tests {
         let (busname, _dir) = setup_busfile(&records);
         let b = BusReader::new(&busname);
         b.groupby_cb().count();
-
     }
 
     #[test]
     #[should_panic(expected = "Unsorted busfile: 2/2 -> 0/1")]
-    fn test_panic_on_unsorted_cbumi(){  
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r4 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+    fn test_panic_on_unsorted_cbumi() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
         let records = vec![r1, r2, r3, r4];
 
@@ -375,9 +391,11 @@ mod tests {
     fn test_groupby_genes() {
         let ec0: HashSet<Genename> = vec2set(vec![Genename("A".to_string())]);
         let ec1: HashSet<Genename> = vec2set(vec![Genename("B".to_string())]);
-        let ec2: HashSet<Genename> = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
-        let ec3: HashSet<Genename> = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
-    
+        let ec2: HashSet<Genename> =
+            vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+        let ec3: HashSet<Genename> =
+            vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
+
         let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
             (EC(0), ec0.clone()),
             (EC(1), ec1.clone()),
@@ -388,24 +406,23 @@ mod tests {
         let es = Ec2GeneMapper::new(ec_dict);
 
         // first sample: two records, with consistent gene A
-        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0};
-    
-         // second sample: two records, with consistent gene A the other consistent with gene B
-         let s1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 3, FLAG: 0}; // A
-         let s2 = BusRecord{CB: 0, UMI: 2, EC: 1, COUNT: 4, FLAG: 0}; //B
-    
-         let records = vec![r1.clone(),r2.clone(),s1.clone(),s2.clone()];
-    
-         let (busname, _dir) = setup_busfile(&records);
-    
-         let b = BusReader::new(&busname);
-    
-         let cb_iter = b.groupby_cbumi();
-    
-         let results: Vec<_> = cb_iter
-            .map(|(_cbumi, r)| r).group_by_gene(es).collect();
-    
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0 };
+
+        // second sample: two records, with consistent gene A the other consistent with gene B
+        let s1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 3, FLAG: 0 }; // A
+        let s2 = BusRecord { CB: 0, UMI: 2, EC: 1, COUNT: 4, FLAG: 0 }; //B
+
+        let records = vec![r1.clone(), r2.clone(), s1.clone(), s2.clone()];
+
+        let (busname, _dir) = setup_busfile(&records);
+
+        let b = BusReader::new(&busname);
+
+        let cb_iter = b.groupby_cbumi();
+
+        let results: Vec<_> = cb_iter.map(|(_cbumi, r)| r).group_by_gene(es).collect();
+
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].len(), 1);
         assert_eq!(results[1].len(), 2);
@@ -413,3 +430,31 @@ mod tests {
         println!("{:?}", results)
     }
 }
+
+// use itertools::{GroupBy, Itertools};
+//  pub struct CbUmiGroup_GROUP {
+//     grouped_iter: Box<dyn Iterator<Item=BusRecord>>,
+// }
+
+// impl Iterator for CbUmiGroup_GROUP
+// {
+//     type Item = ((u64, u64), Vec<BusRecord>);
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.grouped_iter.next()
+//     }
+// }
+
+// impl CbUmiGroup_GROUP
+// {
+//     pub fn new(mut iter: dyn Iterator<Item=BusRecord> + Sized) -> Self {
+//         let grouped_iter = iter.group_by(|r| (r.CB, *r));
+//         Self { grouped_iter }
+//     }
+// }
+
+// pub trait CbUmiGroup_GROUPIterator: CUGIterator + Sized {
+//     fn groupby_cbumi(self) -> CbUmiGroup_GROUP {
+//         CbUmiGroup_GROUP::new(self)
+//     }
+// }
+// impl<I: CUGIterator> CbUmiGroup_GROUPIterator for I {}

@@ -53,7 +53,8 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     println!("Sorting chunks");
     let tmpdir = tempdir().unwrap();
 
-    for (i, record_chunk) in (&reader.chunks(chunksize)).into_iter().enumerate() {        // sort the chunk in memory
+    for (i, record_chunk) in (&reader.chunks(chunksize)).into_iter().enumerate() {
+        // sort the chunk in memory
         let in_mem_sort = sort_into_btree(record_chunk);
 
         //write current sorted file to disk
@@ -103,12 +104,12 @@ mod test {
     #[test]
     fn test_sort_in_memory() {
         // this is the correct order here:
-        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0, };
-        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
-        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0, };
-        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
-        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0, };
-        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
         let unsorted_records = vec![
             r6.clone(),
@@ -134,13 +135,13 @@ mod test {
     fn test_sort_on_disk() {
         // lets use chunksize 2 and split records over chunks on purpose
 
-        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0, };
-        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
-        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0, };
-        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
-        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0, };
-        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0, };
-        let r7 = BusRecord { CB: 2, UMI: 1, EC: 0, COUNT: 2, FLAG: 0, };
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r7 = BusRecord { CB: 2, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
 
         let unsorted_records = vec![
             // chunk 1
@@ -193,13 +194,7 @@ mod test {
             let cb = cb_distr.sample(&mut rng);
             let umi = umi_distr.sample(&mut rng);
 
-            let r = BusRecord {
-                CB: cb,
-                UMI: umi,
-                EC: 0,
-                COUNT: 1,
-                FLAG: 0,
-            };
+            let r = BusRecord { CB: cb, UMI: umi, EC: 0, COUNT: 1, FLAG: 0 };
             writer.write_record(&r);
         }
         drop(writer); //make sure everything is written

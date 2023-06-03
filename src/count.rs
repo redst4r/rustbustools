@@ -1,16 +1,16 @@
-use crate::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, CB, MappingResult};
+use crate::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB};
 use crate::countmatrix::CountMatrix;
 use crate::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
 use crate::iterators::CellGroupIterator;
 use crate::utils::{get_progressbar, int_to_seq};
 use sprs;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::time::Instant;
 
 ///
 /// ## emulating bustools count
 /// This turns a busfolder into a count matrix.
-/// 
+///
 /// The strategy:
 /// 1. iterate over CBs, turn each cell (Busrecords from same cell) into an ExpressionVector (HashMap<Genename, u32>).
 ///    Those all have slightly different key sets
@@ -70,8 +70,10 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let now = Instant::now();
     let total_records = bfolder.get_cb_size();
     let elapsed_time: std::time::Duration = now.elapsed();
-    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
-
+    println!(
+        "determined size of iterator {} in {:?}",
+        total_records, elapsed_time
+    );
 
     let mut all_expression_vector: HashMap<CB, ExpressionVector> = HashMap::new();
     let now = Instant::now();
@@ -113,7 +115,6 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     countmatrix
 }
 
-
 fn records_to_expression_vector(
     record_list: Vec<BusRecord>,
     // ec2gene: &HashMap<u32, HashSet<String>>,
@@ -138,9 +139,9 @@ fn records_to_expression_vector(
         let m: MappingResult = if ignore_multimapped {
             // means: If the records map to more than one gene, just treat as unmappable
             match records.len() {
-                1 => find_consistent(&records, eg_mapper),  // single record, still has to resolve to a single gene!
+                1 => find_consistent(&records, eg_mapper), // single record, still has to resolve to a single gene!
                 0 => panic!(),
-                _ => MappingResult::Inconsistent  // if theres more than one record just skip (we dont even try to resolve)
+                _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
             }
         } else {
             find_consistent(&records, eg_mapper)
@@ -152,7 +153,7 @@ fn records_to_expression_vector(
                 let gname = eg_mapper.resolve_gene_id(g);
                 let val = expression_vector.entry(gname).or_insert(0);
                 *val += 1;
-            },
+            }
             MappingResult::Multimapped(_) => _multimapped += 1,
             MappingResult::Inconsistent => _inconsistant += 1,
         }
@@ -246,9 +247,7 @@ mod test {
         io::{BusFolder, BusRecord},
         utils::vec2set,
     };
-    use std::{
-        collections::{HashMap, HashSet},
-    };
+    use std::collections::{HashMap, HashSet};
 
     // #[test]
     fn test_itt() {
@@ -286,26 +285,26 @@ mod test {
         let es = Ec2GeneMapper::new(ec_dict);
 
         // those three records are consistent with G1
-        let r1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
         // // those records are consistent with G1 and G2, hence multimapped
-        let r4 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 2, FLAG: 0};
-        let r5 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 2, FLAG: 0};
-        let r6 = BusRecord{CB: 0, UMI: 2, EC: 3, COUNT: 2, FLAG: 0};
+        let r4 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 0, UMI: 2, EC: 3, COUNT: 2, FLAG: 0 };
 
         // // those records are inconsistent with G1 vs G2
-        let r7= BusRecord{CB: 0, UMI: 3, EC: 0, COUNT: 2, FLAG: 0};
-        let r8= BusRecord{CB: 0, UMI: 3, EC: 1, COUNT: 2, FLAG: 0};
-        let r9= BusRecord{CB: 0, UMI: 3, EC: 2, COUNT: 2, FLAG: 0};
+        let r7 = BusRecord { CB: 0, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r8 = BusRecord { CB: 0, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let r9 = BusRecord { CB: 0, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
 
         // // those records are consistent with G1
-        let r10= BusRecord{CB: 0, UMI: 5, EC: 1, COUNT: 2, FLAG: 0};
-        let r11= BusRecord{CB: 0, UMI: 5, EC: 0, COUNT: 2, FLAG: 0};
+        let r10 = BusRecord { CB: 0, UMI: 5, EC: 1, COUNT: 2, FLAG: 0 };
+        let r11 = BusRecord { CB: 0, UMI: 5, EC: 0, COUNT: 2, FLAG: 0 };
 
         // // those records are consistent with G2
-        let r12 = BusRecord{CB: 0, UMI: 4, EC: 2, COUNT: 2, FLAG: 0};
-        let r13= BusRecord{CB: 0, UMI: 4, EC: 0, COUNT: 2, FLAG: 0};
+        let r12 = BusRecord { CB: 0, UMI: 4, EC: 2, COUNT: 2, FLAG: 0 };
+        let r13 = BusRecord { CB: 0, UMI: 4, EC: 0, COUNT: 2, FLAG: 0 };
 
         let records0 = vec![r1.clone(), r2.clone()];
         let c0 = records_to_expression_vector(records0, &es, false);
@@ -329,6 +328,4 @@ mod test {
             ])
         );
     }
-
-
 }

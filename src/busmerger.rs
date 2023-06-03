@@ -13,8 +13,14 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
     ]);
 
     let mut writers: HashMap<String, BusWriter> = HashMap::from([
-        ("f1".to_string(), BusWriter::new(outfile1, BusHeader::new(16, 12, 20))), 
-        ("f2".to_string(), BusWriter::new(outfile2, BusHeader::new(16, 12, 20))), 
+        (
+            "f1".to_string(),
+            BusWriter::new(outfile1, BusHeader::new(16, 12, 20)),
+        ),
+        (
+            "f2".to_string(),
+            BusWriter::new(outfile2, BusHeader::new(16, 12, 20)),
+        ),
     ]);
 
     let cbumi_merge_iter = CellUmiIteratorMulti::new(&h);
@@ -42,18 +48,18 @@ mod tests {
     }
 
     #[test]
-    fn test_merge(){
-        let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
-        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r5 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
+    fn test_merge() {
+        let r1 = BusRecord { CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 3, UMI: 0, EC: 0, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 3, UMI: 0, EC: 1, COUNT: 2, FLAG: 0 };
 
         let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone(), r5.clone()];
 
-        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
-        let s3 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
-        let s4 = BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
+        let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+        let s3 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let s4 = BusRecord { CB: 3, UMI: 0, EC: 1, COUNT: 2, FLAG: 0 };
 
         let v2 = vec![s2.clone(), s3.clone(), s4.clone()];
 

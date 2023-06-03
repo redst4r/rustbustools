@@ -34,12 +34,12 @@ pub fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, news
 /// Sometimes the ECs are inconsistent (no overlap in gene space)
 /// Sometimes the ECS are ambigous and can resolve to multipel genes
 /// TODO: MappingResult isnt the best name (mapping sounds like alignment!)
-/// 
+///
 #[derive(Debug, PartialEq)]
 pub enum MappingResult {
-    SingleGene(GeneId),   // records mapped to a single Gene
-    Multimapped(HashSet<GeneId>),  // record multimapped, i.e. records are consistent with multiple genes
-    Inconsistent,        // records are inconsistent, pointing to different genes
+    SingleGene(GeneId),           // records mapped to a single Gene
+    Multimapped(HashSet<GeneId>), // record multimapped, i.e. records are consistent with multiple genes
+    Inconsistent,                 // records are inconsistent, pointing to different genes
 }
 
 // pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
@@ -64,9 +64,9 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
     // save some time if its only one record
     // actually not sure if this saves anything any more (after using MappingResult)
     // if we have one record, shared_Genes will be len==1, we pull out s1 (shared_Genes is empty now)
-    // -> check if we can get rid of this block! 
+    // -> check if we can get rid of this block!
     if records.len() == 1 {
-        if shared_genes.len() == 1{
+        if shared_genes.len() == 1 {
             let elem = *shared_genes.iter().next().unwrap();
             return MappingResult::SingleGene(elem);
         } else {
@@ -90,10 +90,8 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
             let elem = *shared_genes.iter().next().unwrap();
             MappingResult::SingleGene(elem)
         }
-        _ => MappingResult::Multimapped(shared_genes)
+        _ => MappingResult::Multimapped(shared_genes),
     }
-
-    
 }
 
 #[derive(Debug)]
@@ -203,11 +201,7 @@ impl Ec2GeneMapper {
             }
         }
 
-        Ec2GeneMapper {
-            ec2geneid,
-            int_to_gene,
-            geneid2ec,
-        }
+        Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec }
     }
 
     pub fn get_genes(&self, ec: EC) -> &HashSet<GeneId> {
@@ -276,12 +270,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
         let counts: u32 = grouped_records.iter().map(|x| x.COUNT).sum();
         let r1 = grouped_records.get(0).unwrap();
 
-        let new_record = CUGset {
-            CB: r1.CB,
-            UMI: r1.UMI,
-            GENESET: gset,
-            COUNT: counts,
-        };
+        let new_record = CUGset { CB: r1.CB, UMI: r1.UMI, GENESET: gset, COUNT: counts };
         emissions.push(new_record);
     }
     emissions
@@ -314,57 +303,57 @@ mod testing {
         // not find_consistent doesnt check the records indeed come from the same CB/UMI
 
         // single read, consistent with A
-        let r1 =BusRecord{CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0};
-        // let res1: Vec<Genename> = find_consistent(&vec![r1], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let r1 = BusRecord { CB: 0, UMI: 21, EC: 0, COUNT: 2, FLAG: 0 };
         let res1: MappingResult = find_consistent(&vec![r1], &es_mapper);
-        match res1{
-            MappingResult::SingleGene(g) => assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g)), 
+        match res1 {
+            MappingResult::SingleGene(g) => {
+                assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g))
+            }
             MappingResult::Multimapped(_) | MappingResult::Inconsistent => panic!(),
         }
-        
 
         // single read, consistent with A and B, hence multimapped
-        let r2 =BusRecord{CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0};
-        // let res2: Vec<Genename> = find_consistent(&vec![r2], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let r2 = BusRecord { CB: 0, UMI: 21, EC: 2, COUNT: 2, FLAG: 0 };
         let res2: MappingResult = find_consistent(&vec![r2], &es_mapper);
         println!("{:?}", res2);
-        match res2{
+        match res2 {
             MappingResult::SingleGene(_) | MappingResult::Inconsistent => panic!(),
             MappingResult::Multimapped(gs) => {
-                let obs = gs.iter().map(|g| es_mapper.resolve_gene_id(*g)).collect::<HashSet<_>>();
-                assert_eq!(obs, vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]))
-            },
+                let obs = gs
+                    .iter()
+                    .map(|g| es_mapper.resolve_gene_id(*g))
+                    .collect::<HashSet<_>>();
+                assert_eq!(
+                    obs,
+                    vec2set(vec![Genename("A".to_string()), Genename("B".to_string())])
+                )
+            }
         }
 
         // two reads, consistent with A
-        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r4 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        // let res3: Vec<Genename> = find_consistent(&vec![r3, r4], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
+        let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 3, UMI: 0, EC: 2, COUNT: 2, FLAG: 0 };
         let res3: MappingResult = find_consistent(&vec![r3, r4], &es_mapper);
-        match res3{
-            MappingResult::SingleGene(g) => assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g)),
+        match res3 {
+            MappingResult::SingleGene(g) => {
+                assert_eq!(Genename("A".to_string()), es_mapper.resolve_gene_id(g))
+            }
             MappingResult::Multimapped(_) | MappingResult::Inconsistent => panic!(),
         }
 
         // // two reads, inconsistent with A, B
-        let r5 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r6 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
-        // let res4: Vec<Genename> = find_consistent(&vec![r5, r6], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        // assert_eq!(res4.len(), 0);
+        let r5 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 3, UMI: 0, EC: 1, COUNT: 2, FLAG: 0 };
         let res4 = find_consistent(&vec![r5, r6], &es_mapper);
         assert_eq!(res4, MappingResult::Inconsistent);
 
         // // three reads,  A, B, (A,B)
         // // inconsintent at the end
-        let r7 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r8 =BusRecord{CB: 3, UMI: 0, EC: 1, COUNT:  2, FLAG: 0}; 
-        let r9 =BusRecord{CB: 3, UMI: 0, EC: 2, COUNT:  2, FLAG: 0}; 
-        // let res5: Vec<Genename> = find_consistent(&vec![r7, r8, r9], &es_mapper).into_iter().map(|gid|es_mapper.resolve_gene_id(gid)).collect();
-        // assert_eq!(res5.len(), 0);
+        let r7 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r8 = BusRecord { CB: 3, UMI: 0, EC: 1, COUNT: 2, FLAG: 0 };
+        let r9 = BusRecord { CB: 3, UMI: 0, EC: 2, COUNT: 2, FLAG: 0 };
         let res5 = find_consistent(&vec![r7, r8, r9], &es_mapper);
         assert_eq!(res5, MappingResult::Inconsistent)
-
-
     }
 
     #[test]
@@ -406,7 +395,12 @@ mod testing {
         let es = Ec2GeneMapper::new(ec_dict);
         assert_eq!(
             es.get_gene_list(),
-            vec![Genename("A".to_string()),Genename("B".to_string()),Genename("C".to_string()),Genename("D".to_string())]
+            vec![
+                Genename("A".to_string()),
+                Genename("B".to_string()),
+                Genename("C".to_string()),
+                Genename("D".to_string())
+            ]
         )
     }
 
@@ -426,26 +420,14 @@ mod testing {
         let es = Ec2GeneMapper::new(ec_dict);
 
         // Gene A resolves to EC0
-        assert_eq!(
-            es.resolve_geneid_to_ec_uniquely(0),
-            Some(EC(0))
-        );
+        assert_eq!(es.resolve_geneid_to_ec_uniquely(0), Some(EC(0)));
         // Gene Bresolves to EC1
-        assert_eq!(
-            es.resolve_geneid_to_ec_uniquely(1),
-            Some(EC(1))
-        );
+        assert_eq!(es.resolve_geneid_to_ec_uniquely(1), Some(EC(1)));
 
         // Gene C cant be resolved uniquely (EC3 mapps to both C,D)
-        assert_eq!(
-            es.resolve_geneid_to_ec_uniquely(2),
-            None
-        );  
+        assert_eq!(es.resolve_geneid_to_ec_uniquely(2), None);
         // Gene D cant be resolved uniquely (EC3 mapps to both C,D)
-        assert_eq!(
-            es.resolve_geneid_to_ec_uniquely(3),
-            None
-        ); 
+        assert_eq!(es.resolve_geneid_to_ec_uniquely(3), None);
     }
 
     #[test]
@@ -467,10 +449,10 @@ mod testing {
         let es = Ec2GeneMapper::new(ec_dict);
 
         // first sample: two records, with consistent gene A
-        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0};
-        
-        let r = groubygene(vec![r1,r2], &es);
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 2, COUNT: 2, FLAG: 0 };
+
+        let r = groubygene(vec![r1, r2], &es);
         assert_eq!(r.len(), 1);
         let r1 = r.first().unwrap();
         assert_eq!(r1.COUNT, 4);
@@ -482,9 +464,9 @@ mod testing {
         );
 
         // second sample: two records, with consistent gene A the other consistent with gene B
-        let s1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 3, FLAG: 0}; // A
-        let s2 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 4, FLAG: 0}; //B
-        let r = groubygene(vec![s1,s2], &es);
+        let s1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 3, FLAG: 0 }; // A
+        let s2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 4, FLAG: 0 }; //B
+        let r = groubygene(vec![s1, s2], &es);
         assert_eq!(r.len(), 2);
         let r1 = &r[0];
         let r2 = &r[1];

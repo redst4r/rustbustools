@@ -1,5 +1,5 @@
 use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
-use crate::iterators::{CellGroupIterator, CbUmiGroupIterator};
+use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -23,7 +23,7 @@ pub struct BusRecord {
     pub EC: u32,    // 4v byte
     pub COUNT: u32, // 4v byte
     pub FLAG: u32,  // 4v byte    including this, we have 28 bytes, missing 4 to fill up
-    // PAD: u32     // just padding to fill 32bytes
+                    // PAD: u32     // just padding to fill 32bytes
 }
 impl BusRecord {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -64,7 +64,7 @@ pub struct BusHeader {
 impl BusHeader {
     pub fn new(cb_len: u32, umi_len: u32, tlen: u32) -> BusHeader {
         let magic: [u8; 4] = *b"BUS\x00";
-        BusHeader {cb_len, umi_len, tlen, magic, version: 1}
+        BusHeader { cb_len, umi_len, tlen, magic, version: 1 }
     }
 
     pub fn from_file(fname: &str) -> BusHeader {
@@ -145,7 +145,7 @@ impl BusReader {
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusReader {bus_header, reader: buf}
+        BusReader { bus_header, reader: buf }
     }
 }
 
@@ -153,7 +153,7 @@ impl Iterator for BusReader {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut buffer = [0; BUS_ENTRY_SIZE];  // TODO this gets allocated at each next(). We could move it out into the struct: Actually doesnt make a diference, bottleneck is the reading
+        let mut buffer = [0; BUS_ENTRY_SIZE]; // TODO this gets allocated at each next(). We could move it out into the struct: Actually doesnt make a diference, bottleneck is the reading
         match self.reader.read(&mut buffer) {
             Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,
@@ -205,15 +205,19 @@ impl BusWriter {
         let mut writer = BufWriter::with_capacity(bufsize, file_handle);
 
         // write the header into the file
-        let binheader =header.to_bytes();
-        writer.write_all(&binheader).expect("FAILED to write header");
+        let binheader = header.to_bytes();
+        writer
+            .write_all(&binheader)
+            .expect("FAILED to write header");
 
         // write the variable header
         let mut varheader: Vec<u8> = Vec::new();
         for _i in 0..header.tlen {
             varheader.push(0);
         }
-        writer.write_all(&varheader).expect("FAILED to write var header");
+        writer
+            .write_all(&varheader)
+            .expect("FAILED to write var header");
 
         BusWriter { writer, header }
     }
@@ -297,8 +301,8 @@ fn build_ec2gene(
             // if the transcript doenst resolve, just drop tha trasncrip from the EC set
             // TODO what happens if non of the EC transcripts resolve
             if let Some(genename) = t2g_dict.get(t_name) {
-                    genes.insert(genename.clone());
-                }
+                genes.insert(genename.clone());
+            }
             // else { genes.insert(Genename(t_name.clone())); }
         }
         ec2gene.insert(*ec, genes);
@@ -331,10 +335,7 @@ impl BusFolder {
         let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
         let ecmapper = Ec2GeneMapper::new(ec2gene);
 
-        BusFolder {
-            foldername: foldername.to_string(),
-            ec2gene: ecmapper,
-        }
+        BusFolder { foldername: foldername.to_string(), ec2gene: ecmapper }
     }
 
     pub fn get_iterator(&self) -> BusReader {
@@ -374,16 +375,15 @@ impl BusFolder {
     //     build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
     // }
 
-    pub fn get_cb_size(&self) -> usize{
+    pub fn get_cb_size(&self) -> usize {
         let cb_iter_tmp = self.get_iterator().groupby_cb();
         cb_iter_tmp.count()
     }
 
-    pub fn get_cbumi_size(&self) -> usize{
+    pub fn get_cbumi_size(&self) -> usize {
         let cb_iter_tmp = self.get_iterator().groupby_cbumi();
         cb_iter_tmp.count()
     }
-
 }
 
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
@@ -441,8 +441,8 @@ mod tests {
     use std::io::Write;
 
     #[test]
-    fn test_read_write_header(){
-        let r1 = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
+    fn test_read_write_header() {
+        let r1 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let header = BusHeader::new(16, 12, 20);
         let busname = "/tmp/test_read_write_header.bus";
         let mut writer = BusWriter::new(busname, header);
@@ -455,10 +455,10 @@ mod tests {
     }
 
     #[test]
-    fn test_read_write(){
-        let r1 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0};
-        let rlist = vec![r1,r2];   // note: this clones r1, r2!
+    fn test_read_write() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let rlist = vec![r1, r2]; // note: this clones r1, r2!
         let (busname, _dir) = setup_busfile(&rlist);
         let reader = BusReader::new(&busname);
 
@@ -491,16 +491,23 @@ mod tests {
 
     use super::group_record_by_cb_umi;
     #[test]
-    fn test_grouping(){
-        let r1 = BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0};
-        let r2 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let r3 = BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0};
-        let r4 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let r5 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0};
-        let r6 = BusRecord{CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
+    fn test_grouping() {
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
 
-        let records = vec![r1.clone(),r2.clone(),r3.clone(),r4.clone(),r5.clone(), r6.clone()];
-        
+        let records = vec![
+            r1.clone(),
+            r2.clone(),
+            r3.clone(),
+            r4.clone(),
+            r5.clone(),
+            r6.clone(),
+        ];
+
         let grouped = group_record_by_cb_umi(records);
 
         let g1 = grouped.get(&(0 as u64, 1 as u64)).unwrap();
