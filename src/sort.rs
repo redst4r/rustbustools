@@ -48,18 +48,16 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let reader = BusReader::new(busfile);
     let header = reader.bus_header.clone();
 
-    let mut current_chunk = 0;
     let mut chunkfiles = Vec::new();
 
     println!("Sorting chunks");
     let tmpdir = tempdir().unwrap();
 
-    for record_chunk in &reader.chunks(chunksize) {
-        // sort the chunk in memory
+    for (i, record_chunk) in (&reader.chunks(chunksize)).into_iter().enumerate() {        // sort the chunk in memory
         let in_mem_sort = sort_into_btree(record_chunk);
 
         //write current sorted file to disk
-        let file_path = tmpdir.path().join(format!("tmp_{}.bus", current_chunk));
+        let file_path = tmpdir.path().join(format!("tmp_{}.bus", i));
         let tmpfilename = file_path.to_str().unwrap().to_string();
 
         // println!("{}", tmpfilename);
@@ -70,7 +68,6 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
             tmpwriter.write_records(&recordlist);
         }
         chunkfiles.push(tmpfilename);
-        current_chunk += 1
     }
 
     // merge all chunks

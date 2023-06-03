@@ -218,8 +218,8 @@ mod tests {
             ("test2".to_string(), BusReader::new(&busname2).groupby_cbumi()),
         ]);
 
-        let M = MultiIterator::new(hashmap);
-            for ((cbumi1, q),(cbumi2, w)) in izip!(iii, M){
+        let miter = MultiIterator::new(hashmap);
+            for ((cbumi1, q),(cbumi2, w)) in izip!(iii, miter){
                 assert_eq!(cbumi1, cbumi2);
                 assert_eq!(q, w);
             }

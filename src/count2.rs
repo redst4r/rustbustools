@@ -45,7 +45,7 @@ pub fn countmap_to_matrix(
 
     for ((cb, geneid), counter) in countmap {
         let cbi = cb_ix.get(cb).unwrap();
-        let genei = (*geneid).0 as usize;
+        let genei = geneid.0 as usize;
         ii.push(*cbi);
         jj.push(genei);
         vv.push(*counter);
@@ -58,10 +58,10 @@ pub fn countmap_to_matrix(
 
     let cbs_seq: Vec<String> = all_cbs
         .into_iter()
-        .map(|x| int_to_seq((*x).0, 16))
+        .map(|x| int_to_seq(x.0, 16))
         .collect();
     // let gene_seq: Vec<String> = gene_vector.into_iter().map(|x|x.clone()).collect();
-    let gene_seq: Vec<String> = gene_vector.into_iter().map(|x| x.0.to_string()).collect(); //not sure if this does anything
+    let gene_seq: Vec<String> = gene_vector.into_iter().map(|x| x.0).collect(); //not sure if this does anything
 
     CountMatrix::new(b, cbs_seq, gene_seq)
 }

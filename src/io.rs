@@ -154,7 +154,7 @@ impl Iterator for BusReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0; BUS_ENTRY_SIZE];  // TODO this gets allocated at each next(). We could move it out into the struct: Actually doesnt make a diference, bottleneck is the reading
-        let r = match self.reader.read(&mut buffer) {
+        match self.reader.read(&mut buffer) {
             Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
             Ok(0) => None,
             Ok(n) => {
@@ -165,8 +165,7 @@ impl Iterator for BusReader {
                 )
             }
             Err(e) => panic!("{:?}", e),
-        };
-        r
+        }
     }
 }
 // tag our iterator to be compatible with our framework
@@ -297,13 +296,10 @@ fn build_ec2gene(
             // actually, turns out that kallisto/bustools treats it differently:
             // if the transcript doenst resolve, just drop tha trasncrip from the EC set
             // TODO what happens if non of the EC transcripts resolve
-            match t2g_dict.get(t_name) {
-                Some(genename) => {
+            if let Some(genename) = t2g_dict.get(t_name) {
                     genes.insert(genename.clone());
                 }
-                // None =>  genes.insert(Genename(t_name.clone())),
-                None => {}
-            };
+            // else { genes.insert(Genename(t_name.clone())); }
         }
         ec2gene.insert(*ec, genes);
     }

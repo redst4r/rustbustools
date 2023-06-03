@@ -51,8 +51,8 @@ where
                 // emit whatever is left in last element
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
-                let last_record = std::mem::replace(&mut self.last_record, None);
-
+                // let last_record = std::mem::replace(&mut self.last_record, None);
+                let last_record = self.last_record.take();  // swaps the current value for None; clippy suggestion to std::mem::replace
                 // get the last element and emit
                 if let Some(r) = last_record {
                     // we ran pas the last entry of the file
@@ -129,7 +129,8 @@ where
 
                 // we get the ownership and replace with None (which in the next iterator will trigger the end of the entire iterator)
                 // to mark the end of iteration and all items emitted, set last_item to None
-                let last_record = std::mem::replace(&mut self.last_record, None);
+                // let last_record = std::mem::replace(&mut self.last_record, None);
+                let last_record = self.last_record.take();  // swaps the current value for None; clippy suggestion to std::mem::replace
 
                 if let Some(r) = last_record {
                     // we ran pas the last entry of the file
