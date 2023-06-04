@@ -13,7 +13,7 @@ pub mod consistent_genes;
 pub mod disjoint;
 // pub mod butterfly;
 pub mod inspect;
-mod countmatrix;
+pub mod countmatrix;
 // pub mod channel;
 // pub mod buffered_channels;
 // pub mod new_channel;
