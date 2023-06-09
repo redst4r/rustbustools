@@ -1,5 +1,6 @@
 use clap::{self, Args, Parser, Subcommand};
 use itertools::Itertools;
+use rustbustools::butterfly::make_ecs;
 use rustbustools::consistent_genes::{GeneId, Genename, EC};
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusHeader, BusReader};
@@ -31,6 +32,19 @@ enum MyCommand {
     inspect(InspectArgs),
     sort(SortArgs),
     getcb(GetCBArgs),
+    butterfly(ButterflyArgs),
+}
+
+#[derive(Args)]
+struct ButterflyArgs {
+    /// input busfolder
+    #[clap(long = "ifile", short = 'i')]
+    inbus: String,
+    #[clap(long = "t2g")]
+    t2g: String,    
+    /// CB-UMI entries with multiple ECs will be collapsed into a single record (if they are consistent with a single gene)
+    #[clap(long = "collapse")]
+    collapse_ec: bool,    
 }
 
 #[derive(Args)]
@@ -204,6 +218,11 @@ fn main() {
         MyCommand::sort(args) => {
             let chunksize = 10_000_000; // roughly 300MB size
             sort_on_disk(&args.inbus, &cli.output, chunksize)
-        }
+        },
+        MyCommand::butterfly(args) => {
+            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
+            let cuhist = make_ecs(&bfolder, args.collapse_ec);
+            cuhist.to_disk(&cli.output);
+        },
     }
 }
