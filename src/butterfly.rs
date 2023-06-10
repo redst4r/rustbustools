@@ -1,15 +1,60 @@
+//! `butterfly` provides quanification of amplification for a kallisto-bus scRNAseq experiment
+//! 
+//! # Introduction
+//! In scRNAseq, each mRNA is tagged uniquely (up to random collision) with CB+UMI.
+//! Those are then amplified and sequenced. 
+//! If we see the same CB+UMI in multiple reads, we conclude that they are copies of the same original mRNA
+//! For each unique mRNA we quantify its amplification factor and record the absolute 
+//! frequency of the ampification (i.e. how often do we see a 5x amplification, 
+//! 5reads for the same CB+UMI)
+//! 
+//! This module quantifies the amplifcation (very fast!). 
+//! Further processing (where speed is not essential) is typically done in python,
+//! e.g. saturation curves, unseen species estimators.
+//! 
+//! 
+//! # Unseen species
+//! Considering the CB+UMI as `species` and the reads as `observations`, this relates to the `unseen species` problem
+//! How many unobserved `species` (CB+UMI) are there in the library given the amplification profile we've seen so far
+//! While the module doesn't provide an unseen species estimator, it can easily be build on the [CUHistogram]
+//! 
+//! # References
+//! The whole concept is described (amongst other things) in this 
+//! [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02386-z)
+//! 
+//! # Examples
+//! ```rust, no_run
+//! # use rustbustools::io::BusFolder;
+//! # use rustbustools::butterfly::make_ecs;
+//! let b = BusFolder::new(
+//!     "/path/to/bus/output",
+//!     "/path/to/transcripts_to_genes.txt",
+//! );
+//! let h = make_ecs(&b, true);
+//! // save the resulting frequency of frequency histogram to disk
+//! // can be read in python for further processing (e.g. plot the saturation curves)
+//! h.to_disk("/tmp/CU.csv")
+//! ``` 
+
+#![deny(missing_docs)]
 use crate::{io::BusFolder, iterators::CbUmiGroupIterator, consistent_genes::find_consistent};
 use std::{collections::HashMap, fs::File, io::Write};
 
+/// The basic unit of this module, a frequency of frequency histogram
+/// 
+/// Records how many copies (reads) per mRNA (CB-UMI) we see in a busfile.
+/// Should be constructed with [make_ecs]
 #[derive(Debug)]
 pub struct CUHistogram {
     // amplification (nReads for a single molecule) vs frequency
     histogram: HashMap<usize, usize>,
 }
 impl CUHistogram {
-    pub fn new(h: HashMap<usize, usize>) -> Self {
-        CUHistogram { histogram: h }
-    }
+    // todo: useless!
+    // fn new(h: HashMap<usize, usize>) -> Self {
+    //     CUHistogram { histogram: h }
+    // }
+
     /// return the number of reads (#molecules * number of copies) in the busfile
     pub fn get_nreads(&self) -> usize {
         self.histogram
@@ -20,7 +65,7 @@ impl CUHistogram {
 
     /// return the number of molecules (distince CB/UMI pairs) in the busfile
     pub fn get_numis(&self) -> usize {
-        self.histogram.iter().map(|(_nreads, freq)| freq).sum()
+        self.histogram.values().sum()
     }
 
     /// calcualte the fraction of single-copy molecules (FSCM) in the busfile
@@ -39,6 +84,12 @@ impl CUHistogram {
     }
 }
 
+/// Main function of this module: Quantities the amplification in the given busfolder
+/// # Arguments
+/// * `busfolder`: The folder containing the busfile, matric.ec etc...
+/// * `collapse_ec`: How to handle identical CB-UMI but different EC:
+///     - false: just ignore and lump the reads together irresepctive of EC
+///     - true: check if they ECs are consistent (if yes, count as aggregate), if no, discard
 pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
 
     let mut h: HashMap<usize, usize> = HashMap::new();
