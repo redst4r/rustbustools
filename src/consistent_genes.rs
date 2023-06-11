@@ -1,8 +1,6 @@
 use itertools::izip;
 use std::collections::{HashMap, HashSet};
-
 use crate::{disjoint::Intersector, io::BusRecord};
-// use crate::disjoint::DisjointSubsets;
 use std::hash::Hash;
 
 /*
@@ -94,6 +92,18 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
     }
 }
 
+/// Dealing with the EC to gene mapping
+/// lets us resolve a given EC into a set of genes consistent with that EC
+/// # Example
+/// ```rust, no_run
+/// # use rustbustools::io::BusFolder;
+/// # use std::collections::HashSet;
+/// # use rustbustools::consistent_genes::{Genename, EC};
+/// let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
+/// let ec2g = bfolder.ec2gene;
+/// let ec = EC(1234);
+/// let genenames: HashSet<Genename> = ec2g.get_genenames(ec);
+/// ```
 #[derive(Debug)]
 pub struct Ec2GeneMapper {
     /*
@@ -204,11 +214,13 @@ impl Ec2GeneMapper {
         Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec }
     }
 
+    /// resolves an EC into a set of gene_ids
     pub fn get_genes(&self, ec: EC) -> &HashSet<GeneId> {
-        // resolves an EC into a set of gene_ids
         self.ec2geneid.get(&ec).unwrap()
+        // self.ec2geneid_array.get(ec.0 as usize).unwrap()
     }
-
+    
+    /// returns a set of genenames (usually ENSG) consistent with EC
     pub fn get_genenames(&self, ec: EC) -> HashSet<Genename> {
         // resolves an EC into a set of gene_names
         let geneids = self.get_genes(ec);
@@ -218,15 +230,15 @@ impl Ec2GeneMapper {
             .collect();
         genenames
     }
-
+    
+    /// resolves a gene_id into its genename (ENSEMBL)
     pub fn resolve_gene_id(&self, gene_id: GeneId) -> Genename {
-        // turns a gene_id into a genename (ENSEMBL)
         let r = self.int_to_gene.get(&gene_id).unwrap();
         r.clone()
     }
 
+    /// returns a list of all genes in the mapping, sorted by int-id
     pub fn get_gene_list(&self) -> Vec<Genename> {
-        // returns a list of all genes in the mapping, sorted by int-id
         let ngenes = self.int_to_gene.len();
         let genelist_vector: Vec<Genename> = (0..ngenes)
             .map(|k| self.resolve_gene_id(GeneId(k as u32)))
@@ -279,7 +291,6 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 #[cfg(test)]
 mod testing {
     use std::collections::{HashMap, HashSet};
-
     use crate::{
         consistent_genes::{find_consistent, groubygene, Genename, MappingResult},
         io::{BusFolder, BusRecord},

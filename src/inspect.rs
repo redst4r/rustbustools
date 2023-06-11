@@ -27,6 +27,12 @@ fn _inspect(busfile: &str) -> BusStatistics {
     BusStatistics {nrecords, nreads ,  n_cells, n_cbumi}
 }
 
+/// Inspect a busfile, counting number of reads, records, cb-umi combinations and cell-barcodes
+/// # Example
+/// ```rust, no_run
+/// # use rustbustools::inspect::inspect;
+/// inspect("somefile.bus")
+/// ```
 pub fn inspect(busfile: &str) {
     let stats = _inspect(busfile);
     println!("{} BUS records", stats.nrecords);

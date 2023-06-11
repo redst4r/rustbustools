@@ -1,3 +1,34 @@
+//! A module that allows iteration of multiple busfiles simulatniously
+//! 
+//! One can iterate e.g. two busfiles, going through it cell-by-cell, i.e. 
+//! if the same cell is present in both files, we get their BusRecords in a single emission
+//! 
+//! # Example
+//! ```rust, no_run
+//! # use std::collections::HashMap;
+//! # use rustbustools::bus_multi::CellUmiIteratorMulti;
+//! // two busfiles, named
+//! let hashmap = HashMap::from([
+//!     ("test1".to_string(), "/tmp/some1.bus".to_string()),
+//!     ("test2".to_string(), "/tmp/some2.bus".to_string())]);
+//! let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+//! 
+//! for (cb, emission_dict) in iii{
+//!     // get the records wrt to cb
+//!     // if the file doesnt contain that cell 
+//!     // emission_dict wont contain an entry
+//!     let records1 = emission_dict.get("test1");
+//!     let records2 = emission_dict.get("test2");
+//! }
+//! ```
+//! # Structure
+//! Taking multiple iterators over busfiles, we merge them into a new iterator
+//! which emits the cell (cell/umi) and a dictionary.
+//! The dict contains the file identifiers a keys, and values are a Vec of BusRecords with that cell (cell/umi) in the respective file
+//! There's two main iterators in here
+//! - CellIteratorMulti  -> iterate, grouping by cell
+//! - CellUmiIteratorMulti -> iterate, grouping bt cell/umi
+//! 
 use crate::io::{BusReader, BusRecord};
 use crate::iterators::{CbUmiGroup, CellGroup};
 use std::collections::HashMap;

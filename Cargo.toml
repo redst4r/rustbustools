@@ -2,7 +2,8 @@
 name = "rustbustools"
 version = "0.7.0"
 edition = "2021"
-
+license = " GPLv3"
+description = "Rust reimplementation of bustools for scRNAseq processing"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

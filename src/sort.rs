@@ -1,3 +1,11 @@
+//! `bustools sort` code. Sorts busfiles by CB/UMI/EC
+//! 
+//! 
+//! # Differences to bustools sort
+//! 1. bustools sort **does merge** records if they share CB/UMI/EC. This implementation does not!
+//!    We easily could though: in `sort_into_btree` just aggregate the `Vec<BusRecord>` values
+//! 
+#![deny(missing_docs)]
 use crate::{
     io::{BusReader, BusRecord, BusWriter},
     iterators::CbUmiGroupIterator,
@@ -7,12 +15,9 @@ use itertools::Itertools;
 use std::collections::{BTreeMap, HashMap};
 use tempfile::tempdir;
 
-/// Differences to bustools sort
-/// 1. bustools sort DOES MERGE records if they share CB/UMI/EC. This implementation does not!
-///    We easily could though: in `sort_into_btree` just aggregate the Vec<BusRecord> values
 
 // sorts/inserts an Iterator over records ito a BTreeMap
-// (B,UMI,EC) -> records
+// (CB,UMI,EC) -> records
 fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     iterator: I,
 ) -> BTreeMap<(u64, u64, u32), Vec<BusRecord>> {
@@ -27,10 +32,13 @@ fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     in_mem_sort
 }
 
-///
-/// Sort a busfile (CB/UMI/EC) in memory!
-/// This gets quite bad for larger files
+
+/// Sort a busfile (via CB/UMI/EC) in memory!
+/// This gets quite bad for larger files!
 /// uses BTreeMaps internal sorting
+/// # Parameters
+/// * `busfile`: file to be sorted in memory
+/// * `outfile`: file to be sorted into
 pub fn sort_in_memory(busfile: &str, outfile: &str) {
     let reader = BusReader::new(busfile);
     let header = reader.bus_header.clone();
@@ -44,6 +52,18 @@ pub fn sort_in_memory(busfile: &str, outfile: &str) {
     }
 }
 
+/// Sort a busfile on disk (i.e. without loading the entire thing into memory)
+/// Works via `mergesort`:
+/// 1. split the busfile into separate chunks on disk: Temporary directory is used
+/// 2. sort the chunks (in memory) individually
+/// 3. merge the chunks ()
+/// 
+/// # Parameters:
+/// * `busfile`: file to be sorted
+/// * `outfile`: file to be sorted into
+/// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point)
+/// 
+/// 
 pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let reader = BusReader::new(busfile);
     let header = reader.bus_header.clone();
@@ -60,8 +80,6 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
         //write current sorted file to disk
         let file_path = tmpdir.path().join(format!("tmp_{}.bus", i));
         let tmpfilename = file_path.to_str().unwrap().to_string();
-
-        // println!("{}", tmpfilename);
 
         let mut tmpwriter = BusWriter::new(&tmpfilename, header.clone());
 

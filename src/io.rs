@@ -1,3 +1,22 @@
+//! The io module of rustbustools
+//! 
+//! Deals with reading and writing busfiles. The most important components are:
+//! - BusRecord: a single record of a Busfile, containing CB/UMI/EC/COUNT
+//! - BusFolder: representing the directory structure of kallisto quantification
+//! - BusReader: to iterate over Records of a busfile
+//! - BusWriter: writing records to busfile
+//! 
+//! # Example
+//! ```rust, no_run
+//! # use rustbustools::io::{BusReader, BusHeader, BusWriter};
+//! let bus = BusReader::new("/tmp/some.bus");
+//! let header = BusHeader::from_file("/tmp/some.bus");
+//! let mut writer = BusWriter::new("/tmp/out.bus", header);
+//! for record in bus{
+//!     writer.write_record(&record);
+//! }
+//!
+
 use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
@@ -10,20 +29,24 @@ use tempfile::TempDir;
 const BUS_ENTRY_SIZE: usize = 32;
 const BUS_HEADER_SIZE: usize = 20;
 
-// BUS_ENTRY_SIZE = 32  # each entry is 32 bytes!!
-//  unpack_str = 'QQiIIxxxx'
-// Q: 8byte unsigned long,long int
-// i: 4byte int
-// I: unsigned int, 4byte
+/// Basic unit of a busfile as created by kallisto.
+/// Represents a single scRNAseq molecule, CB/UMI/EC and COUNT
+/// 
+/// from python implemenation/specification
+/// BUS_ENTRY_SIZE = 32  # each entry is 32 bytes!!
+///  unpack_str = 'QQiIIxxxx'
+/// Q: 8byte unsigned long,long int
+/// i: 4byte int
+/// I: unsigned int, 4byte
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] // TODO take away the copy and clone
 pub struct BusRecord {
-    pub CB: u64,    //8byte
+    pub CB: u64,    // 8byte
     pub UMI: u64,   // 8byte
     pub EC: u32,    // 4v byte
     pub COUNT: u32, // 4v byte
     pub FLAG: u32,  // 4v byte    including this, we have 28 bytes, missing 4 to fill up
-                    // PAD: u32     // just padding to fill 32bytes
+    // PAD: u32     // just padding to fill 32bytes
 }
 impl BusRecord {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -67,6 +90,7 @@ impl BusHeader {
         BusHeader { cb_len, umi_len, tlen, magic, version: 1 }
     }
 
+    /// creates the header struct, extracting it from an existing bus file
     pub fn from_file(fname: &str) -> BusHeader {
         // getting 20 bytes out of the file, which is the header
         let file = std::fs::File::open(fname).unwrap_or_else(|_| panic!("file not found: {fname}"));
@@ -123,6 +147,18 @@ impl BusHeader {
 /// pretty much a type alias for Iterator<Item=BusRecord>
 pub trait CUGIterator: Iterator<Item = BusRecord> {}
 
+
+/// Main reader for Busfiles, buffered reading of BusRecords
+/// Allows to iterate over the BusRecords in the file
+/// 
+/// # Example
+/// ```rust, no_run
+/// # use rustbustools::io::BusReader;
+/// let breader = BusReader::new("somefile.bus");
+/// for record in breader{
+///     let cb= record.CB;
+/// };
+/// ```
 pub struct BusReader {
     pub bus_header: BusHeader,
     reader: BufReader<File>,
@@ -133,9 +169,13 @@ pub struct BusReader {
 // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
 const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 impl BusReader {
+
+    /// main constructor for busreader, buffersize is set to best performance
     pub fn new(filename: &str) -> BusReader {
         BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
     }
+
+    /// Creates a buffered reader over busfiles, with specific buffersize
     pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader {
         let bus_header = BusHeader::from_file(filename);
         let mut file_handle = File::open(filename).expect("FAIL");
@@ -172,6 +212,17 @@ impl Iterator for BusReader {
 impl CUGIterator for BusReader {}
 
 // ========================================
+/// Writing BusRecords into a File, using Buffers
+/// needs the Header of the busfile to be specified (length of CB and UMI)
+/// # Example
+/// ```
+/// # use rustbustools::io::{BusWriter, BusHeader, BusRecord};
+/// 
+/// let header = BusHeader::new(16, 12, 1);
+/// let mut w = BusWriter::new("/tmp/target.bus", header);
+/// let record = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 10, FLAG: 0};
+/// w.write_record(&record);
+/// ```
 pub struct BusWriter {
     pub writer: BufWriter<File>,
     pub header: BusHeader,
@@ -187,12 +238,15 @@ impl BusWriter {
         BusWriter::from_filehandle(file_handle, header)
     }
 
+    /// Writing a single BusRecord
     pub fn write_record(&mut self, record: &BusRecord) {
         let binrecord = record.to_bytes();
         self.writer
             .write_all(&binrecord)
             .expect("FAILED to write record");
     }
+
+    /// Writing multiple BusRecords at once
     pub fn write_records(&mut self, records: &Vec<BusRecord>) {
         // writes several recordsd and flushes
         for r in records {
@@ -224,6 +278,14 @@ impl BusWriter {
 }
 //=================================================================================
 
+/// Represents the standard file structure of kallisto quantification:
+/// - a busfile
+/// - and ec.matrix file, containing the mapping between EC and transcript_id
+/// - transcripts.txt, containing the ENST transcript id
+/// 
+/// makes life easier when dealing with kallisto quantifications and the mapping of EC to Gene.
+/// To construct it, one has to supply a transcript_to_gene mapping file. This allows ECs to be mapped to a set of genes via 
+/// the Ec2GeneMapper 
 pub struct BusFolder {
     pub foldername: String,
     pub ec2gene: Ec2GeneMapper,
@@ -338,27 +400,33 @@ impl BusFolder {
         BusFolder { foldername: foldername.to_string(), ec2gene: ecmapper }
     }
 
+    /// returns an iterator of the folder's busfile
     pub fn get_iterator(&self) -> BusReader {
         let bfile = self.get_busfile();
         BusReader::new(&bfile)
     }
-
+    
+    /// return the folders busfile
     pub fn get_busfile(&self) -> String {
         format!("{}/output.corrected.sort.bus", self.foldername)
     }
 
+    /// return the busfiles header
     pub fn get_bus_header(&self) -> BusHeader {
         BusHeader::from_file(&self.get_busfile())
     }
 
+    /// return the matric.ec file
     pub fn get_ecmatrix_file(&self) -> String {
         format!("{}/matrix.ec", self.foldername)
     }
 
+    /// return the transcript file
     pub fn get_transcript_file(&self) -> String {
         format!("{}/transcripts.txt", self.foldername)
     }
 
+    /// return the matric.ec file
     pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<u32>> {
         let filename = self.get_ecmatrix_file();
         parse_ecmatrix(&filename)

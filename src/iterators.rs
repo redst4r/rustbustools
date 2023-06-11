@@ -84,6 +84,7 @@ pub trait CbUmiGroupIterator: CUGIterator + Sized {
         CbUmiGroup::new(self)
     }
 }
+// implements the .groupby_cbumi() synthax for any `CUGIterator`
 impl<I: CUGIterator> CbUmiGroupIterator for I {}
 
 //=================================================================================
