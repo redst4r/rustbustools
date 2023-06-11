@@ -22,9 +22,9 @@ pub fn seq_to_int(seq: String) -> u64 {
     u64::from_str_radix(&s, 4).unwrap()
 }
 
-pub fn int_to_seq(i: u64, seq_len: u64) -> String {
+pub fn int_to_seq(i: u64, seq_len: usize) -> String {
     let mut q = i;
-    let mut result: Vec<u64> = Vec::with_capacity(seq_len as usize);
+    let mut result: Vec<u64> = Vec::with_capacity(seq_len);
     while q >= 4 {
         let quotient = q / 4;
         let remainder = q % 4;
@@ -33,7 +33,7 @@ pub fn int_to_seq(i: u64, seq_len: u64) -> String {
     }
     result.push(q);
 
-    while result.len() < seq_len as usize {
+    while result.len() < seq_len {
         result.push(0);
     }
     result.reverse();

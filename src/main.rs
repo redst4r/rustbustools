@@ -208,13 +208,13 @@ fn main() {
             // let cb_len = 16;
 
             let header = BusHeader::from_file(&args.inbus);
-            let cb_len = header.cb_len;
+            let cb_len = header.cb_len as usize;
             let bus_cb = BusReader::new(&args.inbus)
                 .groupby_cb()
                 .map(|(cb, records)| {
                     (
                         // CB,decoded
-                        int_to_seq(cb, cb_len.into()),
+                        int_to_seq(cb, cb_len),
                         // number of UMIs
                         records.iter().map(|r| r.UMI).unique().count(),
                     )
