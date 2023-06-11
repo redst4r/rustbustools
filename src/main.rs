@@ -6,7 +6,7 @@ use rustbustools::inspect::inspect;
 use rustbustools::io::{BusHeader, BusReader};
 use rustbustools::iterators::CellGroupIterator;
 use rustbustools::sort::sort_on_disk;
-use rustbustools::utils::int_to_seq;
+use rustbustools::correct;
 use rustbustools::{busmerger, io::BusFolder};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
@@ -33,8 +33,17 @@ enum MyCommand {
     sort(SortArgs),
     getcb(GetCBArgs),
     butterfly(ButterflyArgs),
+    correct(CorrectArgs),
 }
 
+#[derive(Args)]
+struct CorrectArgs {
+    #[clap(long = "ifile", short = 'i')]
+    inbus: String,  
+
+    #[clap(long = "whitelist")]
+    whitelist: String,     
+}
 #[derive(Args)]
 struct ButterflyArgs {
     /// input busfolder
@@ -223,6 +232,9 @@ fn main() {
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
             let cuhist = make_ecs(&bfolder, args.collapse_ec);
             cuhist.to_disk(&cli.output);
+        },
+        MyCommand::correct(args) => {
+            correct::correct(&args.inbus, &cli.output, &args.whitelist);
         },
     }
 }
