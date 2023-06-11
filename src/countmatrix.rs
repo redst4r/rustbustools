@@ -14,18 +14,18 @@ pub struct CountMatrix {
     Represents a count matrix of Cells vs Genes
     Cells are encoded a Strings already!
     */
-    pub matrix: sprs::CsMat<usize>,
+    pub matrix: sprs::CsMat<i32>,
     pub cbs: Vec<String>,
     pub genes: Vec<String>,
 }
 impl CountMatrix {
-    pub fn new(matrix: sprs::CsMat<usize>, cbs: Vec<String>, genes: Vec<String>) -> CountMatrix {
+    pub fn new(matrix: sprs::CsMat<i32>, cbs: Vec<String>, genes: Vec<String>) -> CountMatrix {
         CountMatrix { matrix, cbs, genes }
     }
 
-    pub fn to_map(&self) -> HashMap<(String, String), usize> {
+    pub fn to_map(&self) -> HashMap<(String, String), i32> {
         // transforms the sparse count matrix into a Hashmap (CB,Gene)-> count
-        let mut h1: HashMap<(String, String), usize> = HashMap::new();
+        let mut h1: HashMap<(String, String), i32> = HashMap::new();
 
         for (value, (i, j)) in self.matrix.iter() {
             h1.insert((self.cbs[i].clone(), self.genes[j].clone()), *value);
@@ -41,9 +41,9 @@ impl CountMatrix {
 
     pub fn from_disk(mtx_file: &str, cbfile: &str, genefile: &str) -> CountMatrix {
         // load countmatrix from disk, from matrix-market format
-        let mat: TriMat<usize> =
+        let mat: TriMat<i32> =
             read_matrix_market(mtx_file).unwrap_or_else(|_| panic!("{} not found", mtx_file));
-        let matrix: sprs::CsMat<usize> = mat.to_csr();
+        let matrix: sprs::CsMat<i32> = mat.to_csr();
 
         let fh = File::open(cbfile).unwrap_or_else(|_| panic!("{} not found", cbfile));
         // Read the file line by line, and return an iterator of the lines of the file.

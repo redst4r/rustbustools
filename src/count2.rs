@@ -41,17 +41,17 @@ pub fn countmap_to_matrix(
     // sparse matrix indices
     let mut ii: Vec<usize> = Vec::new();
     let mut jj: Vec<usize> = Vec::new();
-    let mut vv: Vec<usize> = Vec::new();
+    let mut vv: Vec<i32> = Vec::new();
 
     for ((cb, geneid), counter) in countmap {
         let cbi = cb_ix.get(cb).unwrap();
         let genei = geneid.0 as usize;
         ii.push(*cbi);
         jj.push(genei);
-        vv.push(*counter);
+        vv.push(*counter as i32);
     }
 
-    let c: sprs::TriMat<usize> =
+    let c: sprs::TriMat<i32> =
         sprs::TriMat::from_triplets((cb_ix.len(), gene_vector.len()), ii, jj, vv);
 
     let b: sprs::CsMat<_> = c.to_csr();

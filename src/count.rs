@@ -199,7 +199,7 @@ fn expression_vectors_to_matrix(
     // sparse matrix indices
     let mut ii: Vec<usize> = Vec::new();
     let mut jj: Vec<usize> = Vec::new();
-    let mut vv: Vec<usize> = Vec::new();
+    let mut vv: Vec<i32> = Vec::new();
 
     // the cell barcodes, same order as in the matrix
     let mut cbs: Vec<CB> = Vec::new();
@@ -223,12 +223,12 @@ fn expression_vectors_to_matrix(
                 .get(gene)
                 .unwrap_or_else(|| panic!("{:?} not found", gene));
             jj.push(*gindex);
-            vv.push(*count as usize)
+            vv.push(*count as i32)
         }
         cbs.push(*cb)
     }
 
-    let c: sprs::TriMat<usize> =
+    let c: sprs::TriMat<i32> =
         sprs::TriMat::from_triplets((cbs.len(), genelist.len()), ii, jj, vv);
     let b: sprs::CsMat<_> = c.to_csr();
 
