@@ -77,6 +77,9 @@ impl CUHistogram {
     /// write the CU histogram into a csv on disk
     pub fn to_disk(&self, fname: &str) {
         let mut fh = File::create(fname).unwrap();
+
+        fh.write("Amplification,Frequency\n".as_bytes()).unwrap();
+
         for (n_reads, n_umis) in self.histogram.iter() {
             fh.write_all(format!("{},{}\n", n_reads, n_umis).as_bytes())
                 .unwrap();
@@ -136,7 +139,7 @@ mod testing {
     #[test]
     pub fn testing() {
         let h: HashMap<usize, usize> = vec![(1, 2), (3, 3)].into_iter().collect();
-        let c = CUHistogram::new(h);
+        let c = CUHistogram { histogram: h };
 
         assert_eq!(c.get_nreads(), 11);
         assert_eq!(c.get_numis(), 5);
