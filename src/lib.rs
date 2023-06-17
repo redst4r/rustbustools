@@ -5,7 +5,8 @@
 //! 
 //! At this point, it's **far from complete and correct**, but rather a project to learn rust.
 //! 
-//! While this is intended as a CLI, there's some useful functionality in the library itself
+//! While this is intended as a CLI, there's some useful functionality in the library itself, 
+//! iterating over bus files etc. See some [examples](#basics-of-the-library) below.
 //! 
 //! # CLI
 //! `rustbustools <command>`
@@ -13,6 +14,8 @@
 //! * `sort`: Sort the busfile by CB/UMI/EC
 //! * `count`: Create a count-matrix (CB vs gene)
 //! * `inspect`: Basic stats about a busfile (#records, #CBs etc..)
+//! 
+//! Check the CLI help for arguments.
 //! 
 //! # Basics of the library
 //! The basic unit is the [io::BusRecord], which represents a single entry in a busfile,
@@ -35,10 +38,12 @@
 //! While [io::BusReader] lets you iterate over single [io::BusRecord]s, 
 //! it is often convenient to group the records by CB (all records from the same cell)
 //! or by CB+UMI (all records from the same mRNA).
-//! [iterators] contains the code to enable `chaining` iterators over BusRecords.
+//! [iterators] contains the code to enable `chaining` iterators over BusRecords. 
+//! 
+//! Note that the bus file must be **sorted** (by CB/UMI) to enable these iterators (they will panic if used on an unsorted busfile).
 //! 
 //! ### Iterate over cells
-//! To iterate over a `sorted` busfile, grouping all records by CB:
+//! To iterate over a *sorted* busfile, grouping all records by CB:
 //! ```rust, no_run
 //! # use rustbustools::io::BusReader;
 //! use rustbustools::iterators::CellGroupIterator; //need to bring that trait into scope
@@ -67,7 +72,7 @@
 //! More convenient features are provided by [io::BusFolder], 
 //! which wraps around the busfile, the matric.ec and transcripts.txt created by `kallisto bus`.
 //! Those files tell us what a particular bus record `(CB,UMI,EC,Count,flag)` 
-//! actually maps to as specifiec by its EC (equivalence class, a set of transcripts)
+//! actually maps to as specified by its EC (equivalence class, a set of transcripts).
 //! This automatically constructs a mapper from equivalence class to gene via [consistent_genes::Ec2GeneMapper]
 //! which allows to resolve ECs to genes
 //! 

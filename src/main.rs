@@ -40,19 +40,27 @@ enum MyCommand {
     correct(CorrectArgs),
 }
 
+/// correct CBs with whitelist
 #[derive(Args)]
 struct CorrectArgs {
+
+
+    /// Input busfile
     #[clap(long = "ifile", short = 'i')]
     inbus: String,
 
+    /// Cell Barcode Whitelist
     #[clap(long = "whitelist")]
     whitelist: String,
 }
+
+/// Buttefly/ amplification profile
 #[derive(Args)]
 struct ButterflyArgs {
     /// input busfolder
     #[clap(long = "ifile", short = 'i')]
     inbus: String,
+    /// Transcript-to-gene file
     #[clap(long = "t2g")]
     t2g: String,
     /// CB-UMI entries with multiple ECs will be collapsed into a single record (if they are consistent with a single gene)
@@ -60,6 +68,7 @@ struct ButterflyArgs {
     collapse_ec: bool,
 }
 
+/// Sort busfile by CB/UMI/EC
 #[derive(Args)]
 struct SortArgs {
     /// input busfolder
@@ -67,6 +76,7 @@ struct SortArgs {
     inbus: String,
 }
 
+/// count the mRNAs  per cell and write to file
 #[derive(Args)]
 struct GetCBArgs {
     /// input busfolder
@@ -74,17 +84,23 @@ struct GetCBArgs {
     inbus: String,
 }
 
+/// countmatrix from busfile
 #[derive(Args)]
 struct CountArgs {
     /// input busfolder
     #[clap(long = "ifolder")]
     inbus: String,
+
+    /// Transcript-to-gene file
     #[clap(long = "t2g")]
     t2g: String,
+
+    /// ignore multimapped busrecords (same CB/UMI but different EC)
     #[clap(long = "ignoremm")]
     ignoremm: bool,
 }
 
+/// find overlap between busfiles and write out overlapping molecules
 #[derive(Args)]
 struct BusMergeArgs {
     /// 1st Input busfile
@@ -102,17 +118,22 @@ struct BusMergeArgs {
     outbus2: String,
 }
 
+/// resovle an EC into gene names
 #[derive(Args)]
 struct ResolveArgs {
     /// input busfolder
     #[clap(long = "ifolder")]
     inbus: String,
     #[clap(long = "t2g")]
+    /// Transcript-to-gene file
     t2g: String,
+
+    /// Equivalence class to query genes for
     #[clap(long = "ec")]
     ec: u32,
 }
 
+/// Inspect busfile for stats
 #[derive(Args)]
 struct InspectArgs {
     /// input busfolder
