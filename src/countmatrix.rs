@@ -1,7 +1,7 @@
 //! A sparse countmatrix: cells vs genes
-//! 
+//!
 //! Usually the result of a bustools count call or [crate::count::count()]
-//! 
+//!
 //! ## Example
 //! ```rust, no_run
 //! // load from disk
@@ -14,7 +14,7 @@
 //!  );
 //!  // shorter, assuming standard file names
 //!  let cmat = CountMatrix::from_folder(path);
-//! 
+//!
 //! // write to disk again
 //! // note that the folder must exist already
 //! let outpath = "/tmp/rustbustools_test_read_write";
@@ -35,10 +35,11 @@ use sprs::{
 };
 
 /// Countmatrix, cells-by-genes
-/// 
+///
 /// Cells and genes are indexed via their string reprensentation
-/// 
+///
 pub struct CountMatrix {
+    /// sparse count matrix
     pub matrix: sprs::CsMat<i32>,
     cbs: Vec<String>,
     genes: Vec<String>,
@@ -69,12 +70,12 @@ impl CountMatrix {
     }
 
     /// get the matrix's shape (nrows, ncols)
-    pub fn get_shape(&self) -> (usize, usize){
+    pub fn get_shape(&self) -> (usize, usize) {
         self.matrix.shape()
     }
 
     /// String repr
-    pub fn to_string(&self) -> String { 
+    pub fn to_string(&self) -> String {
         format!("Shape: {:?};  nnz {}", self.get_shape(), self.matrix.nnz())
     }
 
@@ -105,12 +106,12 @@ impl CountMatrix {
     pub fn from_folder(foldername: &str) -> Self {
         let mfile = &format!("{}/gene.mtx", foldername);
         let cbfile = &format!("{}/gene.barcodes.txt", foldername);
-        let genefile = &format!("{}/gene.genes.txt", foldername);     
+        let genefile = &format!("{}/gene.genes.txt", foldername);
         CountMatrix::from_disk(mfile, cbfile, genefile)
     }
 
     /// write the matrix to disk in MatrixMarket format + cell and gene metadata (just like kallisto)
-    /// 
+    ///
     /// creates 3 files:
     /// * gene.mtx: the sparse matrix
     /// * gene.barcodes.txt: String representation fo the cell barcodes

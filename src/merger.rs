@@ -1,9 +1,10 @@
+//! An iterator that merges mutliple sorted iterators by item
+//!
 use std::{collections::HashMap, fmt::Debug};
 
-//
-//  An iterator that merges mutliple sorted iterators by item
-//
-
+/// Iterator the merges mulitple sorted iterators by item
+///
+/// I: Iterator yielding keys K and values T
 pub struct MultiIterator<I, T, K>
 where
     I: Iterator<Item = (K, T)>,
@@ -11,8 +12,8 @@ where
     K: Ord + Eq + Debug + Copy,
 {
     // T is the type of elements we iterate (jointly). ie. each iterator to be merged emits T-type items
-    pub iterators: HashMap<String, I>, // todo not sure about this dyn here; compiler asks for it
-    pub current_items: HashMap<String, (K, T)>, // filename - > (CB, ListOfRecords)
+    iterators: HashMap<String, I>, // todo not sure about this dyn here; compiler asks for it
+    current_items: HashMap<String, (K, T)>, // filename - > (CB, ListOfRecords)
 }
 
 impl<I, T, K> MultiIterator<I, T, K>
@@ -21,6 +22,7 @@ where
     T: Debug,
     K: Ord + Eq + Debug + Copy,
 {
+    /// construct a key-merged iterator from a dictionary/hashmap of iterators
     pub fn new(iterators: HashMap<String, I>) -> Self {
         let mut current_items: HashMap<String, (K, T)> = HashMap::new();
 
@@ -143,17 +145,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use itertools::izip;
-    use crate::{io::{BusRecord, setup_busfile, BusReader}, bus_multi::CellUmiIteratorMulti, iterators::{CbUmiGroupIterator}};
     use super::MultiIterator;
-
+    use crate::{
+        bus_multi::CellUmiIteratorMulti,
+        io::{setup_busfile, BusReader, BusRecord},
+        iterators::CbUmiGroupIterator,
+    };
+    use itertools::izip;
+    use std::collections::HashMap;
 
     #[test]
     fn test_basic() {
         let h = HashMap::from([
             ("A".to_owned(), izip!(0..10, 0..10)),
-            ("B".to_owned(), izip!(0..10, 10..20) ),
+            ("B".to_owned(), izip!(0..10, 10..20)),
         ]);
 
         let mut multi = MultiIterator::new(h);
@@ -174,19 +179,19 @@ mod tests {
     }
     #[test]
     fn test_compare() {
-        let r1 =BusRecord{CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0};
-        let r2 =BusRecord{CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0}; 
-        let r3 =BusRecord{CB: 1, UMI: 3, EC: 0, COUNT:  2, FLAG: 0}; 
-        let r4 =BusRecord{CB: 3, UMI: 0, EC: 0, COUNT:  2, FLAG: 0}; 
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 3, UMI: 0, EC: 0, COUNT: 2, FLAG: 0 };
 
         let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
 
-        let s1 = BusRecord{CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0};
-        let s2 = BusRecord{CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0};
-        let s3 = BusRecord{CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0};
-        let s4 = BusRecord{CB: 2, UMI: 3, EC: 1, COUNT:  2, FLAG: 0}; 
-        let s5 = BusRecord{CB: 2, UMI: 3, EC: 2, COUNT:  2, FLAG: 0}; 
-        let v2 = vec![s1.clone(),s2.clone(),s3.clone(), s4.clone(), s5.clone()];
+        let s1 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+        let s3 = BusRecord { CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0 };
+        let s4 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
+        let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
 
         // write the records to file
         let (busname1, _dir1) = setup_busfile(&v1);

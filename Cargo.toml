@@ -22,9 +22,11 @@ probability="0.20"  # for faster Binomial Sampling, using inverse pdf
 itertools="0.10.5"
 tempfile="3.3.0"
 bktree="1.0.1"
+# crossbeam = "0.8"
+# flume = "0.10"
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 ndarray="0.15.6"
 
 [[bench]]

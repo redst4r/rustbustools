@@ -1,3 +1,5 @@
+//! Multinomial sampling of large/long probability vectors
+
 use probability; // use probability::distribution::Binomial instead, which does inverse cdf sampling
 use probability::distribution::Sample;
 use probability::prelude::*;
@@ -6,6 +8,12 @@ use rand;
 use rand::distributions::Distribution;
 use statrs::distribution::{Binomial, Multinomial}; // warning the statrs::Binomial has very slow sampling (sum of Bernullis)
 
+/// Multinomial sample ~ MN(n,p)
+///
+/// This uses the statrs::Binomial implementation, which is very slow
+/// (it does a binomial as sum of Bernoullis)
+///
+/// This function is just to test the speed/issues of the statrs::Multinomial which is also very slow
 pub fn multinomial_sample_statrs(n: u64, pvec: Vec<f64>) -> Vec<f64> {
     let mut r = rand::thread_rng();
     let mut x: Vec<f64> = Vec::new();
@@ -49,13 +57,11 @@ pub fn multinomial_sample_statrs(n: u64, pvec: Vec<f64>) -> Vec<f64> {
     x
 }
 
+/// my own multinomial sampling, using the fact that all marginals are binomial
+///
+/// statrs version does the same algorithm, but relies internally on a statrs::distribution::Binomial
+/// which is extremely slow.
 pub fn multinomial_sample(n: u64, pvec: &Vec<f64>, source: &mut Xorshift128Plus) -> Vec<f64> {
-    /*
-    my own multinomial sampling, using the fact that all marginals are binomial
-
-    statrs version does the same algorithm, but relies internally on a statrs::distribution::Binomial
-    which is extremely slow.
-    */
     let dim = pvec.len();
     let mut x: Vec<f64> = Vec::with_capacity(dim);
 
@@ -92,7 +98,7 @@ pub fn multinomial_sample(n: u64, pvec: &Vec<f64>, source: &mut Xorshift128Plus)
 }
 
 // use std::slice::binary_search;
-
+/// Multinomial sample using binary search
 pub fn multinomial_sample_binary_search(
     n: u64,
     pvec: &Vec<f64>,
@@ -260,11 +266,7 @@ pub fn multinomial_speed_eval() {
             let _x = multinomial_sample_binary_search(n as u64, &pvec, &mut random_source);
             let elapsed_time = now.elapsed().as_secs_f32();
 
-            let r = Res {
-                n,
-                d,
-                time: elapsed_time,
-            };
+            let r = Res { n, d, time: elapsed_time };
             results.push(r)
         }
     }

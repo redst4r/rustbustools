@@ -1,6 +1,6 @@
 //! Module for the Intersector struct
-//! 
-//! 
+//!
+//!
 //! The [Intersector] represents a list of key/values, such that
 //! a new item i with key k is added to a key/value pair if the key k
 //! intersects with the key in the k/v pair
@@ -14,11 +14,9 @@
 //! add {'A', 'B'}: 4 ->   {'A'}:[1,3, 4], {'B'}:2 //note, its added to the first key found
 //! ```
 //!
-//!
-use std::{
-    collections::HashSet,
-    hash::Hash,
-};
+use std::{collections::HashSet, hash::Hash};
+
+use itertools::izip;
 
 fn set_overlap<T: Hash + Eq>(aset: &HashSet<T>, bset: &HashSet<T>) -> bool {
     for el in aset {
@@ -44,14 +42,16 @@ pub struct Intersector<T, S> {
 }
 impl<T: Hash + Eq + Clone, S> Intersector<T, S> {
     pub fn new() -> Self {
-        Intersector {
-            keys: Vec::new(),
-            items: Vec::new(),
-        }
+        Intersector { keys: Vec::new(), items: Vec::new() }
     }
 
+    /// Iterate over the key/value pairs
+    pub fn iterate_items(&self) -> impl Iterator<Item = (&HashSet<T>, &Vec<S>)> {
+        izip!(&self.keys, &self.items)
+    }
+
+    /// return the index in the data structure where set overlaps with an element
     fn find_overlap_ix(&self, set: &HashSet<T>) -> Option<usize> {
-        // return the index in the data structure where set overlaps with an element
         for (i, k) in self.keys.iter().enumerate() {
             if set_overlap(k, set) {
                 return Some(i);
@@ -81,16 +81,11 @@ impl<T: Hash + Eq + Clone, S> Intersector<T, S> {
             }
         }
     }
-    // pub fn drain(&mut self){
-    // }
 }
 
 #[cfg(test)]
 mod testing {
-    use crate::{
-        disjoint::Intersector,
-        utils::vec2set,
-    };
+    use crate::{disjoint::Intersector, utils::vec2set};
 
     #[test]
     fn test_inter() {

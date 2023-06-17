@@ -1,8 +1,8 @@
 //! A module that allows iteration of multiple busfiles simulatniously
-//! 
-//! One can iterate e.g. two busfiles, going through it cell-by-cell, i.e. 
+//!
+//! One can iterate e.g. two busfiles, going through it cell-by-cell, i.e.
 //! if the same cell is present in both files, we get their BusRecords in a single emission
-//! 
+//!
 //! # Example
 //! ```rust, no_run
 //! # use std::collections::HashMap;
@@ -12,10 +12,10 @@
 //!     ("test1".to_string(), "/tmp/some1.bus".to_string()),
 //!     ("test2".to_string(), "/tmp/some2.bus".to_string())]);
 //! let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
-//! 
+//!
 //! for (cb, emission_dict) in iii{
 //!     // get the records wrt to cb
-//!     // if the file doesnt contain that cell 
+//!     // if the file doesnt contain that cell
 //!     // emission_dict wont contain an entry
 //!     let records1 = emission_dict.get("test1");
 //!     let records2 = emission_dict.get("test2");
@@ -28,14 +28,15 @@
 //! There's two main iterators in here
 //! - CellIteratorMulti  -> iterate, grouping by cell
 //! - CellUmiIteratorMulti -> iterate, grouping bt cell/umi
-//! 
+//!
 use crate::io::{BusReader, BusRecord};
 use crate::iterators::{CbUmiGroup, CellGroup};
 use std::collections::HashMap;
 
+/// Iterator over cells across multiple busfiles
 pub struct CellIteratorMulti {
-    pub iterators: HashMap<String, CellGroup<BusReader>>,
-    pub current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
+    iterators: HashMap<String, CellGroup<BusReader>>,
+    current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
 }
 
 impl CellIteratorMulti {
@@ -143,10 +144,10 @@ impl Iterator for CellIteratorMulti {
 }
 
 // =================================================================
+/// Iterator over cells across multiple busfiles
 pub struct CellUmiIteratorMulti {
-    pub iterators: HashMap<String, CbUmiGroup<BusReader>>,
-    // last_record: BusRecord
-    pub current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
+    iterators: HashMap<String, CbUmiGroup<BusReader>>,
+    current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
 }
 impl CellUmiIteratorMulti {
     pub fn new(fnames: &HashMap<String, String>) -> CellUmiIteratorMulti {
@@ -227,7 +228,7 @@ impl Iterator for CellUmiIteratorMulti {
         for name in names_to_emit {
             // first pop that item out of current
             let (_cbumi, the_item) = self.current_items.remove(&name).unwrap(); //todo bad clone: to get around the .insert in the next line
-            // and add to emission
+                                                                                // and add to emission
             the_emission.insert(name.clone(), the_item);
 
             // advance the iterator once more

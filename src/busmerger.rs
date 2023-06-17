@@ -1,12 +1,20 @@
+//! Filtering/Merging busfiles on CB/UMI overlap
 use crate::{
     bus_multi::CellUmiIteratorMulti,
     io::{BusHeader, BusWriter},
 };
 use std::collections::HashMap;
 
+/// will extract all busrecords that appear in both inputs and write them to the respective outputs
+///
+/// there'll be two output files, each contining the shared reads from the respective input file
+/// ## Parameters:
+/// * busfile1: first input
+/// * busfile2: 2nd input
+/// * outfile1: 1st output: will contain all CB/UMI that also appear in busfile2 (not the records itself (EC,COUNT) can be different from busfile2)
+/// * outfile2: 2st output: will contain all CB/UMI that also appear in busfile1 (not the records itself (EC,COUNT) can be different from busfile2)
 pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str, outfile2: &str) {
-    // will extract all busrecords that appear in both inputs and write them to the respective outputs
-    // there'll be two output files, each contining the shared reads from the respective input file
+    //
     let h: HashMap<String, String> = HashMap::from([
         ("f1".to_string(), busfile1.to_string()),
         ("f2".to_string(), busfile2.to_string()),

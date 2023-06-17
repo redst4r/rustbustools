@@ -1,20 +1,20 @@
 //! This module handles the Equivalance class to gene mapping
-//! 
+//!
 //! An EC represents a *set* of transcripts which the read is consistent with.
 //! This is then mapped to genes:
 //! * the EC resolves to a single gene, clear case for a count
 //! * the EC resolves to multipel genes (the read aligned to a part of the transcriptome which is ambigous)
-//! 
-//! It gets more complicated if we have multiple ECs for an mRNA, 
+//!
+//! It gets more complicated if we have multiple ECs for an mRNA,
 //! i.e. multiple busrecords with same CB/UMI, but different EC
 //! This happens since mRNAs get fragmented after amplification, and different fragments can map to different parts \
 //! of the transcriptome, hence yielding different ECs
-//! 
+//!
 //! See [Ec2GeneMapper] and [MappingResult]
-//! 
+//!
+use crate::{disjoint::Intersector, io::BusRecord};
 use itertools::izip;
 use std::collections::{HashMap, HashSet};
-use crate::{disjoint::Intersector, io::BusRecord};
 use std::hash::Hash;
 
 /*
@@ -45,8 +45,8 @@ fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: 
 }
 
 /// MappingResult represents an attempt to unify several BusRecords with matching CB/UMI
-/// into an mRNA expressed from a single gene. 
-/// 
+/// into an mRNA expressed from a single gene.
+///
 /// This is not always possible, as the records will have different EC
 /// Sometimes the ECs are inconsistent (no overlap in gene space)
 /// Sometimes the ECS are ambigous and can resolve to multipel genes
@@ -54,15 +54,18 @@ fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: 
 ///
 #[derive(Debug, PartialEq)]
 pub enum MappingResult {
-    SingleGene(GeneId),           // records mapped to a single Gene
-    Multimapped(HashSet<GeneId>), // record multimapped, i.e. records are consistent with multiple genes
-    Inconsistent,                 // records are inconsistent, pointing to different genes
+    /// records mapped to a single Gene
+    SingleGene(GeneId),
+    /// record multimapped, i.e. records are consistent with multiple genes
+    Multimapped(HashSet<GeneId>),
+    /// records are inconsistent, pointing to different genes
+    Inconsistent,
 }
 
 /// For a set of busrecords (coming from the same molecule), this function tries
 /// to map those records to genes consistently.
-/// 
-///  As all records come from the same mRNA,ideally we get a consistent 
+///
+///  As all records come from the same mRNA,ideally we get a consistent
 /// mapping (e.g. all records map to the same gene)
 /// See [MappingResult] for mor explanation
 pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> MappingResult {
@@ -138,7 +141,7 @@ pub struct Ec2GeneMapper {
     ec2geneid: HashMap<EC, HashSet<GeneId>>, // maps each EC to a set of geneids (integers)
 
     // ec2geneid_array: Vec<HashSet<GeneId>>, // maps each EC to a set of geneids (integers)
-    // 
+    //
     // TODO this could be a simple Vec, indexing into it
     int_to_gene: HashMap<GeneId, Genename>, // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
 
@@ -186,6 +189,7 @@ pub struct Ec2GeneMapper {
 
 // }
 impl Ec2GeneMapper {
+    /// make an Ec2GeneMapper from a HashMap of EC-> set(Genenames)
     pub fn new(ec2gene: HashMap<EC, HashSet<Genename>>) -> Self {
         // get all genes and sort them
         // could be done with a flatmap?
@@ -240,18 +244,17 @@ impl Ec2GeneMapper {
         // //faster
         // // need to mark ec2gene ordered first
         // let mut ordered_ec2gene: BTreeMap<EC, HashSet<Genename>> = BTreeMap::new();
-        // for (k,v) in ec2gene { 
+        // for (k,v) in ec2gene {
         //     ordered_ec2gene.insert(k ,v);
         // }
         // let mut _vec = Vec::with_capacity(ordered_ec2gene.len());
-        // for (ec, genes) in ordered_ec2gene { 
+        // for (ec, genes) in ordered_ec2gene {
         //     let geneids: HashSet<GeneId> = genes
         //         .iter()
         //         .map(|gname| *gene_to_int.get(gname).unwrap())
         //         .collect();
         //     _vec.push(geneids);
         // }
-
 
         Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec }
     }
@@ -261,7 +264,7 @@ impl Ec2GeneMapper {
         self.ec2geneid.get(&ec).unwrap()
         // self.ec2geneid_array.get(ec.0 as usize).unwrap()
     }
-    
+
     /// returns a set of genenames (usually ENSG) consistent with EC
     pub fn get_genenames(&self, ec: EC) -> HashSet<Genename> {
         // resolves an EC into a set of gene_names
@@ -272,7 +275,7 @@ impl Ec2GeneMapper {
             .collect();
         genenames
     }
-    
+
     /// resolves a gene_id into its genename (ENSEMBL)
     pub fn resolve_gene_id(&self, gene_id: GeneId) -> Genename {
         let r = self.int_to_gene.get(&gene_id).unwrap();
@@ -288,9 +291,8 @@ impl Ec2GeneMapper {
         genelist_vector
     }
 
-    pub fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC> {
+    fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC> {
         // just dereferencing whats inside the Option returned by the dict
-        // self.geneid2ec.get(&geneid).map(|ec| *ec)
         self.geneid2ec.get(&GeneId(geneid)).copied()
     }
 }
@@ -298,7 +300,7 @@ impl Ec2GeneMapper {
 /// Represents a busrecord (actually an observed CB/UIM combination)
 /// with a set of consistent genes (genes that this CB/UMI could map to)
 /// and the number of times this combination was seen in the busfile
-/// 
+///
 #[derive(Debug)]
 #[allow(non_snake_case)]
 pub struct CUGset {
@@ -310,7 +312,6 @@ pub struct CUGset {
 
 /// Group a set of busrecords (same CB/UMI) by genes they are consistent with
 pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGset> {
-
     let mut emissions: Vec<CUGset> = Vec::with_capacity(records.len()); //with capacity worst case scenario
 
     // aggregate by overlpping genes
@@ -320,6 +321,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
         inter.add(gset, r);
     }
 
+    // for (gset, grouped_records) in inter.iterate_items(){
     for (gset, grouped_records) in izip!(inter.keys, inter.items) {
         let counts: u32 = grouped_records.iter().map(|x| x.COUNT).sum();
         let r1 = grouped_records.get(0).unwrap();
@@ -332,12 +334,12 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 
 #[cfg(test)]
 mod testing {
-    use std::collections::{HashMap, HashSet};
     use crate::{
         consistent_genes::{find_consistent, groubygene, Genename, MappingResult},
         io::{BusFolder, BusRecord},
         utils::vec2set,
     };
+    use std::collections::{HashMap, HashSet};
 
     use super::{Ec2GeneMapper, EC};
 

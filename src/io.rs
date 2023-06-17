@@ -1,11 +1,11 @@
 //! The io module of rustbustools
-//! 
+//!
 //! Deals with reading and writing busfiles. The most important components are:
 //! - BusRecord: a single record of a Busfile, containing CB/UMI/EC/COUNT
 //! - BusFolder: representing the directory structure of kallisto quantification
 //! - BusReader: to iterate over Records of a busfile
 //! - BusWriter: writing records to busfile
-//! 
+//!
 //! # Example
 //! ```rust, no_run
 //! # use rustbustools::io::{BusReader, BusHeader, BusWriter};
@@ -31,7 +31,7 @@ const BUS_HEADER_SIZE: usize = 20;
 
 /// Basic unit of a busfile as created by kallisto.
 /// Represents a single scRNAseq molecule, CB/UMI/EC and COUNT
-/// 
+///
 /// from python implemenation/specification
 /// BUS_ENTRY_SIZE = 32  # each entry is 32 bytes!!
 ///  unpack_str = 'QQiIIxxxx'
@@ -82,12 +82,13 @@ pub struct BusHeader {
     //4sIIII: 20bytes
     magic: [u8; 4],
     version: u32,
-    pub cb_len: u32,
+    cb_len: u32,
     umi_len: u32,
     tlen: u32,
 }
 
 impl BusHeader {
+    /// construct a busheader from CB/UMI length
     pub fn new(cb_len: u32, umi_len: u32, tlen: u32) -> BusHeader {
         let magic: [u8; 4] = *b"BUS\x00";
         BusHeader { cb_len, umi_len, tlen, magic, version: 1 }
@@ -122,8 +123,13 @@ impl BusHeader {
     }
 
     /// return the length of the variable part of the busheader
-    pub fn get_tlen(&self) -> u32 {
+    fn get_tlen(&self) -> u32 {
         self.tlen
+    }
+
+    /// return the length of the Cell Barcode in the busfile
+    pub fn get_cb_len(&self) -> u32 {
+        self.cb_len
     }
 }
 
@@ -153,10 +159,9 @@ impl BusHeader {
 /// pretty much a type alias for Iterator<Item=BusRecord>
 pub trait CUGIterator: Iterator<Item = BusRecord> {}
 
-
 /// Main reader for Busfiles, buffered reading of BusRecords
 /// Allows to iterate over the BusRecords in the file
-/// 
+///
 /// # Example
 /// ```rust, no_run
 /// # use rustbustools::io::BusReader;
@@ -166,6 +171,7 @@ pub trait CUGIterator: Iterator<Item = BusRecord> {}
 /// };
 /// ```
 pub struct BusReader {
+    /// Header of the busfile, containing info about CB-length, UMI length for decoding
     pub bus_header: BusHeader,
     reader: BufReader<File>,
 }
@@ -175,7 +181,6 @@ pub struct BusReader {
 // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
 const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 impl BusReader {
-
     /// main constructor for busreader, buffersize is set to best performance
     pub fn new(filename: &str) -> BusReader {
         BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
@@ -223,7 +228,7 @@ impl CUGIterator for BusReader {}
 /// # Example
 /// ```
 /// # use rustbustools::io::{BusWriter, BusHeader, BusRecord};
-/// 
+///
 /// let header = BusHeader::new(16, 12, 1);
 /// let mut w = BusWriter::new("/tmp/target.bus", header);
 /// let record = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 10, FLAG: 0};
@@ -292,10 +297,10 @@ impl BusWriter {
 /// - a busfile
 /// - and ec.matrix file, containing the mapping between EC and transcript_id
 /// - transcripts.txt, containing the ENST transcript id
-/// 
+///
 /// makes life easier when dealing with kallisto quantifications and the mapping of EC to Gene.
-/// To construct it, one has to supply a transcript_to_gene mapping file. This allows ECs to be mapped to a set of genes via 
-/// the Ec2GeneMapper 
+/// To construct it, one has to supply a transcript_to_gene mapping file. This allows ECs to be mapped to a set of genes via
+/// the Ec2GeneMapper
 pub struct BusFolder {
     pub foldername: String,
     pub ec2gene: Ec2GeneMapper,
@@ -415,7 +420,7 @@ impl BusFolder {
         let bfile = self.get_busfile();
         BusReader::new(&bfile)
     }
-    
+
     /// return the folders busfile
     pub fn get_busfile(&self) -> String {
         format!("{}/output.corrected.sort.bus", self.foldername)
@@ -464,9 +469,8 @@ impl BusFolder {
     }
 }
 
-
 /// group a list of records by their CB/UMI (i.e. a single molecule)
-/// 
+///
 /// takes ownership of record_list, since it reorders the elements
 pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
@@ -477,7 +481,6 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     }
     cbumi_map
 }
-
 
 pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     // just writes the records into a temporay file

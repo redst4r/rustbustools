@@ -1,10 +1,10 @@
-/// Utilities, such as barcode <-> int conversion
+//! Utilities, such as barcode <-> int conversion
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashSet;
 use std::hash::Hash;
-use indicatif::{ProgressBar, ProgressStyle};
 
 /// turning a vector into a HashSet
-pub (crate) fn vec2set<T: Eq + Hash>(x: Vec<T>) -> HashSet<T> {
+pub(crate) fn vec2set<T: Eq + Hash>(x: Vec<T>) -> HashSet<T> {
     x.into_iter().collect::<HashSet<T>>()
 }
 
@@ -68,18 +68,18 @@ pub fn get_progressbar(total: u64) -> ProgressBar {
 }
 
 pub mod argsort {
-//! A workaround for the unsortable `Vec<f64>` (due to Nan)
-//! # Example
-//! allows something like
-//! ```rust
-//! # use rustbustools::utils::argsort::{argsort_float,argmax_float};
-//! argsort_float(&vec![1.1_f64, -0.1_f64], true);
-//! argmax_float(&vec![1.0_f64, 10_f64]);
-//! ```
-//! 
-//! # References  
-//! <https://stackoverflow.com/questions/69764050/how-to-get-the-indices-that-would-sort-a-vector-in-rust>
-//! <https://stackoverflow.com/questions/28247990/how-to-do-a-binary-search-on-a-vec-of-floats>
+    //! A workaround for the unsortable `Vec<f64>` (due to Nan)
+    //! # Example
+    //! allows something like
+    //! ```rust
+    //! # use rustbustools::utils::argsort::{argsort_float,argmax_float};
+    //! argsort_float(&vec![1.1_f64, -0.1_f64], true);
+    //! argmax_float(&vec![1.0_f64, 10_f64]);
+    //! ```
+    //!
+    //! # References  
+    //! <https://stackoverflow.com/questions/69764050/how-to-get-the-indices-that-would-sort-a-vector-in-rust>
+    //! <https://stackoverflow.com/questions/28247990/how-to-do-a-binary-search-on-a-vec-of-floats>
 
     use std::cmp::Ordering;
 
@@ -102,7 +102,7 @@ pub mod argsort {
             self.partial_cmp(other).unwrap()
         }
     }
-    
+
     /// Argsort a `slice[T]`
     pub fn argsort<T: Ord>(slice: &[T]) -> Vec<usize> {
         let n = slice.len();
@@ -132,7 +132,7 @@ pub mod argsort {
         let value = fvec[i];
         (i, value)
     }
-    
+
     /// argmin of a f64 vector assuming no NAN (will panic otherwise)
     pub fn argmin_float(fvec: &Vec<f64>) -> (usize, f64) {
         let ix = argsort_float(fvec, false);

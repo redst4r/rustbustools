@@ -1,8 +1,8 @@
 //! Code for `bustools correct` to correct sequencing errors in Cell Barcodes using a whitelist
-//! 
-//! Pretty straight forward: Operates via a `BKTree`, which allows for quick 
+//!
+//! Pretty straight forward: Operates via a `BKTree`, which allows for quick
 //! "approximate" matching
-//! 
+//!
 #![deny(missing_docs)]
 use std::{
     collections::{HashMap, HashSet},
@@ -17,7 +17,7 @@ use crate::{
     utils::{get_progressbar, int_to_seq, seq_to_int},
 };
 
-const MAX_DIST: isize = 1;  // maximum distance where we consider a barcode correctable
+const MAX_DIST: isize = 1; // maximum distance where we consider a barcode correctable
 
 fn my_hamming(a: &String, b: &String) -> isize {
     // hamming distance for two strings of the same size
@@ -34,9 +34,9 @@ fn my_hamming(a: &String, b: &String) -> isize {
 
 #[derive(Debug, Eq, PartialEq)]
 enum CorrectionResult {
-    SingleHit(String),  // a single match in the whitelist: either the barcode itself (0 error) or MAX_DIST away from a whitelisted BC
+    SingleHit(String), // a single match in the whitelist: either the barcode itself (0 error) or MAX_DIST away from a whitelisted BC
     NoHit,
-    Ambigous(Vec<String>),  // mutliple candidates in the whitelist <= MAXDIST
+    Ambigous(Vec<String>), // mutliple candidates in the whitelist <= MAXDIST
 }
 
 /// Correct a single barcode using the whitelist (represented as a BKTree)
@@ -80,18 +80,18 @@ fn correct_single_cb(cb: String, bk: &BkTree<String>) -> CorrectionResult {
 }
 
 /// Corrects observed barcodes in the busfile using a whitelist of barcodes and writes the results to disk
-/// 
+///
 /// # Parameters
 /// * `busfile`: filename of the busfile to be corrected
 /// * `busfile_out`: file where the corrected records are written
 /// * `whitelist_filename` : the file with the whitelisted barcodes (one per line)
-/// 
+///
 /// # Overview/Performance tricks
 /// The CBs are highly repetitive; would be slow to query the BKtree for each CB (they'll repeat ALOt)
 /// 1. gather all the unique CBs in the busfile
 /// 2. correct them and create a HashMap<uncorrected, corrected>
 /// 3. iterate over the bus file, correct the individual entries and write to disk
-/// 
+///
 pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     println!("Loading whitelist");
     let whitelist = load_whitelist(whitelist_filename);
@@ -103,7 +103,7 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     println!("Built BKTree");
 
     let breader = BusReader::new(busfile);
-    let cb_len = breader.bus_header.cb_len as usize;
+    let cb_len = breader.bus_header.get_cb_len() as usize;
 
     // note the file might be unsorted, so cant realy on groupby_cb
     println!("collecting CBs");
@@ -244,7 +244,6 @@ mod testing {
         println!("{:?}", r);
     }
 }
-
 
 /*
 cargo run --release -- --output /tmp/corr.bus correct\

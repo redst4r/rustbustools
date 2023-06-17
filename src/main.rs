@@ -3,12 +3,12 @@ use itertools::Itertools;
 // use rand::distributions::Uniform;
 use rustbustools::butterfly::make_ecs;
 use rustbustools::consistent_genes::{GeneId, Genename, EC};
+use rustbustools::correct;
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusHeader, BusReader};
 use rustbustools::iterators::CellGroupIterator;
 use rustbustools::sort::sort_on_disk;
-use rustbustools::utils::{int_to_seq};
-use rustbustools::correct;
+use rustbustools::utils::int_to_seq;
 use rustbustools::{busmerger, io::BusFolder};
 // use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
@@ -43,10 +43,10 @@ enum MyCommand {
 #[derive(Args)]
 struct CorrectArgs {
     #[clap(long = "ifile", short = 'i')]
-    inbus: String,  
+    inbus: String,
 
     #[clap(long = "whitelist")]
-    whitelist: String,     
+    whitelist: String,
 }
 #[derive(Args)]
 struct ButterflyArgs {
@@ -54,10 +54,10 @@ struct ButterflyArgs {
     #[clap(long = "ifile", short = 'i')]
     inbus: String,
     #[clap(long = "t2g")]
-    t2g: String,    
+    t2g: String,
     /// CB-UMI entries with multiple ECs will be collapsed into a single record (if they are consistent with a single gene)
     #[clap(long = "collapse")]
-    collapse_ec: bool,    
+    collapse_ec: bool,
 }
 
 #[derive(Args)]
@@ -121,7 +121,7 @@ struct InspectArgs {
 }
 
 // mod count;
-use rustbustools::{count, };
+use rustbustools::count;
 use rustbustools::count2;
 
 fn main() {
@@ -148,7 +148,6 @@ fn main() {
     // test_multinomial(dim);
     // let elapsed_time = now.elapsed();
     // println!("Running test_multinomial({}) took {} seconds.", dim, elapsed_time.as_secs());
-
 
     let cli = Cli::parse();
     match cli.command {
@@ -210,7 +209,7 @@ fn main() {
             // let cb_len = 16;
 
             let header = BusHeader::from_file(&args.inbus);
-            let cb_len = header.cb_len as usize;
+            let cb_len = header.get_cb_len() as usize;
             let bus_cb = BusReader::new(&args.inbus)
                 .groupby_cb()
                 .map(|(cb, records)| {
@@ -229,18 +228,18 @@ fn main() {
         MyCommand::sort(args) => {
             let chunksize = 10_000_000; // roughly 300MB size
             sort_on_disk(&args.inbus, &cli.output, chunksize)
-        },
+        }
         MyCommand::butterfly(args) => {
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
             let cuhist = make_ecs(&bfolder, args.collapse_ec);
             cuhist.to_disk(&cli.output);
-        },
+        }
         MyCommand::correct(args) => {
             correct::correct(&args.inbus, &cli.output, &args.whitelist);
-        },
+        }
     }
 }
 
 /*
-flamegraph --flamechart  -- ~/rust_target/release/rustbustools --output /dev/null count --ifolder /home/michi/bus_testing/bus_output_shorter --t2g /home/michi/bus_testing/transcripts_to_genes.txt 
+flamegraph --flamechart  -- ~/rust_target/release/rustbustools --output /dev/null count --ifolder /home/michi/bus_testing/bus_output_shorter --t2g /home/michi/bus_testing/transcripts_to_genes.txt
  */
