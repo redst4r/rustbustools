@@ -1,8 +1,39 @@
+//! Module for more advanced iterators over busrecords.
+//! Allows to iterate over 
+//! * cells (CB)
+//! * mRNAs (CB+UMI)
+//! * CB+UMI+gene: in case some CB/UMI collision
+//! 
+//! To iterate over a **sorted** busfile, grouping all records by CB:
+//! ```rust, no_run
+//! # use rustbustools::io::BusReader;
+//! use rustbustools::iterators::CellGroupIterator; //need to bring that trait into scope
+//! 
+//! let breader = BusReader::new("/path/to/some.bus");
+//! for (cb, vector_of_records) in breader.groupby_cb() {
+//!     // Example: the number of records in that cell
+//!     let n_molecules: usize = vector_of_records.len();
+//!     
+//! }
+//! ```
+//! 
+//! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
+//! ```rust, no_run
+//! # use rustbustools::io::BusReader; 
+//! use rustbustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
+//! 
+//! let breader = BusReader::new("/path/to/some.bus");
+//! for ((cb, umi), vector_of_records) in breader.groupby_cbumi() {
+//!     // Example: the number of reads of that molecule (CB/UMI)
+//!     let n_reads: u32 = vector_of_records.iter().map(|r| r.COUNT).sum();
+//! }
+//! ```
 use crate::{
     consistent_genes::{groubygene, CUGset, Ec2GeneMapper},
     io::{BusRecord, CUGIterator},
 };
 
+/// groups an iterator over BusRecords by cell+umi
 pub struct CbUmiGroup<I: CUGIterator> {
     iter: I,
     last_record: Option<BusRecord>, //option needed to mark the final element of the iteration
@@ -79,6 +110,7 @@ where
     }
 }
 
+/// gets iterator chaining working! Just a wrapper around CbUmiGroupIterator::new()
 pub trait CbUmiGroupIterator: CUGIterator + Sized {
     fn groupby_cbumi(self) -> CbUmiGroup<Self> {
         CbUmiGroup::new(self)
@@ -88,6 +120,7 @@ pub trait CbUmiGroupIterator: CUGIterator + Sized {
 impl<I: CUGIterator> CbUmiGroupIterator for I {}
 
 //=================================================================================
+/// groups an iterator over BusRecords by cell
 pub struct CellGroup<I: CUGIterator> {
     iter: I,
     last_record: Option<BusRecord>, //option needed to mark the final element of the iteration
@@ -159,6 +192,8 @@ where
         Self { iter, last_record }
     }
 }
+
+/// gets iterator chaining working! Just a wrapper around CellGroupIterator::new()
 pub trait CellGroupIterator: CUGIterator + Sized {
     fn groupby_cb(self) -> CellGroup<Self> {
         CellGroup::new(self)
@@ -166,11 +201,9 @@ pub trait CellGroupIterator: CUGIterator + Sized {
 }
 impl<I: CUGIterator> CellGroupIterator for I {}
 
-/* adaptor to be able to group things by gene
-CbUmiIterator.iter().group_by_gene()
-
-works for any iterator yielding Vec<BusRecord>
-*/
+/// enables to group things by gene
+/// `CbUmiIterator.iter().group_by_gene()`
+/// works for any iterator yielding `Vec<BusRecord>`
 pub struct GroupbyGene<I> {
     iter: I,
     ecmapper: Ec2GeneMapper,
@@ -192,7 +225,7 @@ impl<I> GroupbyGene<I> {
     }
 }
 
-/* Stuff to get the iterator chaining working! Just a wrapper around GroupbyGene::new() */
+/// gets iterator chaining working! Just a wrapper around GroupbyGene::new() 
 pub trait GroupbyGeneIterator<T>: Iterator<Item = T> + Sized {
     fn group_by_gene(self, ecmapper: Ec2GeneMapper) -> GroupbyGene<Self> {
         GroupbyGene::new(self, ecmapper)

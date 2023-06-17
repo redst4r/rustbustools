@@ -17,15 +17,14 @@ use crate::{
     utils::{get_progressbar, int_to_seq, seq_to_int},
 };
 
-const MAX_DIST: isize = 1;
+const MAX_DIST: isize = 1;  // maximum distance where we consider a barcode correctable
 
 fn my_hamming(a: &String, b: &String) -> isize {
     // hamming distance for two strings of the same size
     assert_eq!(a.len(), b.len());
     let mut counter: isize = 0;
     // for (c1, c2) in  std::iter::zip((*a).chars(), (*b).chars()){  // todo: change to bytes, might be faster
-    for (c1, c2) in std::iter::zip((*a).bytes(), (*b).bytes()) {
-        // todo: change to bytes, might be faster
+    for (c1, c2) in std::iter::zip(a.bytes(), b.bytes()) {
         if c1 != c2 {
             counter += 1;
         }
@@ -35,9 +34,9 @@ fn my_hamming(a: &String, b: &String) -> isize {
 
 #[derive(Debug, Eq, PartialEq)]
 enum CorrectionResult {
-    SingleHit(String),
+    SingleHit(String),  // a single match in the whitelist: either the barcode itself (0 error) or MAX_DIST away from a whitelisted BC
     NoHit,
-    Ambigous(Vec<String>),
+    Ambigous(Vec<String>),  // mutliple candidates in the whitelist <= MAXDIST
 }
 
 /// Correct a single barcode using the whitelist (represented as a BKTree)
@@ -135,8 +134,8 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
             // it cant be corrected!
         }
 
-        if counter % 10_000 == 0 {
-            bar.inc(10_000)
+        if counter % 100_000 == 0 {
+            bar.inc(100_000)
         }
     }
     println!("corrected unique CBs: {cb_correct}/{cb_total}");
@@ -158,8 +157,8 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
             bwriter.write_record(&new_record);
         }
 
-        if counter % 10_000 == 0 {
-            bar.inc(10_000)
+        if counter % 1_000_000 == 0 {
+            bar.inc(1_000_000)
         }
     }
     println!("wrote corrected busfile");
@@ -197,7 +196,7 @@ mod testing {
             CorrectionResult::SingleHit("AAAA".to_string())
         );
 
-        // too far away match
+        // too far away
         assert_eq!(
             correct_single_cb("BBAA".to_string(), &bk),
             CorrectionResult::NoHit
@@ -216,7 +215,6 @@ mod testing {
         let whitelist = vec!["AAAA".to_string(), "AAAB".to_string()];
         let mut bk: BkTree<String> = BkTree::new(my_hamming);
         bk.insert_all(whitelist.into_iter());
-        // two hits, not clear which one
         assert_eq!(
             correct_single_cb("AAAA".to_string(), &bk),
             CorrectionResult::SingleHit("AAAA".to_string())
@@ -228,7 +226,7 @@ mod testing {
         // pub const TEST_BUSFILE: &str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
         // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output/";
         pub const TEST_BUSFILE: &str =
-            "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+            "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
         // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output_short/";
         // let the_whitelist = "/home/michi/mounts/TB4drive/kallisto_resources/3M-february-2018.txt";
         let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";

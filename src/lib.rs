@@ -12,6 +12,7 @@
 //! * `correct`: Correct busfiles via a whitelist
 //! * `sort`: Sort the busfile by CB/UMI/EC
 //! * `count`: Create a count-matrix (CB vs gene)
+//! * `inspect`: Basic stats about a busfile (#records, #CBs etc..)
 //! 
 //! # Basics of the library
 //! The basic unit is the [io::BusRecord], which represents a single entry in a busfile,
@@ -35,6 +36,7 @@
 //! it is often convenient to group the records by CB (all records from the same cell)
 //! or by CB+UMI (all records from the same mRNA).
 //! [iterators] contains the code to enable `chaining` iterators over BusRecords.
+//! 
 //! ### Iterate over cells
 //! To iterate over a `sorted` busfile, grouping all records by CB:
 //! ```rust, no_run
@@ -48,6 +50,7 @@
 //!     
 //! }
 //! ```
+//! 
 //! ### Iterate over molecules
 //! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
 //! ```rust, no_run
@@ -75,11 +78,10 @@
 //! let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
 //! let gene_names = bfolder.ec2gene.get_genenames(EC(1));
 //! ```
-
+// #![deny(missing_docs)]
 pub mod io;
 pub mod iterators;
 // pub mod iterators_clone;
-// pub mod iterators_advanced;
 // pub mod play;
 pub mod busmerger;
 pub mod bus_multi;

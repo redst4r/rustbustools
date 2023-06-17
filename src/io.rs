@@ -49,6 +49,7 @@ pub struct BusRecord {
     // PAD: u32     // just padding to fill 32bytes
 }
 impl BusRecord {
+    /// converts a busrecord to byte representation, e.g. to write the bytes to a busfile
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut binrecord = bincode::serialize(self).expect("FAILED to serialze record");
 
@@ -59,6 +60,8 @@ impl BusRecord {
         }
         binrecord
     }
+
+    /// coverts bytes into burecord, e.g. when reading a busfile
     pub fn from_bytes(bytes: &[u8]) -> Self {
         bincode::deserialize(bytes).expect("deserial error")
     }
@@ -102,6 +105,7 @@ impl BusHeader {
         BusHeader::from_bytes(&header)
     }
 
+    /// desearializes a BusHeader from Bytes; when reading busfiles
     pub fn from_bytes(bytes: &[u8]) -> BusHeader {
         let header_struct: BusHeader =
             bincode::deserialize(bytes).expect("FAILED to deserialze header");
@@ -112,10 +116,12 @@ impl BusHeader {
         header_struct
     }
 
+    /// seialize the header to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).expect("FAILED to serialze header")
     }
 
+    /// return the length of the variable part of the busheader
     pub fn get_tlen(&self) -> u32 {
         self.tlen
     }
@@ -164,7 +170,7 @@ pub struct BusReader {
     reader: BufReader<File>,
 }
 
-// benchmarking had a sligh incrase of speed using 800KB instead of *Kb
+// benchmarking had a sligh incrase of speed using 800KB instead of 8Kb
 // further increase buffers dont speed things up more (just need more mem)
 // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
 const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
@@ -224,15 +230,17 @@ impl CUGIterator for BusReader {}
 /// w.write_record(&record);
 /// ```
 pub struct BusWriter {
-    pub writer: BufWriter<File>,
-    pub header: BusHeader,
+    writer: BufWriter<File>,
+    header: BusHeader,
 }
 
 impl BusWriter {
+    /// create a BusWriter from an open Filehandle
     pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter {
         BusWriter::new_with_capacity(file_handle, header, DEFAULT_BUF_SIZE)
     }
 
+    /// create a Buswriter that streams records into a file
     pub fn new(filename: &str, header: BusHeader) -> BusWriter {
         let file_handle: File = File::create(filename).expect("FAILED to open");
         BusWriter::from_filehandle(file_handle, header)
@@ -255,6 +263,8 @@ impl BusWriter {
         self.writer.flush().unwrap();
     }
 
+    /// creates a buswriter with specified buffer capacity (after how many records an actual write happens)
+    /// dont use , 800KB is the default buffer size and optimal for performance
     pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(bufsize, file_handle);
 
@@ -454,12 +464,11 @@ impl BusFolder {
     }
 }
 
-pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
-    /*
-    group a list of records by their CB/UMI (i.e. a single molecule)
 
-    takes ownership of record_list, since it reorders the elements
-    */
+/// group a list of records by their CB/UMI (i.e. a single molecule)
+/// 
+/// takes ownership of record_list, since it reorders the elements
+pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64), Vec<BusRecord>> {
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
 
     for r in record_list {
@@ -468,6 +477,7 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     }
     cbumi_map
 }
+
 
 pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     // just writes the records into a temporay file

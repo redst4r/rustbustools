@@ -1,3 +1,20 @@
+//! Module for the Intersector struct
+//! 
+//! 
+//! The [Intersector] represents a list of key/values, such that
+//! a new item i with key k is added to a key/value pair if the key k
+//! intersects with the key in the k/v pair
+//!
+//! e.g.
+//! ```
+//!  Action           Intersector state
+//! add {'A'}:1 ->   {'A'}:1
+//! add {'B'}:2 ->   {'A'}:1, {'B'}:2  / since keys dont overlap
+//! add {'A'}:3 ->   {'A'}:[1,3], {'B'}:2  // new element gets merged into the first group "A"
+//! add {'A', 'B'}: 4 ->   {'A'}:[1,3, 4], {'B'}:2 //note, its added to the first key found
+//! ```
+//!
+//!
 use std::{
     collections::HashSet,
     hash::Hash,
@@ -17,18 +34,8 @@ fn set_intersection<T: Hash + Eq + Clone>(a: &HashSet<T>, b: &HashSet<T>) -> Has
     a.intersection(b).cloned().collect()
 }
 
-/*
- Represents a list of key/values, such that
- a new item i with key k is added to a key/value pair if the key k
- intersects with the key in the k/v pair
-
- e.g.
- add {'A'}:1 ->   {'A'}:1
- add {'B'}:2 ->   {'A'}:1, {'B'}:2
- add {'A'}:3 ->   {'A'}:[1,3], {'B'}:2
- add {'A', 'B'}: 4 ->   {'A'}:[1,3, 4], {'B'}:2 //note, its added to the first key found
-
-*/
+/// special "HashMap" with keys: Sets of type T and values of `Vec<S>`
+/// if keys overlap, their values will be merged
 pub struct Intersector<T, S> {
     // pub the_sets: HashMap<HashSet<T>, Vec<S> >
     // emulating a dict of Set -> list of items
@@ -52,6 +59,7 @@ impl<T: Hash + Eq + Clone, S> Intersector<T, S> {
         }
         None
     }
+    /// add a single key/value pair
     pub fn add(&mut self, set: HashSet<T>, item: S) {
         match self.find_overlap_ix(&set) {
             // it the item overlaps with anything (the first entry is returned)

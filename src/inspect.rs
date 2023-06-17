@@ -1,3 +1,6 @@
+//! Inspecting a busfile for statistics
+//! 
+//! just like `bustools inspect`
 use crate::{
     io::BusReader,
     iterators::{CbUmiGroupIterator, CellGroupIterator},

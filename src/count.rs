@@ -1,3 +1,13 @@
+//! Recreating `bustools count` to aggregate a busfile into a count-matrix
+//! 
+//! This turns a busfolder into a count matrix.
+//!
+//! The strategy:
+//! 1. iterate over CBs, turn each cell (Busrecords from same cell) into an [ExpressionVector] (HashMap<Genename, u32>).
+//!    Those all have slightly different key/genenes sets
+//! 2. Determine ALL genes: from the EC2Gene file
+//! 3. turn into a big sparse [crate::countmatrix::CountMatrix] via `expression_vectors_to_matrix()`
+
 use crate::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB};
 use crate::countmatrix::CountMatrix;
 use crate::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
@@ -7,19 +17,9 @@ use sprs;
 use std::collections::HashMap;
 use std::time::Instant;
 
-///
-/// ## emulating bustools count
-/// This turns a busfolder into a count matrix.
-///
-/// The strategy:
-/// 1. iterate over CBs, turn each cell (Busrecords from same cell) into an ExpressionVector (HashMap<Genename, u32>).
-///    Those all have slightly different key sets
-/// 2. Determine ALL genes: from the EC2Gene file
-/// 3. turn into a big sparse matrix via expression_vectors_to_matrix()
-
 type ExpressionVector = HashMap<Genename, u32>;
 
-pub fn count_bayesian(bfolder: BusFolder) {
+fn count_bayesian(bfolder: BusFolder) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);
 
@@ -59,10 +59,16 @@ pub fn count_bayesian(bfolder: BusFolder) {
     // println!("{:?}", n[0]);
 }
 
+
+/// busfile to count matrix, analogous to "bustools count"
+/// ## Parameters
+/// * bfolder: Busfolder (containing busfile, matric.ec and transcripts.txt) to count
+/// *  ignore_multimapped: 
+///     if true, discard CB/UMIs that have multipel records with different EC
+///     if false: Try to consolidate those records: Different fragments from the same mRNA might map differently, 
+///         e.g some parts of the mRNA are ambigous (mapping to more than one gene), but others might be unique
+///     Kallisto operates with `ignore_multimapped=false`
 pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
-    /*
-    busfile to count matrix, analogous to "bustools count"
-    */
 
     let cb_iter = bfolder.get_iterator().groupby_cb();
 
@@ -107,23 +113,20 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     assert!(genelist_vector2.contains(&&Genename("ENSG00000000003.14".to_string())));
 
     let countmatrix = expression_vectors_to_matrix(all_expression_vector, genelist_vector2);
-    println!(
-        "{:?} nnz {}",
-        countmatrix.matrix.shape(),
-        countmatrix.matrix.nnz()
-    );
+    println!("{}", countmatrix.to_string());
+
     countmatrix
 }
 
+/// Turns a set of Busrecords from a single cell (sahred CB() into an expression vector:
+/// per gene, how many umis are observed
 fn records_to_expression_vector(
     record_list: Vec<BusRecord>,
-    // ec2gene: &HashMap<u32, HashSet<String>>,
     eg_mapper: &Ec2GeneMapper,
     ignore_multimapped: bool,
 ) -> ExpressionVector {
     /*
-    turn the list of records of a single CB into a expression vector: per gene, how many umis are observed
-    TODO this doesnt consider multiple records with same umi/cb, but EC mapping to different genes
+    TODO this doesnt consider multiple records with same umi/cb + EC mapping to different genes, i.e. a colision
     */
     let mut expression_vector: ExpressionVector = HashMap::new(); // gene -> count
     let mut _multimapped = 0_u32;
@@ -157,44 +160,18 @@ fn records_to_expression_vector(
             MappingResult::Multimapped(_) => _multimapped += 1,
             MappingResult::Inconsistent => _inconsistant += 1,
         }
-
-        // let consistent_genes: HashSet<GeneId>;
-        // // let consistent_genes: HashSet<String>;
-        // if !ignore_multimapped {
-        //     consistent_genes = find_consistent(&records, eg_mapper);
-        //     // consistent_genes= find_consistent(&records, ec2gene);
-        // } else if records.len() > 1 {
-        //     continue;
-        // } else {
-        //     // consistent_genes = ec2gene.get(&records[0].EC).unwrap().clone();
-        //     consistent_genes = eg_mapper.get_genes(EC(records[0].EC)).clone();
-        // }
-
-        // if consistent_genes.len() > 1 {
-        //     //multimapped
-        //     _multimapped += 1;
-        // } else if consistent_genes.len() == 1 {
-        //     //single gene
-        //     let g = consistent_genes.iter().next().unwrap(); // Set to first element
-        //     let gname = eg_mapper.resolve_gene_id(*g);
-        //     let val = expression_vector.entry(gname).or_insert(0);
-        //     *val += 1;
-        // } else {
-        //     // inconsistant
-        //     _inconsistant += 1
-        // }
     }
     expression_vector
 }
 
+
+
+/// turn an collection of expression vectors (from many cells)
+/// into a sparse count matrix
 fn expression_vectors_to_matrix(
     all_expression_vector: HashMap<CB, ExpressionVector>,
     genelist: Vec<&Genename>,
 ) -> CountMatrix {
-    /*
-    turn an collection of expression vector (from many cells)
-    into a sparse count matrix
-    */
 
     // sparse matrix indices
     let mut ii: Vec<usize> = Vec::new();

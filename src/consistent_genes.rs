@@ -1,3 +1,17 @@
+//! This module handles the Equivalance class to gene mapping
+//! 
+//! An EC represents a *set* of transcripts which the read is consistent with.
+//! This is then mapped to genes:
+//! * the EC resolves to a single gene, clear case for a count
+//! * the EC resolves to multipel genes (the read aligned to a part of the transcriptome which is ambigous)
+//! 
+//! It gets more complicated if we have multiple ECs for an mRNA, 
+//! i.e. multiple busrecords with same CB/UMI, but different EC
+//! This happens since mRNAs get fragmented after amplification, and different fragments can map to different parts \
+//! of the transcriptome, hence yielding different ECs
+//! 
+//! See [Ec2GeneMapper] and [MappingResult]
+//! 
 use itertools::izip;
 use std::collections::{HashMap, HashSet};
 use crate::{disjoint::Intersector, io::BusRecord};
@@ -6,20 +20,24 @@ use std::hash::Hash;
 /*
 just some wrappers for Strings and ints that we use for genes and equivalence classes
  */
+/// Thin wrapper aroud u32, representing an Equivalence Class
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct EC(pub u32);
 
+/// Gene identifier
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct GeneId(pub u32);
 
+/// Thin wrapper around u64, a cell-barcode
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct CB(pub u64);
 
+/// Name of a particular gene
 #[derive(Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Debug)]
 pub struct Genename(pub String);
 
-// #[inline(never)]
-pub fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: &HashSet<T>) {
+/// intersecting both sets, modifying the first one (it'll stay the same or loose elements)
+fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: &HashSet<T>) {
     // delete any elemt in shared_genes not present in current_set
     // i..e set intersection
     // we cant delete while iterating, so remember which elements to delete
@@ -27,7 +45,8 @@ pub fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, news
 }
 
 /// MappingResult represents an attempt to unify several BusRecords with matching CB/UMI
-/// into an mRNA expressed from a single gene
+/// into an mRNA expressed from a single gene. 
+/// 
 /// This is not always possible, as the records will have different EC
 /// Sometimes the ECs are inconsistent (no overlap in gene space)
 /// Sometimes the ECS are ambigous and can resolve to multipel genes
@@ -40,7 +59,12 @@ pub enum MappingResult {
     Inconsistent,                 // records are inconsistent, pointing to different genes
 }
 
-// pub fn find_consistent(records: &Vec<BusRecord>, ec2gene: &HashMap<u32, HashSet<String>>) ->HashSet<String> {
+/// For a set of busrecords (coming from the same molecule), this function tries
+/// to map those records to genes consistently.
+/// 
+///  As all records come from the same mRNA,ideally we get a consistent 
+/// mapping (e.g. all records map to the same gene)
+/// See [MappingResult] for mor explanation
 pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> MappingResult {
     /*
     set intersection in Rust is a MESS due to ownership etc!!
@@ -92,8 +116,8 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
     }
 }
 
-/// Dealing with the EC to gene mapping
-/// lets us resolve a given EC into a set of genes consistent with that EC
+/// Deals with the EC (equivalence class) to gene mapping
+/// Resolve a given EC into a set of genes consistent with that EC
 /// # Example
 /// ```rust, no_run
 /// # use rustbustools::io::BusFolder;
@@ -113,6 +137,8 @@ pub struct Ec2GeneMapper {
     */
     ec2geneid: HashMap<EC, HashSet<GeneId>>, // maps each EC to a set of geneids (integers)
 
+    // ec2geneid_array: Vec<HashSet<GeneId>>, // maps each EC to a set of geneids (integers)
+    // 
     // TODO this could be a simple Vec, indexing into it
     int_to_gene: HashMap<GeneId, Genename>, // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
 
@@ -203,13 +229,29 @@ impl Ec2GeneMapper {
         }
 
         let mut geneid2ec: HashMap<GeneId, EC> = HashMap::new();
-        for (ec, genes) in ec2gene {
+        for (ec, genes) in ec2gene.iter() {
             if genes.len() == 1 {
                 let gname = genes.iter().next().unwrap().clone();
                 let gid = *gene_to_int.get(&gname).unwrap();
-                geneid2ec.insert(gid, ec);
+                geneid2ec.insert(gid, *ec);
             }
         }
+
+        // //faster
+        // // need to mark ec2gene ordered first
+        // let mut ordered_ec2gene: BTreeMap<EC, HashSet<Genename>> = BTreeMap::new();
+        // for (k,v) in ec2gene { 
+        //     ordered_ec2gene.insert(k ,v);
+        // }
+        // let mut _vec = Vec::with_capacity(ordered_ec2gene.len());
+        // for (ec, genes) in ordered_ec2gene { 
+        //     let geneids: HashSet<GeneId> = genes
+        //         .iter()
+        //         .map(|gname| *gene_to_int.get(gname).unwrap())
+        //         .collect();
+        //     _vec.push(geneids);
+        // }
+
 
         Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec }
     }
@@ -253,6 +295,10 @@ impl Ec2GeneMapper {
     }
 }
 
+/// Represents a busrecord (actually an observed CB/UIM combination)
+/// with a set of consistent genes (genes that this CB/UMI could map to)
+/// and the number of times this combination was seen in the busfile
+/// 
 #[derive(Debug)]
 #[allow(non_snake_case)]
 pub struct CUGset {
@@ -262,13 +308,9 @@ pub struct CUGset {
     pub COUNT: u32,                 // 4v byte
 }
 
+/// Group a set of busrecords (same CB/UMI) by genes they are consistent with
 pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGset> {
-    // build disjoint set based on samplename and genes
-    // let mut disjoint_set = DisjointSubsets::new();
-    // for (id, r) in records.iter().enumerate(){
-    //     let gset = ec2gene.get_genenames(r.EC);
-    //     disjoint_set.add(id.to_string(), gset);
-    // }
+
     let mut emissions: Vec<CUGset> = Vec::with_capacity(records.len()); //with capacity worst case scenario
 
     // aggregate by overlpping genes

@@ -1,3 +1,4 @@
+//! This turns a busfolder into a count matrix, slightly different strategy than [crate::count]. Not sure which is fsater
 use crate::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, CB, MappingResult};
 use crate::countmatrix::CountMatrix;
 use crate::io::{BusFolder, BusRecord};
@@ -8,10 +9,6 @@ use sprs::DenseVector;
 use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 
-///
-/// ## emulating bustools count
-/// This turns a busfolder into a count matrix.
-/// 
 /// Slightly different strategy as count.rs:
 /// 1. iterate over CB/UMI, turn into (possibly) count for a gene (if not multimapped) via count_from_record_list()
 /// 2. this creates  HashMap<(CB, GeneId), usize> directly, to be turned into a sparse CountMatrix
@@ -66,7 +63,7 @@ pub fn countmap_to_matrix(
     CountMatrix::new(b, cbs_seq, gene_seq)
 }
 
-pub fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize) {
+fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);
 
@@ -178,11 +175,7 @@ pub fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: us
         // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
 
         let countmatrix = countmap_to_matrix(&all_expression_vector, genelist_vector);
-        println!(
-            "{:?} nnz {}",
-            countmatrix.matrix.shape(),
-            countmatrix.matrix.nnz()
-        );
+        println!("{}", countmatrix.to_string());
         println!("finished iteration {}", i)
     }
 }
@@ -209,6 +202,8 @@ fn count_from_record_list(
     }
 }
 
+
+/// count the busfile in the given folder, see [crate::count::count] 
 pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
@@ -274,12 +269,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     let countmatrix = countmap_to_matrix(&all_expression_vector, genelist_vector);
 
-    let (shape1, shape2) = countmatrix.matrix.shape();
-    println!(
-        "{}x{} nnz {}\n\n\n",
-        shape1,
-        shape2,
-        countmatrix.matrix.nnz()
-    );
+    println!("{}", countmatrix.to_string());
+
     countmatrix
 }

@@ -1,15 +1,19 @@
 use clap::{self, Args, Parser, Subcommand};
 use itertools::Itertools;
+// use rand::distributions::Uniform;
 use rustbustools::butterfly::make_ecs;
 use rustbustools::consistent_genes::{GeneId, Genename, EC};
 use rustbustools::inspect::inspect;
 use rustbustools::io::{BusHeader, BusReader};
 use rustbustools::iterators::CellGroupIterator;
 use rustbustools::sort::sort_on_disk;
+use rustbustools::utils::{int_to_seq};
 use rustbustools::correct;
 use rustbustools::{busmerger, io::BusFolder};
+// use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+// use std::time::Instant;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -117,7 +121,7 @@ struct InspectArgs {
 }
 
 // mod count;
-use rustbustools::count;
+use rustbustools::{count, };
 use rustbustools::count2;
 
 fn main() {
@@ -145,8 +149,6 @@ fn main() {
     // let elapsed_time = now.elapsed();
     // println!("Running test_multinomial({}) took {} seconds.", dim, elapsed_time.as_secs());
 
-    // use rustbustools::butterfly;
-    // butterfly::testing2();
 
     let cli = Cli::parse();
     match cli.command {
@@ -238,3 +240,7 @@ fn main() {
         },
     }
 }
+
+/*
+flamegraph --flamechart  -- ~/rust_target/release/rustbustools --output /dev/null count --ifolder /home/michi/bus_testing/bus_output_shorter --t2g /home/michi/bus_testing/transcripts_to_genes.txt 
+ */

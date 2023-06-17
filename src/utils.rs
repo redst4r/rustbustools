@@ -1,3 +1,4 @@
+/// Utilities, such as barcode <-> int conversion
 use std::collections::HashSet;
 use std::hash::Hash;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -54,6 +55,7 @@ pub fn int_to_seq(i: u64, seq_len: usize) -> String {
     s
 }
 
+/// returns a progress bar instance with standard formatting
 pub fn get_progressbar(total: u64) -> ProgressBar {
     let bar = ProgressBar::new(total);
     bar.set_style(
@@ -76,8 +78,8 @@ pub mod argsort {
 //! ```
 //! 
 //! # References  
-//! https://stackoverflow.com/questions/69764050/how-to-get-the-indices-that-would-sort-a-vector-in-rust
-//! https://stackoverflow.com/questions/28247990/how-to-do-a-binary-search-on-a-vec-of-floats
+//! <https://stackoverflow.com/questions/69764050/how-to-get-the-indices-that-would-sort-a-vector-in-rust>
+//! <https://stackoverflow.com/questions/28247990/how-to-do-a-binary-search-on-a-vec-of-floats>
 
     use std::cmp::Ordering;
 
@@ -101,7 +103,7 @@ pub mod argsort {
         }
     }
     
-
+    /// Argsort a `slice[T]`
     pub fn argsort<T: Ord>(slice: &[T]) -> Vec<usize> {
         let n = slice.len();
         let mut keys: Vec<_> = (0..n).collect();
