@@ -6,10 +6,10 @@
 //! intersects with the key in the k/v pair
 //!
 //! e.g.
-//! ```
-//!  Action           Intersector state
+//! ```text
+//! Action           state
 //! add {'A'}:1 ->   {'A'}:1
-//! add {'B'}:2 ->   {'A'}:1, {'B'}:2  / since keys dont overlap
+//! add {'B'}:2 ->   {'A'}:1, {'B'}:2  // since keys dont overlap
 //! add {'A'}:3 ->   {'A'}:[1,3], {'B'}:2  // new element gets merged into the first group "A"
 //! add {'A', 'B'}: 4 ->   {'A'}:[1,3, 4], {'B'}:2 //note, its added to the first key found
 //! ```

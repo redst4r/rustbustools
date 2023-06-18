@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 
 /// turning a vector into a HashSet
-pub(crate) fn vec2set<T: Eq + Hash>(x: Vec<T>) -> HashSet<T> {
+pub fn vec2set<T: Eq + Hash>(x: Vec<T>) -> HashSet<T> {
     x.into_iter().collect::<HashSet<T>>()
 }
 

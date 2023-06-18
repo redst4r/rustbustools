@@ -123,7 +123,7 @@ impl BusHeader {
     }
 
     /// return the length of the variable part of the busheader
-    fn get_tlen(&self) -> u32 {
+    pub fn get_tlen(&self) -> u32 {
         self.tlen
     }
 

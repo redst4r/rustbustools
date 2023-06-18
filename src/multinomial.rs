@@ -60,7 +60,7 @@ pub fn multinomial_sample_statrs(n: u64, pvec: Vec<f64>) -> Vec<f64> {
 /// my own multinomial sampling, using the fact that all marginals are binomial
 ///
 /// statrs version does the same algorithm, but relies internally on a statrs::distribution::Binomial
-/// which is extremely slow.
+/// which is extremely slow. Instead,we use probability::distribution::Binomial
 pub fn multinomial_sample(n: u64, pvec: &Vec<f64>, source: &mut Xorshift128Plus) -> Vec<f64> {
     let dim = pvec.len();
     let mut x: Vec<f64> = Vec::with_capacity(dim);

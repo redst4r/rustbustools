@@ -1,21 +1,9 @@
 //! # Rustbustools
 //! 
-//! This is a reimplementation of [bustools](https://github.com/BUStools/bustools) 
-//! in rust for scRNAseq data processing. 
+//! This library allows interaction with the Bus format (see [bustools](https://github.com/BUStools/bustools)) 
+//! for scRNAseq data processing. 
 //! 
 //! At this point, it's **far from complete and correct**, but rather a project to learn rust.
-//! 
-//! While this is intended as a CLI, there's some useful functionality in the library itself, 
-//! iterating over bus files etc. See some [examples](#basics-of-the-library) below.
-//! 
-//! # CLI
-//! `rustbustools <command>`
-//! * `correct`: Correct busfiles via a whitelist
-//! * `sort`: Sort the busfile by CB/UMI/EC
-//! * `count`: Create a count-matrix (CB vs gene)
-//! * `inspect`: Basic stats about a busfile (#records, #CBs etc..)
-//! 
-//! Check the CLI help for arguments.
 //! 
 //! # Basics of the library
 //! The basic unit is the [io::BusRecord], which represents a single entry in a busfile,
@@ -52,7 +40,6 @@
 //! for (cb, vector_of_records) in breader.groupby_cb() {
 //!     // Example: the number of records in that cell
 //!     let n_molecules: usize = vector_of_records.len();
-//!     
 //! }
 //! ```
 //! 
@@ -86,22 +73,12 @@
 // #![deny(missing_docs)]
 pub mod io;
 pub mod iterators;
-// pub mod iterators_clone;
-// pub mod play;
-pub mod busmerger;
 pub mod bus_multi;
-pub mod count;
-pub mod count2;
 pub mod utils;
 pub mod multinomial;
 pub mod consistent_genes;
 pub mod disjoint;
-pub mod butterfly;
-pub mod inspect;
-pub mod countmatrix;
+pub mod merger;
 // pub mod channel;
 // pub mod buffered_channels;
 // pub mod new_channel;
-pub mod merger;
-pub mod sort;
-pub mod correct;
