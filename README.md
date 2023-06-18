@@ -1,15 +1,15 @@
 # Rustbustools
 
-Rust version of [bustools](https://github.com/BUStools/bustools) command line interface.
+Rust library to interact with the kallisto/bus format of scRNAseq data (see [bustools](https://github.com/BUStools/bustools)).
 At this point, it's **far from complete and correct**, but rather a project to learn rust.
 
-This is heavily built on [rustbustools](https://github.com/redst4r/rustbustools), which handles all the basic interactions with busfiles.
+There's also a CLI mimicking [bustools](https://github.com/BUStools/bustools), see [rustbustools_cli](https://github.com/redst4r/rustbustools_cli)
 ## Examples
 For more examples, see the rust-docs.
 
 ### Iterating a bus file
 ```rust
-# use rustbustools::io::{BusReader};
+use bustools::io::{BusReader};
 let bus = BusReader::new("/tmp/some.bus");
 for record in bus {
     // record.CB, record.UMI ...
@@ -18,8 +18,8 @@ for record in bus {
 
 ### Iterating a bus file by cell
 ```rust
-use rustbustools::io::BusReader;
-use rustbustools::iterators::CellGroupIterator; //need to bring that trait into scope
+use bustools::io::BusReader;
+use bustools::iterators::CellGroupIterator; //need to bring that trait into scope
 
 let breader = BusReader::new("/path/to/some.bus");
 for (cb, vector_of_records) in breader.groupby_cb() {
@@ -27,3 +27,6 @@ for (cb, vector_of_records) in breader.groupby_cb() {
     let n_molecules: usize = vector_of_records.len();
 }
 ```
+
+## TODO
+- [ ] consolidate bus_multi and merger

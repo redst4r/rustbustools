@@ -1,4 +1,4 @@
-//! The io module of rustbustools
+//! The io module of bustools
 //!
 //! Deals with reading and writing busfiles. The most important components are:
 //! - BusRecord: a single record of a Busfile, containing CB/UMI/EC/COUNT
@@ -8,7 +8,7 @@
 //!
 //! # Example
 //! ```rust, no_run
-//! # use rustbustools::io::{BusReader, BusHeader, BusWriter};
+//! # use bustools::io::{BusReader, BusHeader, BusWriter};
 //! let bus = BusReader::new("/tmp/some.bus");
 //! let header = BusHeader::from_file("/tmp/some.bus");
 //! let mut writer = BusWriter::new("/tmp/out.bus", header);
@@ -72,7 +72,7 @@ impl BusRecord {
 /// - umi_len: The number of bases in the cellbarcode (usually 12BP)
 /// # Example
 /// ```
-/// use rustbustools::io::BusHeader;
+/// use bustools::io::BusHeader;
 /// let header = BusHeader::new(16, 12, 1);
 /// // can also be obtained from an existing busfile
 /// // let header = BusHeader::from_file("somefile.bus");
@@ -142,7 +142,7 @@ impl BusHeader {
 /// struct Dummy{
 ///     f: u32
 /// }
-/// use rustbustools::io::{BusRecord, CUGIterator};
+/// use bustools::io::{BusRecord, CUGIterator};
 /// impl Iterator for Dummy {
 ///     type Item=BusRecord;
 ///
@@ -164,7 +164,7 @@ pub trait CUGIterator: Iterator<Item = BusRecord> {}
 ///
 /// # Example
 /// ```rust, no_run
-/// # use rustbustools::io::BusReader;
+/// # use bustools::io::BusReader;
 /// let breader = BusReader::new("somefile.bus");
 /// for record in breader{
 ///     let cb= record.CB;
@@ -227,7 +227,7 @@ impl CUGIterator for BusReader {}
 /// needs the Header of the busfile to be specified (length of CB and UMI)
 /// # Example
 /// ```
-/// # use rustbustools::io::{BusWriter, BusHeader, BusRecord};
+/// # use bustools::io::{BusWriter, BusHeader, BusRecord};
 ///
 /// let header = BusHeader::new(16, 12, 1);
 /// let mut w = BusWriter::new("/tmp/target.bus", header);

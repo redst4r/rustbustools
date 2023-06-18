@@ -6,7 +6,7 @@
 //! # Example
 //! ```rust, no_run
 //! # use std::collections::HashMap;
-//! # use rustbustools::bus_multi::CellUmiIteratorMulti;
+//! # use bustools::bus_multi::CellUmiIteratorMulti;
 //! // two busfiles, named
 //! let hashmap = HashMap::from([
 //!     ("test1".to_string(), "/tmp/some1.bus".to_string()),

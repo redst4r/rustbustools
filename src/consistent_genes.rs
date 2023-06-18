@@ -123,9 +123,9 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
 /// Resolve a given EC into a set of genes consistent with that EC
 /// # Example
 /// ```rust, no_run
-/// # use rustbustools::io::BusFolder;
+/// # use bustools::io::BusFolder;
 /// # use std::collections::HashSet;
-/// # use rustbustools::consistent_genes::{Genename, EC};
+/// # use bustools::consistent_genes::{Genename, EC};
 /// let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
 /// let ec2g = bfolder.ec2gene;
 /// let ec = EC(1234);

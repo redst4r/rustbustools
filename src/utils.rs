@@ -72,7 +72,7 @@ pub mod argsort {
     //! # Example
     //! allows something like
     //! ```rust
-    //! # use rustbustools::utils::argsort::{argsort_float,argmax_float};
+    //! # use bustools::utils::argsort::{argsort_float,argmax_float};
     //! argsort_float(&vec![1.1_f64, -0.1_f64], true);
     //! argmax_float(&vec![1.0_f64, 10_f64]);
     //! ```

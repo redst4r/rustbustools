@@ -1,4 +1,4 @@
-//! # Rustbustools
+//! # bustools
 //! 
 //! This library allows interaction with the Bus format (see [bustools](https://github.com/BUStools/bustools)) 
 //! for scRNAseq data processing. 
@@ -15,7 +15,7 @@
 //! BusReader implements the trait [io::CUGIterator], a marker trait for anything that 
 //! iterates/produced streams of [io::BusRecord]s in our library.
 //! ```rust, no_run
-//! # use rustbustools::io::BusReader;
+//! # use bustools::io::BusReader;
 //! let breader = BusReader::new("/path/to/some.bus");
 //! for record in breader {
 //!     // record.CB == ...
@@ -33,8 +33,8 @@
 //! ### Iterate over cells
 //! To iterate over a *sorted* busfile, grouping all records by CB:
 //! ```rust, no_run
-//! # use rustbustools::io::BusReader;
-//! use rustbustools::iterators::CellGroupIterator; //need to bring that trait into scope
+//! # use bustools::io::BusReader;
+//! use bustools::iterators::CellGroupIterator; //need to bring that trait into scope
 //! 
 //! let breader = BusReader::new("/path/to/some.bus");
 //! for (cb, vector_of_records) in breader.groupby_cb() {
@@ -46,8 +46,8 @@
 //! ### Iterate over molecules
 //! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
 //! ```rust, no_run
-//! # use rustbustools::io::BusReader; 
-//! use rustbustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
+//! # use bustools::io::BusReader; 
+//! use bustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
 //! 
 //! let breader = BusReader::new("/path/to/some.bus");
 //! for ((cb, umi), vector_of_records) in breader.groupby_cbumi() {
@@ -64,8 +64,8 @@
 //! which allows to resolve ECs to genes
 //! 
 //! ```rust, no_run
-//! # use rustbustools::io::BusFolder;
-//! # use rustbustools::consistent_genes::EC;
+//! # use bustools::io::BusFolder;
+//! # use bustools::consistent_genes::EC;
 //! 
 //! let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
 //! let gene_names = bfolder.ec2gene.get_genenames(EC(1));

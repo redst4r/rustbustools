@@ -6,8 +6,8 @@
 //! 
 //! To iterate over a **sorted** busfile, grouping all records by CB:
 //! ```rust, no_run
-//! # use rustbustools::io::BusReader;
-//! use rustbustools::iterators::CellGroupIterator; //need to bring that trait into scope
+//! # use bustools::io::BusReader;
+//! use bustools::iterators::CellGroupIterator; //need to bring that trait into scope
 //! 
 //! let breader = BusReader::new("/path/to/some.bus");
 //! for (cb, vector_of_records) in breader.groupby_cb() {
@@ -19,8 +19,8 @@
 //! 
 //! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
 //! ```rust, no_run
-//! # use rustbustools::io::BusReader; 
-//! use rustbustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
+//! # use bustools::io::BusReader; 
+//! use bustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
 //! 
 //! let breader = BusReader::new("/path/to/some.bus");
 //! for ((cb, umi), vector_of_records) in breader.groupby_cbumi() {
