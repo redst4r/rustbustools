@@ -79,6 +79,8 @@ pub mod multinomial;
 pub mod consistent_genes;
 pub mod disjoint;
 pub mod merger;
+pub mod busz;
+mod newpfd;
 // pub mod channel;
 // pub mod buffered_channels;
 // pub mod new_channel;

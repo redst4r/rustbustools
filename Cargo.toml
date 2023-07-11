@@ -22,6 +22,8 @@ rand = "0.8"
 probability="0.20"  # for faster Binomial Sampling, using inverse pdf
 itertools="0.10.5"
 tempfile="3.3.0"
+fibonacci_codec="0.2"
+bit-vec="0.6"
 # crossbeam = "0.8"
 # flume = "0.10"
 
