@@ -27,7 +27,7 @@ use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use tempfile::TempDir;
 
 const BUS_ENTRY_SIZE: usize = 32;
-const BUS_HEADER_SIZE: usize = 20;
+pub const BUS_HEADER_SIZE: usize = 20;
 
 /// Basic unit of a busfile as created by kallisto.
 /// Represents a single scRNAseq molecule, CB/UMI/EC and COUNT
@@ -110,10 +110,10 @@ impl BusHeader {
     pub fn from_bytes(bytes: &[u8]) -> BusHeader {
         let header_struct: BusHeader =
             bincode::deserialize(bytes).expect("FAILED to deserialze header");
-        assert_eq!(
-            &header_struct.magic, b"BUS\x00",
-            "Header struct not matching; MAGIC is wrong"
-        );
+        // assert_eq!(
+        //     &header_struct.magic, b"BUS\x00",
+        //     "Header struct not matching; MAGIC is wrong"
+        // );
         header_struct
     }
 
@@ -179,7 +179,7 @@ pub struct BusReader {
 // benchmarking had a sligh incrase of speed using 800KB instead of 8Kb
 // further increase buffers dont speed things up more (just need more mem)
 // const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
-const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
+pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 impl BusReader {
     /// main constructor for busreader, buffersize is set to best performance
     pub fn new(filename: &str) -> BusReader {
