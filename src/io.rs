@@ -80,11 +80,11 @@ impl BusRecord {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BusHeader {
     //4sIIII: 20bytes
-    magic: [u8; 4],
-    version: u32,
-    cb_len: u32,
-    umi_len: u32,
-    tlen: u32,
+    pub(crate) magic: [u8; 4],
+    pub(crate) version: u32,
+    pub(crate) cb_len: u32,
+    pub(crate) umi_len: u32,
+    pub(crate) tlen: u32,
 }
 
 impl BusHeader {
