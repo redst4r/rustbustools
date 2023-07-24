@@ -26,7 +26,7 @@ fibonacci_codec="0.2"
 bit-vec="0.6"
 bitvec="1"
 # newpfd= { path = "/home/michi/Dropbox/newpfd-rs" }
-newpfd= "0.1"
+newpfd= "0.2"
 
 # crossbeam = "0.8"
 # flume = "0.10"

@@ -3,7 +3,7 @@
 Rust library to interact with the kallisto/bus format of scRNAseq data (see [bustools](https://github.com/BUStools/bustools)).
 At this point, it's **far from complete and correct**, but rather a project to learn rust.
 
-There's also a CLI mimicking [bustools](https://github.com/BUStools/bustools), see [rustbustools_cli](https://github.com/redst4r/rustbustools_cli)
+There's also a CLI mimicking [bustools](https://github.com/BUStools/bustools), see [bustools_cli](https://github.com/redst4r/bustools_cli-rs)
 ## Examples
 For more examples, see the rust-docs.
 
