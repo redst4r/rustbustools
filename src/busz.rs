@@ -73,7 +73,7 @@ impl CompressedBlockHeader {
             panic!("Cant store more than {} records, trying {}", setbits_u32(30), block_size_records)
         }
         // we only have 34 bits to store the blocksize
-        if (setbits_u64(34) as u64) <= block_size_bytes {
+        if setbits_u64(34) <= block_size_bytes {
             panic!("Cant store more than {} records, trying {}", setbits_u32(34), block_size_bytes)
         }        
         CompressedBlockHeader { header_bytes }
@@ -102,14 +102,12 @@ impl CompressedBlockHeader {
 
 pub fn display_u64_in_bits(x: u64) -> String{
     let s: Vec<u64> = (0..64).rev().map (|n| (x >> n) & 1).collect();
-    let t = s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("");
-    t
+    s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
 }
 
 pub fn display_u32_in_bits(x: u32) -> String{
     let s: Vec<u32> = (0..32).rev().map (|n| (x >> n) & 1).collect();
-    let t = s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("");
-    t
+    s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
 }
 
 /// round an integer to the next bigger multiple
@@ -141,7 +139,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
     //fibbonaci encoding
     // let mut enc =runlen_encoded.fib_encode().unwrap();
     let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(|e| newpfd::fibonacci::fib_enc(e)) {
+    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
         enc.extend(fib_encoded);
     }
 
@@ -187,7 +185,7 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     let runlen_encoded = runlength_codec.encode(periodic_delta_encoded.into_iter());
     //fibbonaci encoding
     let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::with_capacity(2*runlen_encoded.len()); // the capacity is a minimum, assuming each RLE is a 1, i.e. `11` in fib encoding
-    for mut fib_encoded in runlen_encoded.into_iter().map(|e| newpfd::fibonacci::fib_enc(e)) {
+    for mut fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
         enc.append(&mut fib_encoded);
     }
 
@@ -236,7 +234,7 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     //fibbonaci encoding
     // if true {
     let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(|e| newpfd::fibonacci::fib_enc(e)) {
+    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
         enc.extend(fib_encoded);
     }
 
@@ -262,7 +260,7 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     //fibbonaci encoding
     // let mut enc = runlen_encoded.fib_encode().unwrap();
     let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(|e| newpfd::fibonacci::fib_enc(e)) {
+    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
         enc.extend(fib_encoded);
     }
 
@@ -303,7 +301,7 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
     let mut header_bytes = header.header_bytes.to_le_bytes().to_vec();
     header_bytes.extend(body_bytes); 
 
-    return header_bytes;
+    header_bytes
     // let _a = bcs.as_bitslice().load_be();
     // assert_eq!(
         // _a,
@@ -507,7 +505,7 @@ impl BuszReader {
         let buf = BufReader::with_capacity(bufsize, file_handle);
 
         let buffer = VecDeque::with_capacity(bzheader.block_size as usize);
-        BuszReader { bus_header, busz_header:bzheader, reader: buf, buffer:buffer }
+        BuszReader { bus_header, busz_header:bzheader, reader: buf, buffer }
     }
 
     /// takes the next 8 bytes (u64) out of the stream and interprets it as a busheader
@@ -519,9 +517,9 @@ impl BuszReader {
         if blockheader_bytes == [0,0,0,0,0,0,0,0] {  // EOF
             return None
         }
-        let H = CompressedBlockHeader { header_bytes: u64::from_le_bytes(blockheader_bytes)};
+        let h = CompressedBlockHeader { header_bytes: u64::from_le_bytes(blockheader_bytes)};
         // println!("H bytes {}, H records {}", H.get_blocksize_and_nrecords().0, H.get_blocksize_and_nrecords().1);
-        Some(H)
+        Some(h)
     }
 
     pub fn load_busz_block_faster(&mut self) -> Option<Vec<BusRecord>>{
@@ -542,7 +540,7 @@ impl BuszReader {
         // conversion to big-endian to make the reading work right
         let bigendian_buf = swap_endian(&block_buffer, 8);
         let theblock: &bv::BitVec<u8, bv::Msb0> = &bv::BitVec::from_slice(&bigendian_buf);
-        let mut block = BuszBlock::new(&theblock.as_bitslice(),nrecords as usize);
+        let mut block = BuszBlock::new(theblock.as_bitslice(),nrecords as usize);
         
         let records =block.parse_block();
     
@@ -741,12 +739,12 @@ impl BuszWriter {
 #[derive(Debug, PartialEq, Eq)]
 enum BuszBlockState {
     // Header,
-    CB,
-    UMI,
-    EC,
-    COUNT,
-    FLAG,
-    FINISHED
+    Cb,
+    Umi,
+    Ec,
+    Count,
+    Flag,
+    Finished
 }
 
 /// A single block of a busz-file, header has already been parsed
@@ -768,16 +766,16 @@ impl <'a> BuszBlock <'a> {
         // see BuszReader::load_busz_block_faster
         // cant do it in herer due to lifetime issues
         BuszBlock { 
-            buffer: buffer, 
+            buffer, 
             pos: 0, 
-            n_elements: n_elements, 
-            state: BuszBlockState::CB,
+            n_elements, 
+            state: BuszBlockState::Cb,
             debug: false
         }
     }
 
     fn parse_cb(&mut self) -> Vec<u64> {
-        assert_eq!(self.state, BuszBlockState::CB);
+        assert_eq!(self.state, BuszBlockState::Cb);
         assert_eq!(self.pos, 0, "must be at beginning of buffer to parse CBs");
 
         //decode the CBs
@@ -842,13 +840,13 @@ impl <'a> BuszBlock <'a> {
 
         // adcance the pointer to the start of the next section, i.e. the umis
         self.pos = self.pos + bits_processed + zeros_toremoved;
-        self.state = BuszBlockState::UMI;
+        self.state = BuszBlockState::Umi;
 
         cb_delta_encoded
     }
 
     fn parse_umi(&mut self, cbs: &[u64]) -> Vec<u64> {
-        assert_eq!(self.state, BuszBlockState::UMI);
+        assert_eq!(self.state, BuszBlockState::Umi);
 
         let umi_buffer = &self.buffer[self.pos..];
         let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(umi_buffer);
@@ -907,7 +905,7 @@ impl <'a> BuszBlock <'a> {
 
         // adcance the pointer to the start of the next section, i.e. the umis
         self.pos = self.pos + bits_processed + zeros_toremoved;
-        self.state = BuszBlockState::EC;
+        self.state = BuszBlockState::Ec;
 
         umis
 
@@ -941,7 +939,7 @@ impl <'a> BuszBlock <'a> {
 
         // println!("EC buffer used:\n{}", bitstream_to_string(&remainder_little_endian_32[..bits_consumed]));
 
-        self.pos = self.pos + bits_consumed;
+        self.pos += bits_consumed;
         // println!("after EC main buffer: {}", bitstream_to_string(&self.buffer[self.pos..]));
         // println!("after EC main buffer: {}", bitstream_to_string(&ec_buffer[bits_consumed..]));
 
@@ -950,7 +948,7 @@ impl <'a> BuszBlock <'a> {
         // println!("ECs: buffer at {}", self.pos);
 
 
-        self.state = BuszBlockState::COUNT;
+        self.state = BuszBlockState::Count;
 
         ecs
     }
@@ -960,7 +958,7 @@ impl <'a> BuszBlock <'a> {
         // count decoding
         // note that its RLE encoded, i.e. each fibbonacci number is not really a cb
         // println!("Decoding Counts {:?}", remainder_little_endian_64);
-        assert_eq!(self.state, BuszBlockState::COUNT);
+        assert_eq!(self.state, BuszBlockState::Count);
 
         // things get complicated here: in EC-we had to swap_endian and accomodate u32 encoding
         // this was done within `parse_ec` and did not affect the self.buffer
@@ -1033,13 +1031,13 @@ impl <'a> BuszBlock <'a> {
 
         // adcance the pointer to the start of the next section, i.e. the umis
         self.pos = self.pos + bits_processed + zeros_toremoved;
-        self.state = BuszBlockState::FLAG;
+        self.state = BuszBlockState::Flag;
 
         counts_encoded
     }
 
     fn parse_flags(&mut self) -> Vec<u64> {
-        assert_eq!(self.state, BuszBlockState::FLAG);
+        assert_eq!(self.state, BuszBlockState::Flag);
 
         // same issue as in count: some misalginemtn and endianess issues. 
         // do the same thing: transformations on the entire buffer, the move position to FLAG section
@@ -1099,7 +1097,7 @@ impl <'a> BuszBlock <'a> {
         );
         // adcance the pointer to the start of the next section, i.e. the umis
         self.pos = self.pos + bits_processed + zeros_toremoved;
-        self.state = BuszBlockState::FINISHED;
+        self.state = BuszBlockState::Finished;
         
         assert_eq!(self.pos, self.buffer.len(), "still leftover bits in the buffer!"); 
 
@@ -1194,7 +1192,7 @@ fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
 
 fn bitstream_to_string(buffer: &bv::BitSlice<u8, bv::Msb0>) -> String{
     let mut s = String::new();
-    let x = buffer.iter().map(|x| if *x==true{"1"} else {"0"});
+    let x = buffer.iter().map(|x| if *x{"1"} else {"0"});
     for bit64 in &x.into_iter().chunks(64){
         let concat = bit64.collect::<Vec<_>>().join("");
         s.push_str(&concat);
@@ -1459,6 +1457,20 @@ mod test {
                 100
             );
         }
+
+
+        #[test]
+        fn test_compress_full() {
+            let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
+            let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+            let copmressed_output = "/tmp/buscompress_testing_full.busz";
+            compress_busfile(
+                input_plain,
+                copmressed_output,
+                10000
+            );
+        }
+
         #[test]
         fn test_compress2() {
             let mut reader = BuszReader::new("/tmp/lalalala_true.busz");
