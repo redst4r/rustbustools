@@ -227,65 +227,16 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
     // // header.header_bytes
 }
 
+/// Compress `input` busfile into `output` busz-file using `blocksize`
+/// 
+/// # Parameters
+/// * blocksize: How many elements are grouped together and compressed together
 pub fn compress_busfile(input: &str, output: &str, blocksize: usize) {
 
     let reader = BusReader::new(input);
-    let out_fh: File = File::create(output).expect("FAILED to create output file");
-    
-    // write BusZ header
-    let mut writer = BufWriter::with_capacity(DEFAULT_BUF_SIZE, out_fh);
-    // write the header into the file
-    let magic: [u8; 4] = *b"BUS\x01";
-    let busheader = BusHeader{
-        magic, 
-        version: reader.bus_header.version, 
-        cb_len: reader.bus_header.cb_len, 
-        umi_len: reader.bus_header.umi_len, 
-        tlen: 0 //reader.bus_header.tlen
-    };
-    let binheader = busheader.to_bytes();
-    writer
-        .write_all(&binheader)
-        .expect("FAILED to write header");
-
-    // write the variable header
-    let mut varheader: Vec<u8> = Vec::new();
-    for _i in 0..busheader.tlen {
-        varheader.push(0);
-    }
-    writer
-        .write_all(&varheader)
-        .expect("FAILED to write var header");
-
-    // BusZ header
-    let busz_header = BuszSpecificHeader {
-        block_size: blocksize.try_into().unwrap(),
-        pfd_block_size: 512,
-        lossy_umi: 0
-    };
-    let binzheader = busz_header.to_bytes();
-    writer
-        .write_all(&binzheader)
-        .expect("FAILED to write header");
-
-    for chunk in &reader.chunks(blocksize) {
-        let records: Vec<BusRecord> = chunk.collect();
-        let compressed_block = compress_busrecords_into_block(&records);
-        let little_endian = compressed_block;
-        // BitVec.to_bytes() implicitly does bytes in big-endian (first bit in the stream is the high-order bit of the low order byte),
-        // yet in the busz file its stored in little endian and we need to convert this
-        // let little_endian = swap_endian(&compressed_block.to_bytes(), 8);
-        // let little_endian = swap_endian(&bitslice_to_bytes(&compressed_block), 8);
-
-        writer.write_all(&little_endian).unwrap();
-    }
-
-    // write a final, emtpy block header (0_u64) that signals the EOF
-    writer.write_all(&[0;8]).unwrap();
-
+    let mut  writer = BuszWriter::new(output, reader.bus_header.clone(), blocksize);
+    writer.write_iterator(reader.into_iter());
 }
-
-
 
 /// BusZ format has the problem that it can only write to disk
 /// once `busz_blocksize` elements have been encountered.

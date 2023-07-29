@@ -1,9 +1,7 @@
 use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
-
 use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
-
 use super::{BuszHeader, CompressedBlockHeader, utils::bitslice_to_bytes, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
@@ -83,7 +81,7 @@ impl BuszReader {
         Some(h)
     }
 
-    pub fn load_busz_block_faster(&mut self) -> Option<Vec<BusRecord>>{
+    fn load_busz_block_faster(&mut self) -> Option<Vec<BusRecord>>{
 
         let h: Option<CompressedBlockHeader> = self.load_busz_header();
         if h.is_none(){
@@ -129,8 +127,8 @@ impl Iterator for BuszReader {
     }
 }
 
+// To make `grouby_cb()` etc work
 impl CUGIterator for BuszReader {}
-
 
 /// to keep track in which section we are in the busz-block
 #[derive(Debug, PartialEq, Eq)]
@@ -504,7 +502,6 @@ impl <'a> BuszBlock <'a> {
     pub fn parse_block(&mut self) -> Vec<BusRecord>{
         if self.debug {
             println!("Block-bits:\n{}", bitstream_to_string(&self.buffer[self.pos..]));
-
             println!("CB pos {}", self.pos);
             }
         let cbs = self.parse_cb();
@@ -569,6 +566,7 @@ impl <'a> BuszBlock <'a> {
     }
 }
 
+/// Decompress the `input` busz file into a plain busfile, `output`
 pub fn decompress_busfile(input: &str, output: &str) {
 
     let reader = BuszReader::new(input);
@@ -576,7 +574,6 @@ pub fn decompress_busfile(input: &str, output: &str) {
         output,
         reader.bus_header.clone()
     );
-    println!("{:?}", reader);
 
     for r in reader {
         writer.write_record(&r);

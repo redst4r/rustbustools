@@ -18,7 +18,7 @@ pub (crate)  fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
     bytes
 }
 
-
+/// for debugging: display a BitVec as a string of bits
 pub (crate) fn bitstream_to_string(buffer: &bv::BitSlice<u8, bv::Msb0>) -> String{
     let mut s = String::new();
     let x = buffer.iter().map(|x| if *x{"1"} else {"0"});
@@ -38,11 +38,11 @@ pub(crate) fn calc_n_trailing_bits(bits_processed: usize) -> usize {
     zeros_toremoved
 }
 
-// // turn a bitvector (64 elements) into a u64
-pub fn bits64_to_u64(x: bit_vec::BitVec) -> u64{
-    assert_eq!(x.len(), 64);
-    u64::from_le_bytes(x.to_bytes()[..8].try_into().unwrap())
-}
+// // // turn a bitvector (64 elements) into a u64
+// pub fn bits64_to_u64(x: bit_vec::BitVec) -> u64{
+//     assert_eq!(x.len(), 64);
+//     u64::from_le_bytes(x.to_bytes()[..8].try_into().unwrap())
+// }
 
 /// swaps endianness of the byte-vector
 /// assuming 8byte (u64) words
@@ -58,15 +58,15 @@ pub fn swap_endian(bytes: &[u8], wordsize: usize) -> Vec<u8>{
 }
 
 
-pub fn display_u64_in_bits(x: u64) -> String{
-    let s: Vec<u64> = (0..64).rev().map (|n| (x >> n) & 1).collect();
-    s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
-}
+// pub fn display_u64_in_bits(x: u64) -> String{
+//     let s: Vec<u64> = (0..64).rev().map (|n| (x >> n) & 1).collect();
+//     s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
+// }
 
-pub fn display_u32_in_bits(x: u32) -> String{
-    let s: Vec<u32> = (0..32).rev().map (|n| (x >> n) & 1).collect();
-    s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
-}
+// pub fn display_u32_in_bits(x: u32) -> String{
+//     let s: Vec<u32> = (0..32).rev().map (|n| (x >> n) & 1).collect();
+//     s.into_iter().map(|x| x.to_string()).collect::<Vec<_>>().join("")
+// }
 
 /// round an integer to the next bigger multiple
 /// ```bash, no_run  // TODO STUPID, wont run on private modules
@@ -79,10 +79,12 @@ pub fn round_to_multiple(i: usize, multiple: usize) -> usize {
     ((i+multiple-1)/multiple)*multiple
 }
 
+/// set the lowest x bits in a 32bit vecotr (represented as u32)
 pub fn setbits_u32(x: u8) -> u32 {
     u32::MAX >> (32 - x)
 }
 
+/// set the lowest x bits in a 64bit vecotr (represented as u32)
 pub fn setbits_u64(x: u8) -> u64 {
     u64::MAX >> (64 - x)
 }
@@ -90,7 +92,7 @@ pub fn setbits_u64(x: u8) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use crate::busz::utils::swap_endian;
+    use crate::busz::utils::{swap_endian, setbits_u32, setbits_u64};
 
     #[test]
     fn endian_swapping() {
@@ -102,4 +104,17 @@ mod test {
         assert_eq!(v,d);
     }
 
+    #[test]
+    fn test_setbits_u32() {
+        assert_eq!(setbits_u32(3), 7);
+        assert_eq!(setbits_u32(2), 3);
+        assert_eq!(setbits_u32(1), 1);
+    }
+    #[test]
+    fn test_setbits_u64() {
+        assert_eq!(setbits_u64(3), 7);
+        assert_eq!(setbits_u64(2), 3);
+        assert_eq!(setbits_u64(1), 1);
+
+    }
 }
