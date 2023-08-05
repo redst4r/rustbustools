@@ -49,7 +49,6 @@
 //! ddddddddccccccccbbbbbbbbaaaaaaaahhhhhhhhgggggggg....
 //! ``` 
 
-// use fibonacci_codec::Encode;
 use serde::{Serialize, Deserialize};
 use self::utils::{setbits_u32, setbits_u64};
 
@@ -58,8 +57,12 @@ mod encode;
 mod utils;
 mod runlength_codec;
 
+
+// exposing some core classes/functions to the public API
 pub use encode::BuszWriter;
 pub use decode::BuszReader;
+pub use encode::compress_busfile;
+pub use decode::decompress_busfile;
 
 const PFD_BLOCKSIZE: usize = 512; // size of a PFD block within busz (this many ECs get encoded together)
 

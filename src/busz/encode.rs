@@ -3,7 +3,6 @@ use std::{fs::File, io::{BufWriter, Write}};
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
-
 use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszSpecificHeader};
 
 
@@ -83,7 +82,6 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     }
     enc
 }
-
 
 /// Compress ECs with NewPFD encoding
 fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
@@ -283,6 +281,9 @@ impl BuszWriter {
         BuszWriter::from_filehandle(file_handle, header, busz_blocksize)
     }
 
+    /// Writes an iterator of Busrecords into a compressed busfile on disk
+    /// This is the preferred way of using BusZWriter as it guarantees
+    /// proper EOF and closing the compressed file
     pub fn write_iterator(&mut self, iter: impl Iterator<Item=BusRecord>) {
         for chunk in &iter.chunks(self.busz_blocksize) {
             let records: Vec<BusRecord> = chunk.collect();
