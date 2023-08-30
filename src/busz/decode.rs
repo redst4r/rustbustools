@@ -90,9 +90,9 @@ impl BuszReader {
         let header = h.unwrap();
         let (block_size_bytes, nrecords) = header.get_blocksize_and_nrecords();
 
-        println!("BusZ block-header bytes:{block_size_bytes} #records{nrecords}");
+        // println!("BusZ block-header bytes:{block_size_bytes} #records{nrecords}");
         // read the busZ-block body
-        let mut block_buffer: Vec<u8> = Vec::from_iter((0..block_size_bytes).map(|x| x as u8));
+        let mut block_buffer: Vec<u8> = vec![0;block_size_bytes as usize];
         self.reader.read_exact(&mut block_buffer).unwrap();
 
         
@@ -112,7 +112,7 @@ impl Iterator for BuszReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buffer.is_empty(){
-            println!("buffer empty, loading new block");
+            // println!("buffer empty, loading new block");
             // pull in another block
             let block =self.load_busz_block_faster(); 
             match block {

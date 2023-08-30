@@ -3,6 +3,7 @@ use std::{fs::File, io::{BufWriter, Write}};
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
+use newpfd::fibonacci::fib_enc_multiple_fast;
 use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszSpecificHeader};
 
 
@@ -22,11 +23,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
     // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // let mut enc =runlen_encoded.fib_encode().unwrap();
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
 
 
     // pad to next multiple of 64
@@ -68,11 +65,8 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
     };
     let runlen_encoded = runlength_codec.encode(periodic_delta_encoded.into_iter());
-    //fibbonaci encoding
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::with_capacity(2*runlen_encoded.len()); // the capacity is a minimum, assuming each RLE is a 1, i.e. `11` in fib encoding
-    for mut fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.append(&mut fib_encoded);
-    }
+    //fibbonaci encoding    
+    let mut enc= fib_enc_multiple_fast(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -116,16 +110,9 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     // println!("Counts: run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // if true {
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
 
-    // } else {
-        // let mut enc = runlen_encoded.fib_encode().unwrap();
-
-    // // pad to next multiple of 64
+    // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
     for _ in 0..n_pad {
         enc.push(false);
@@ -142,11 +129,8 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // let mut enc = runlen_encoded.fib_encode().unwrap();
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
+
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -419,7 +403,9 @@ mod test {
             BusRecord {CB:1,UMI:0,EC:5,COUNT:1, FLAG: 0 },
         ];
         let enc = compress_barcodes2(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
         
         assert_eq!(decoded, vec![
             1,2,  // two zers
@@ -435,8 +421,11 @@ mod test {
             BusRecord {CB:0,UMI:0,EC:1,COUNT:1, FLAG: 0 },
         ];
         let enc = compress_umis(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
+
+
         assert_eq!(decoded, vec![
             2,  // a one (the refence umi is zero, but all are incemrented by one)
             1,1 //a 1-run
@@ -451,8 +440,9 @@ mod test {
             BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
         ];
         let enc = compress_umis(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
         assert_eq!(decoded, vec![
             12,  // a 10 (the refence umi is zero, but all are incemrented by one)
             1,2, //a 2-run
