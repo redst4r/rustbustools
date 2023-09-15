@@ -1,7 +1,7 @@
-
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
+use bustools::busz::{BuszWriter, BuszReader};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::Itertools;
 use bustools::bus_multi::CellIteratorMulti;
@@ -63,7 +63,7 @@ fn criterion_benchmark_multinomial(c: &mut Criterion) {
 
 }
  */
-
+#[allow(dead_code)]
 fn multinomial_speed(c: &mut Criterion){
 
     use probability::prelude::*;
@@ -98,13 +98,11 @@ fn multinomial_speed(c: &mut Criterion){
             binomial_dummy(black_box(N), 
                             black_box(d), 
             )));
-
-
     }
 
 }
 
-
+#[allow(dead_code)]
 fn plain_iterator_speed(c: &mut Criterion){
     
     fn _dummy(n: usize) -> u32{
@@ -120,6 +118,7 @@ fn plain_iterator_speed(c: &mut Criterion){
 
 /* testing the speed of my iterators (CB/UMI) against the grouped version
  */
+#[allow(dead_code)]
 fn iterator_speed(c: &mut Criterion){
 
      pub const FOLDERNAME:&str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
@@ -148,13 +147,13 @@ fn iterator_speed(c: &mut Criterion){
     
     fn dummy_CBUMI_group(n: usize) ->Vec<Vec<BusRecord>>{
         let biter= BusReader::new(FOLDERNAME);
-        let s:Vec<Vec<BusRecord>> = biter.group_by(|r| (r.CB, r.UMI)).into_iter().map(|(a, records)|records.collect()).take(n).collect();
+        let s:Vec<Vec<BusRecord>> = biter.group_by(|r| (r.CB, r.UMI)).into_iter().map(|(_a, records)|records.collect()).take(n).collect();
         s
     }
     
     fn dummy_CBUMI_mine(n: usize) ->Vec<Vec<BusRecord>>{
         let biter2= BusReader::new(FOLDERNAME).groupby_cbumi();
-        let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(a, records)|records).collect();
+        let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
         s2
     }
 
@@ -169,7 +168,7 @@ fn iterator_speed(c: &mut Criterion){
 
 }
 
-
+#[allow(dead_code)]
 fn speed_with_capacity(c: &mut Criterion){
 
     fn dummy_no_capacity(n: usize) -> usize{
@@ -216,7 +215,7 @@ fn speed_with_capacity(c: &mut Criterion){
 // }
 
 
-
+#[allow(dead_code)]
 fn create_dummy_ec() ->Ec2GeneMapper{
     let ec0: HashSet<Genename> = vec![Genename("A".to_string())].into_iter().collect();
     let ec1: HashSet<Genename> = vec![Genename("B".to_string())].into_iter().collect();
@@ -271,7 +270,7 @@ fn create_dummy_ec() ->Ec2GeneMapper{
 //     c.bench_function("even simpler", |b| b.iter(|| dummy_even(black_box(10000))));
 // }
 
-
+#[allow(dead_code)]
 fn bench_busreader_buffersize(c: &mut Criterion){
 
     let buffersize_vector = vec![800, 8_000, 80_000, 800_000, 8_000_000];
@@ -284,7 +283,7 @@ fn bench_busreader_buffersize(c: &mut Criterion){
     }
 }
 
-
+#[allow(dead_code)]
 fn bench_buswriter_buffersize(c: &mut Criterion){
     let buffersize_vector = vec![800, 8_000, 80_000, 800_000, 8_000_000];
     fn dummy(buffersize: usize) -> usize{
@@ -294,18 +293,81 @@ fn bench_buswriter_buffersize(c: &mut Criterion){
         let mut bw =  BusWriter::new_with_capacity( File::create(fname_nozip).unwrap(), header, buffersize);
         for i in 0..1000{
             for j in 0..10000{
-                let r = BusRecord {CB: i, UMI: j, EC:0, COUNT:1, FLAG: 0};
+                let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
+                // let r = BusRecord {CB: i, UMI: j, EC:0, COUNT:1, FLAG: 0};
                 bw.write_record(&r);
             }
         }
         return 1;
-
     }
     for bsize in buffersize_vector{
         c.bench_function(&format!("Buffersize: {bsize}"), |b| b.iter(|| dummy(black_box(bsize))));
     }
 }
 
+fn bench_busz_compression_write(c: &mut Criterion){
+
+    fn dummy_uncompressed() -> usize{
+        let fname_nozip = "/tmp/test.bus";
+        let header = BusHeader::new(16, 12, 20);
+        let mut bw =  BusWriter::new( fname_nozip, header);
+        for i in 1..501{
+            for j in 1..10001{
+                let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
+                // let r = BusRecord {CB: i, UMI: j, EC: (j % i) as u32, COUNT:1, FLAG: 0};
+                bw.write_record(&r);
+            }
+        }
+        return 1;
+    }
+
+    fn dummy_compressed() -> usize{
+        let fname_zip = "/tmp/test.busz";
+        let buszblocksize = 1000;
+        let header = BusHeader::new(16, 12, 20);
+        let mut bw =  BuszWriter::new( fname_zip, header, buszblocksize);
+        
+        for i in 1..501{
+            for j in 1..10001{
+                let r = BusRecord {CB: i, UMI: j, EC:(j % i) as u32, COUNT:1, FLAG: 0};
+                bw.write_record(r);
+            }
+        }
+        return 1;
+    }
+
+    c.bench_function(&format!("Uncompressed writing"), |b| b.iter(|| dummy_uncompressed()));
+    c.bench_function(&format!("Compressed writing"), |b| b.iter(|| dummy_compressed()));
+}
+
+fn bench_busz_compression_read(c: &mut Criterion){
+    
+    fn dummy_uncompressed(fname :&str) -> usize{
+
+        let r = BusReader::new(fname);
+        let mut counter = 0;
+        for record in r {
+            counter += record.COUNT as usize;
+        }
+        counter
+    }
+
+    fn dummy_compressed(fname :&str) -> usize{
+
+        let r = BuszReader::new(fname);
+        let mut counter = 0;
+        for record in r {
+            counter += record.COUNT as usize;
+        }
+        counter
+    }
+    let fname_uncomp = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
+    let fname_comp = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz";
+
+    c.bench_function(&format!("Uncompressed reading"), |b| b.iter(|| dummy_uncompressed(black_box(fname_uncomp))));
+    c.bench_function(&format!("Compressed reading"), |b| b.iter(|| dummy_compressed(black_box(fname_comp))));
+
+}
 
 // fn bench_busreader_gzip(c: &mut Criterion){
 //     let fname_zip = "/tmp/test.bus.gz";
@@ -348,7 +410,7 @@ fn bench_buswriter_buffersize(c: &mut Criterion){
 
 // }
 
-
+#[allow(dead_code)]
 fn busmulti_vs_merger(c: &mut Criterion){
     let fname1 = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     let fname2 = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
@@ -389,5 +451,8 @@ fn busmulti_vs_merger(c: &mut Criterion){
 // criterion_group!(benches, criterion_benchmark);
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
-criterion_group!(benches, plain_iterator_speed);
+// criterion_group!(benches, plain_iterator_speed);
+criterion_group!(benches, bench_busz_compression_write);
+// criterion_group!(benches, bench_busz_compression_read);
+
 criterion_main!(benches);

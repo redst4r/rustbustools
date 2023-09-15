@@ -104,19 +104,9 @@ impl CompressedBlockHeader {
     /// folllowing the header
     pub fn get_blocksize_and_nrecords(&self) -> (u64, u64) {
         let bit_length = 30; // encoding scheme imposed by bustools
-
-        // dbg!(display_u64_in_bits(self.header_bytes));
-
         let block_size_bytes = self.header_bytes >> bit_length;
-        // dbg!(display_u64_in_bits(block_size_bytes));
-
-        // let bitmask: u32 = (!0) << (32 - bit_length);
-        let bitmask = setbits_u32(bit_length);
-        // dbg!(display_u32_in_bits(bitmask));
-        
-        let bitmask_64 = bitmask as u64;
+        let bitmask_64 = setbits_u32(bit_length) as u64;
         let block_size_records = self.header_bytes & bitmask_64;
-        // dbg!(display_u64_in_bits(block_size_records));
         (block_size_bytes, block_size_records)
     }
 }
@@ -245,19 +235,19 @@ mod test {
 
         #[test]
         fn test_compress1() {
-            let input_compressed = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz"; 
+            // let input_compressed = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
             let copmressed_output = "/tmp/buscompress_testing.busz";
             compress_busfile(
                 input_plain,
                 copmressed_output,
-                100
+                10000
             );
         }
 
         #[test]
         fn test_compress_full() {
-            let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
+            // let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
             let copmressed_output = "/tmp/buscompress_testing_full.busz";
             compress_busfile(

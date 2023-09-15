@@ -1,5 +1,5 @@
 use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
-use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
+use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}, runlength_codec::RunlengthCodec}};
 use bitvec::prelude as bv;
 use itertools::izip;
 use super::{BuszHeader, CompressedBlockHeader, utils::bitslice_to_bytes, PFD_BLOCKSIZE};
@@ -46,7 +46,6 @@ impl BuszReader {
 
         // read the regular busheader
         let bus_header = BusHeader::from_file(filename);
-        println!("Reader: bus header {:?}", bus_header);
         let mut file_handle = File::open(filename).expect("FAIL");
 
         // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
@@ -56,10 +55,8 @@ impl BuszReader {
         // now we're at the start of the BusZHeader
         let mut buszheader_bytes = [0_u8; BUSZ_HEADER_SIZE];
         file_handle.read_exact(&mut buszheader_bytes).unwrap();
-        // println!("{:?}", buszheader_bytes);
 
         let bzheader = BuszHeader::from_bytes(&buszheader_bytes);
-        println!("Reader: busz header {:?}", bzheader);
         //FH is now at the start of the actual contents
         let buf = BufReader::with_capacity(bufsize, file_handle);
 
@@ -67,7 +64,7 @@ impl BuszReader {
         BuszReader { bus_header, busz_header:bzheader, reader: buf, buffer }
     }
 
-    /// takes the next 8 bytes (u64) out of the stream and interprets it as a busheader
+    /// takes the next 8 bytes (u64) out of the stream and interprets it as a buszheader
     /// if we encounter the zero byte [00000000], this indicates the EOF
     fn load_busz_header(&mut self) -> Option<CompressedBlockHeader>{
         // get block header
@@ -81,6 +78,9 @@ impl BuszReader {
         Some(h)
     }
 
+    /// loads a BusZ-block from the stream
+    /// we parse the header, which tells us how many bytes and records the block has
+    /// with that we pull that amount of bytes out of the stream and parse them into Records
     fn load_busz_block_faster(&mut self) -> Option<Vec<BusRecord>>{
 
         let h: Option<CompressedBlockHeader> = self.load_busz_header();
@@ -90,9 +90,9 @@ impl BuszReader {
         let header = h.unwrap();
         let (block_size_bytes, nrecords) = header.get_blocksize_and_nrecords();
 
-        println!("BusZ block-header bytes:{block_size_bytes} #records{nrecords}");
+        // println!("BusZ block-header bytes:{block_size_bytes} #records{nrecords}");
         // read the busZ-block body
-        let mut block_buffer: Vec<u8> = Vec::from_iter((0..block_size_bytes).map(|x| x as u8));
+        let mut block_buffer: Vec<u8> = vec![0;block_size_bytes as usize];
         self.reader.read_exact(&mut block_buffer).unwrap();
 
         
@@ -112,7 +112,7 @@ impl Iterator for BuszReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buffer.is_empty(){
-            println!("buffer empty, loading new block");
+            // println!("buffer empty, loading new block");
             // pull in another block
             let block =self.load_busz_block_faster(); 
             match block {
@@ -183,7 +183,7 @@ impl <'a> BuszBlock <'a> {
         let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(cb_buffer);
         // let mut fibdec = FibbonacciDecoder { bitstream: block_body};
 
-        let CB_RLE_VAL = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
+        const CB_RLE_VAL:u64 = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut cb_delta_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
         let mut counter = 0;
         while counter < self.n_elements {
@@ -246,10 +246,7 @@ impl <'a> BuszBlock <'a> {
         let umi_buffer = &self.buffer[self.pos..];
         let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(umi_buffer);
 
-        // =====================================
-        // UMIs
-
-        let UMI_RLE_VAL = 0 + 1 ; // since shifted
+        const UMI_RLE_VAL: u64 = 0 + 1 ; // since shifted
         let mut counter = 0;
 
         // guarantee that last_barcode != rows[0].barcode
@@ -395,18 +392,20 @@ impl <'a> BuszBlock <'a> {
 
         let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(count_buffer);
 
-        let COUNT_RLE_VAL = 1;  //since everhthing is shifted + 1, the RLE element is also +1
+        const COUNT_RLE_VAL: u64 = 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut counts_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
         let mut counter = 0;
         while counter < self.n_elements {
             let item = fibdec.next().unwrap();
             // println!("Item {item}");
             if item == COUNT_RLE_VAL {
-                let runlength = fibdec.next().unwrap();
-                for _ in 0..runlength{
-                    counts_encoded.push(COUNT_RLE_VAL);  //due to shift+1
-                    counter+= 1;
-                }
+                let runlength = fibdec.next().unwrap() as usize;
+                // for _ in 0..runlength{
+                //     counts_encoded.push(COUNT_RLE_VAL);  //due to shift+1
+                //     counter+= 1;
+                // }
+                counts_encoded.resize(counts_encoded.len() + runlength, COUNT_RLE_VAL);
+                counter+=runlength;
             } else {
                 counts_encoded.push(item);//due to shift+1
                 counter+= 1;
@@ -456,7 +455,7 @@ impl <'a> BuszBlock <'a> {
 
         let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(flag_buffer);
 
-        let FLAG_RLE_VAL = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
+        const FLAG_RLE_VAL: u64 = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut flag_decoded: Vec<u64> = Vec::with_capacity(self.n_elements);
         let mut counter = 0;
         while counter < self.n_elements {
@@ -466,18 +465,24 @@ impl <'a> BuszBlock <'a> {
             let item = fibdec.next().unwrap();
             // println!("Item {item}");
             if item == FLAG_RLE_VAL {
-                let runlength = fibdec.next().unwrap();
+                let runlength = fibdec.next().unwrap() as usize;
                 // let (runlength, remainder) = bitvec_single_fibbonacci_decode(&mut block_body);
                 // block_body = remainder;  //weird scope thing: if we call the above with return named block_body, it'll be its own var and not progagate
                 // println!("Decoding run of  {runlength}");
                 // println!("Body after   {:?}", fibdec.bitstream);
-                for _ in 0..runlength{
-                    flag_decoded.push(FLAG_RLE_VAL - 1 );  //due to shift+1
-                    counter+= 1;
-                }
+                // for _ in 0..runlength{
+                //     flag_decoded.push(FLAG_RLE_VAL - 1 );  //due to shift+1
+                //     counter+= 1;
+                // }
+                flag_decoded.resize(
+                    flag_decoded.len() + runlength,
+                    FLAG_RLE_VAL - 1 //due to shift+1
+                );
+                counter+=runlength;
+
             } else {
                 // println!("Decoding sigle element {}", item-1 );
-                flag_decoded.push(item-1);//due to shift+1
+                flag_decoded.push(item-1); //due to shift+1
                 counter+= 1;
             }
         }
@@ -499,6 +504,9 @@ impl <'a> BuszBlock <'a> {
         flag_decoded
     }
 
+
+    /// parses the raw bytes in this block
+    /// into a list of busrecords
     pub fn parse_block(&mut self) -> Vec<BusRecord>{
         if self.debug {
             println!("Block-bits:\n{}", bitstream_to_string(&self.buffer[self.pos..]));

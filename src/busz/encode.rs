@@ -3,11 +3,12 @@ use std::{fs::File, io::{BufWriter, Write}};
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
+use newpfd::fibonacci::fib_enc_multiple_fast;
 use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszSpecificHeader};
 
 
 fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0, shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
 
     let mut cb_iter = records.iter().map(|r| r.CB);
     let mut last_el = cb_iter.next().unwrap();
@@ -22,11 +23,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
     // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // let mut enc =runlen_encoded.fib_encode().unwrap();
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
 
 
     // pad to next multiple of 64
@@ -36,9 +33,6 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
         enc.push(false);
     }
     
-    // pad to next multiple of 64
-    // let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
-    // enc.grow(n_pad, false);
     enc
 }
 
@@ -46,7 +40,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
 // periodic runlength encoding since the UMI resets to smaller values (when changing CB)
 // and we cant handle negative differences!
 fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0,shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0,shift_up_1: true};
     let mut periodic_delta_encoded = Vec::new();
     let iii = records.iter();
     let last_record = &records[0];
@@ -68,11 +62,8 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
     };
     let runlen_encoded = runlength_codec.encode(periodic_delta_encoded.into_iter());
-    //fibbonaci encoding
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::with_capacity(2*runlen_encoded.len()); // the capacity is a minimum, assuming each RLE is a 1, i.e. `11` in fib encoding
-    for mut fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.append(&mut fib_encoded);
-    }
+    //fibbonaci encoding    
+    let mut enc= fib_enc_multiple_fast(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -95,8 +86,6 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     }
     assert_eq!(encoded.len() % 32, 0,  "newPFD block size needs to be a mutiple of 64, but is {}", encoded.len());
     
-    // pad to next multiple of 64
-    // encoded.grow(n_pad, false);
 
     // the rather strange swapping around of endianess, see parse_ec() too
     let bytes = bitslice_to_bytes(encoded.as_bitslice()); 
@@ -109,23 +98,15 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
 /// Compress counts with RunLength(1) encoding
 fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 1, shift_up_1: false};
+    let runlength_codec = RunlengthCodec {rle_val: 1, shift_up_1: false};
     let count_iter = records.iter().map(|r| r.COUNT as u64);
 
     let runlen_encoded = runlength_codec.encode(count_iter);
-    // println!("Counts: run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // if true {
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
 
-    // } else {
-        // let mut enc = runlen_encoded.fib_encode().unwrap();
-
-    // // pad to next multiple of 64
+    // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
     for _ in 0..n_pad {
         enc.push(false);
@@ -135,18 +116,13 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
 /// Compress flags with RunLength(0) encoding
 fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0, shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
     let flag_iter = records.iter().map(|r| r.FLAG as u64);
 
     let runlen_encoded = runlength_codec.encode(flag_iter);
-    // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
-    // let mut enc = runlen_encoded.fib_encode().unwrap();
-    let mut enc: bv::BitVec<u8, bv::Msb0> = bv::BitVec::new();
-    for fib_encoded in runlen_encoded.into_iter().map(newpfd::fibonacci::fib_enc) {
-        enc.extend(fib_encoded);
-    }
+    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -154,7 +130,6 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     for _ in 0..n_pad {
         enc.push(false);
     }
-
     enc
 }
 
@@ -307,11 +282,11 @@ impl BuszWriter {
 
         if self.internal_buffer.len() < self.busz_blocksize - 1{  // adding an element, but it doesnt fill the buffer
             self.internal_buffer.push(record);
-            println!("adding to buffer: {}", self.internal_buffer.len());
+            // println!("adding to buffer: {}", self.internal_buffer.len());
         }
         else { // buffer is full including this element
             self.internal_buffer.push(record);
-            println!("buffer full: {}", self.internal_buffer.len());
+            // println!("buffer full: {}", self.internal_buffer.len());
             self.write_buffer_to_disk()
         }
     }
@@ -320,7 +295,7 @@ impl BuszWriter {
         if self.state == BuszWriterState::FlushedAndClosed {
             panic!("Buffer has been flushed and closed!")
         }
-        println!("Writing to disk {} entires", self.internal_buffer.len());
+        // println!("Writing to disk {} entires", self.internal_buffer.len());
         let compressed_block = compress_busrecords_into_block(&self.internal_buffer);
         self.writer.write_all(&compressed_block).unwrap();
         self.internal_buffer.clear();
@@ -406,7 +381,7 @@ impl BuszWriter {
 
 #[cfg(test)]
 mod test {
-    use crate::{io::BusRecord, busz::{encode::{compress_barcodes2, compress_umis, compress_ecs, BuszWriter, BuszWriterState}, decode::BuszReader}};
+    use crate::{io::BusRecord, busz::encode::{compress_barcodes2, compress_umis, compress_ecs}};
 
     #[test]
     fn test_cb_encode(){
@@ -419,7 +394,9 @@ mod test {
             BusRecord {CB:1,UMI:0,EC:5,COUNT:1, FLAG: 0 },
         ];
         let enc = compress_barcodes2(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
         
         assert_eq!(decoded, vec![
             1,2,  // two zers
@@ -435,8 +412,11 @@ mod test {
             BusRecord {CB:0,UMI:0,EC:1,COUNT:1, FLAG: 0 },
         ];
         let enc = compress_umis(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
+
+
         assert_eq!(decoded, vec![
             2,  // a one (the refence umi is zero, but all are incemrented by one)
             1,1 //a 1-run
@@ -451,8 +431,9 @@ mod test {
             BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
         ];
         let enc = compress_umis(&v);
-        let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        
+        // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
+        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoded: Vec<_> = decoder.collect();
         assert_eq!(decoded, vec![
             12,  // a 10 (the refence umi is zero, but all are incemrented by one)
             1,2, //a 2-run
