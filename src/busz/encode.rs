@@ -8,7 +8,7 @@ use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszSpeci
 
 
 fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0, shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
 
     let mut cb_iter = records.iter().map(|r| r.CB);
     let mut last_el = cb_iter.next().unwrap();
@@ -33,9 +33,6 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
         enc.push(false);
     }
     
-    // pad to next multiple of 64
-    // let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
-    // enc.grow(n_pad, false);
     enc
 }
 
@@ -43,7 +40,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
 // periodic runlength encoding since the UMI resets to smaller values (when changing CB)
 // and we cant handle negative differences!
 fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0,shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0,shift_up_1: true};
     let mut periodic_delta_encoded = Vec::new();
     let iii = records.iter();
     let last_record = &records[0];
@@ -89,8 +86,6 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     }
     assert_eq!(encoded.len() % 32, 0,  "newPFD block size needs to be a mutiple of 64, but is {}", encoded.len());
     
-    // pad to next multiple of 64
-    // encoded.grow(n_pad, false);
 
     // the rather strange swapping around of endianess, see parse_ec() too
     let bytes = bitslice_to_bytes(encoded.as_bitslice()); 
@@ -103,11 +98,10 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
 /// Compress counts with RunLength(1) encoding
 fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 1, shift_up_1: false};
+    let runlength_codec = RunlengthCodec {rle_val: 1, shift_up_1: false};
     let count_iter = records.iter().map(|r| r.COUNT as u64);
 
     let runlen_encoded = runlength_codec.encode(count_iter);
-    // println!("Counts: run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
     let mut enc = fib_enc_multiple_fast(&runlen_encoded);
@@ -122,15 +116,13 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 
 /// Compress flags with RunLength(0) encoding
 fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
-    let runlength_codec = RunlengthCodec {RLE_VAL: 0, shift_up_1: true};
+    let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
     let flag_iter = records.iter().map(|r| r.FLAG as u64);
 
     let runlen_encoded = runlength_codec.encode(flag_iter);
-    // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
     let mut enc = fib_enc_multiple_fast(&runlen_encoded);
-
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -138,7 +130,6 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     for _ in 0..n_pad {
         enc.push(false);
     }
-
     enc
 }
 
@@ -291,11 +282,11 @@ impl BuszWriter {
 
         if self.internal_buffer.len() < self.busz_blocksize - 1{  // adding an element, but it doesnt fill the buffer
             self.internal_buffer.push(record);
-            println!("adding to buffer: {}", self.internal_buffer.len());
+            // println!("adding to buffer: {}", self.internal_buffer.len());
         }
         else { // buffer is full including this element
             self.internal_buffer.push(record);
-            println!("buffer full: {}", self.internal_buffer.len());
+            // println!("buffer full: {}", self.internal_buffer.len());
             self.write_buffer_to_disk()
         }
     }
@@ -304,7 +295,7 @@ impl BuszWriter {
         if self.state == BuszWriterState::FlushedAndClosed {
             panic!("Buffer has been flushed and closed!")
         }
-        println!("Writing to disk {} entires", self.internal_buffer.len());
+        // println!("Writing to disk {} entires", self.internal_buffer.len());
         let compressed_block = compress_busrecords_into_block(&self.internal_buffer);
         self.writer.write_all(&compressed_block).unwrap();
         self.internal_buffer.clear();
@@ -390,7 +381,7 @@ impl BuszWriter {
 
 #[cfg(test)]
 mod test {
-    use crate::{io::BusRecord, busz::{encode::{compress_barcodes2, compress_umis, compress_ecs, BuszWriter, BuszWriterState}, decode::BuszReader}};
+    use crate::{io::BusRecord, busz::encode::{compress_barcodes2, compress_umis, compress_ecs}};
 
     #[test]
     fn test_cb_encode(){
