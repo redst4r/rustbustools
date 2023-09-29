@@ -1,5 +1,4 @@
 use std::{fs::File, io::{BufWriter, Write}};
-
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
@@ -381,7 +380,14 @@ impl BuszWriter {
 
 #[cfg(test)]
 mod test {
+    use bitvec::{slice::BitSlice, prelude::Msb0};
+
     use crate::{io::BusRecord, busz::encode::{compress_barcodes2, compress_umis, compress_ecs}};
+
+    // convenience function
+    fn fib_factory(stream: &BitSlice<u8, Msb0>) ->newpfd::fibonacci::FibonacciDecoder {
+        newpfd::fibonacci::FibonacciDecoder::new(stream)
+    }
 
     #[test]
     fn test_cb_encode(){
@@ -395,7 +401,7 @@ mod test {
         ];
         let enc = compress_barcodes2(&v);
         // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoder = fib_factory(&enc);
         let decoded: Vec<_> = decoder.collect();
         
         assert_eq!(decoded, vec![
@@ -413,7 +419,7 @@ mod test {
         ];
         let enc = compress_umis(&v);
         // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoder = fib_factory(&enc);
         let decoded: Vec<_> = decoder.collect();
 
 
@@ -432,7 +438,7 @@ mod test {
         ];
         let enc = compress_umis(&v);
         // let decoded: Vec<_> = fibonacci_codec::fib_decode_u64(enc).map(|x|x.unwrap()).collect();
-        let decoder = newpfd::fibonacci::FibonacciDecoder::new(&enc);
+        let decoder = fib_factory(&enc);
         let decoded: Vec<_> = decoder.collect();
         assert_eq!(decoded, vec![
             12,  // a 10 (the refence umi is zero, but all are incemrented by one)
@@ -524,7 +530,6 @@ mod test {
             assert_eq!(writer.internal_buffer.len(), 0);
             
             let reader = BuszReader::new(buszfile);
-
             assert_eq!(reader.collect::<Vec<BusRecord>>(), v);
         }
     }

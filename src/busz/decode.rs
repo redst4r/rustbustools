@@ -91,6 +91,7 @@ impl BuszReader {
         let (block_size_bytes, nrecords) = header.get_blocksize_and_nrecords();
 
         // println!("BusZ block-header bytes:{block_size_bytes} #records{nrecords}");
+        // theres usually ~50k bytes in a block, 10000 records
         // read the busZ-block body
         let mut block_buffer: Vec<u8> = vec![0;block_size_bytes as usize];
         self.reader.read_exact(&mut block_buffer).unwrap();
@@ -169,6 +170,12 @@ impl <'a> BuszBlock <'a> {
         }
     }
 
+    // just a streamlined way to generate a fibonacci decoder
+    // which is used in parse_xxx()
+    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder{
+        newpfd::fibonacci::FibonacciDecoder::new(stream)
+    }
+
     fn parse_cb(&mut self) -> Vec<u64> {
         assert_eq!(self.state, BuszBlockState::Cb);
         assert_eq!(self.pos, 0, "must be at beginning of buffer to parse CBs");
@@ -180,7 +187,7 @@ impl <'a> BuszBlock <'a> {
         let cb_buffer = &self.buffer[self.pos..];
         // let bits_before = self.buffer.len();
 
-        let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(cb_buffer);
+        let mut fibdec = Self::fibonacci_factory(cb_buffer);
         // let mut fibdec = FibbonacciDecoder { bitstream: block_body};
 
         const CB_RLE_VAL:u64 = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
@@ -244,7 +251,7 @@ impl <'a> BuszBlock <'a> {
         assert_eq!(self.state, BuszBlockState::Umi);
 
         let umi_buffer = &self.buffer[self.pos..];
-        let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(umi_buffer);
+        let mut fibdec = Self::fibonacci_factory(umi_buffer);
 
         const UMI_RLE_VAL: u64 = 0 + 1 ; // since shifted
         let mut counter = 0;
@@ -390,7 +397,7 @@ impl <'a> BuszBlock <'a> {
         // let mut count_buffer = &self.buffer[self.pos..];
         // println!("before transform count_buffer\n{}", bitstream_to_string(count_buffer));
 
-        let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(count_buffer);
+        let mut fibdec = Self::fibonacci_factory(count_buffer);
 
         const COUNT_RLE_VAL: u64 = 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut counts_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
@@ -420,7 +427,8 @@ impl <'a> BuszBlock <'a> {
         // println!("COUNT: buffer at {}", self.pos + bits_processed + zeros_toremoved);
 
         assert!(
-            !count_buffer[bits_processed..bits_processed + zeros_toremoved].any()
+            !count_buffer[bits_processed..bits_processed + zeros_toremoved].any(),
+            "expected zeros only in this buffer"
         );
 
         // adcance the pointer to the start of the next section, i.e. the umis
@@ -453,7 +461,7 @@ impl <'a> BuszBlock <'a> {
         // println!("flag_buffer\n{}", bitstream_to_string(flag_buffer));
 
 
-        let mut fibdec = newpfd::fibonacci::FibonacciDecoder::new(flag_buffer);
+        let mut fibdec = Self::fibonacci_factory(flag_buffer);
 
         const FLAG_RLE_VAL: u64 = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut flag_decoded: Vec<u64> = Vec::with_capacity(self.n_elements);
