@@ -57,6 +57,36 @@ pub fn swap_endian(bytes: &[u8], wordsize: usize) -> Vec<u8>{
     swapped_endian
 }
 
+/// shortcut for doing swap_endian(swap_endian(x, 8), 4)
+/// essentially does tihs:
+/// ...ABCD|EFGH...: ....EFGH|ABCD...
+pub (crate) fn swap_endian8_swap_endian4(bytes: &[u8], ) -> Vec<u8>{
+    let mut swapped_endian: Vec<u8> = Vec::with_capacity(bytes.len());
+    for bytes in bytes.chunks(8){
+        swapped_endian.extend(&bytes[4..]);
+        swapped_endian.extend(&bytes[..4]);
+    }
+    swapped_endian
+}
+
+#[test]
+fn test_swap_endian8_swap_endian4() {
+    let x = &[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, 17,18,19,20,21,22,23,24];
+    let y1 = swap_endian8_swap_endian4(x);
+
+    let y2 = swap_endian(
+        &swap_endian(x, 8),
+        4
+    );
+    assert_eq!(y1, y2);
+
+    let y3 = swap_endian(
+        &swap_endian(x, 4),
+        8
+    );
+    assert_eq!(y1, y3);
+}
+
 
 // pub fn display_u64_in_bits(x: u64) -> String{
 //     let s: Vec<u64> = (0..64).rev().map (|n| (x >> n) & 1).collect();

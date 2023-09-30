@@ -2,7 +2,7 @@ use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File
 use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}, runlength_codec::RunlengthCodec}};
 use bitvec::prelude as bv;
 use itertools::izip;
-use super::{BuszHeader, CompressedBlockHeader, utils::bitslice_to_bytes, PFD_BLOCKSIZE};
+use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
 /// 
@@ -324,10 +324,9 @@ impl <'a> BuszBlock <'a> {
         let ec_buffer = &self.buffer[self.pos..];
 
         // println!("converting EC bitstream");
-        let bytes = bitslice_to_bytes(ec_buffer);
-        let _original = swap_endian(&bytes, 8);
-        let little_endian_32_bytes = swap_endian(&_original, 4);
-       
+        let bytes = bitslice_to_bytes(ec_buffer);       
+        let little_endian_32_bytes = swap_endian8_swap_endian4(&bytes);
+
         let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&little_endian_32_bytes);
 
         // println!("len remainder_little_endian_32 {}", remainder_little_endian_32.len());
@@ -378,15 +377,15 @@ impl <'a> BuszBlock <'a> {
         // undoing initial flip
         let bytes = bitslice_to_bytes(self.buffer);
         // this is what happens in EC: undo u64-swap, apply u32-swap
-        let a = swap_endian(&bytes, 8);
-        let b = swap_endian(&a, 4);
+        let b = swap_endian8_swap_endian4(&bytes);
+
         // move the bufferposition after EC
         assert_eq!(self.pos % 8, 0);
         let ec_pos = self.pos / 8;
 
         let bytes_behind_ec = &b[ec_pos..];
-        let c = swap_endian(bytes_behind_ec, 4);
-        let d = swap_endian(&c, 8);
+        let d = swap_endian8_swap_endian4(&bytes_behind_ec);
+
         // println!("bytes\n{:?}", bytes);
         // println!("after bytes\n{:?}", d);
         let count_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
@@ -447,15 +446,15 @@ impl <'a> BuszBlock <'a> {
 
         let bytes = bitslice_to_bytes(self.buffer);
         // this is what happens in EC: undo u64-swap, apply u32-swap
-        let a = swap_endian(&bytes, 8);
-        let b = swap_endian(&a, 4);
+        let b = swap_endian8_swap_endian4(&bytes);
+
         // move the bufferposition after EC
         assert_eq!(self.pos % 8, 0);
         let count_pos = self.pos / 8;
 
         let bytes_behind_count = &b[count_pos..];
-        let c = swap_endian(bytes_behind_count, 4);
-        let d = swap_endian(&c, 8);
+        let d = swap_endian8_swap_endian4(&bytes_behind_count);
+
         // println!("after bytes\n{:?}", d);
         let flag_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
         // println!("flag_buffer\n{}", bitstream_to_string(flag_buffer));
