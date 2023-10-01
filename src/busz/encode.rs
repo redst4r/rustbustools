@@ -83,7 +83,7 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     for _ in 0..n_pad {
         encoded.push(false);
     }
-    assert_eq!(encoded.len() % 32, 0,  "newPFD block size needs to be a mutiple of 64, but is {}", encoded.len());
+    assert_eq!(encoded.len() % 32, 0,  "newPFD block size needs to be a mutiple of 32, but is {}", encoded.len());
     
 
     // the rather strange swapping around of endianess, see parse_ec() too

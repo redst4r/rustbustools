@@ -291,11 +291,18 @@ mod test {
         #[test]
         fn test_decompress(){
             // decompress a busfile, check that the contents match the true (uncompressed version)
-            let input_compressed = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz"; 
-            let input_plain = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
+            let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
+            let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+
+            let start = std::time::Instant::now();
             decompress_busfile(
                 input_compressed,
                 "/tmp/buscompress_lala.bus");
+
+            let elapsed = start.elapsed().as_millis();
+            println!("decoding: {elapsed} ms");
+
+
             let r = BusReader::new("/tmp/buscompress_lala.bus");
             let records:Vec<_> = r.collect();
             println!("{} compressed records read", records.len());

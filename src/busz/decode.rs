@@ -148,7 +148,7 @@ enum BuszBlockState {
 /// and parses those bytes into BusRecords
 #[derive(Debug)]
 struct BuszBlock <'a> {
-    buffer: &'a bv::BitSlice<u8, bv::Msb0>,
+    buffer: &'a bv::BitSlice<u8, bv::Msb0>,  // TODO chould probably own it, we're doing some swaping and shifting, and it probablyh wont be usable after
     pos: usize, // where we are currently in the buffer
     n_elements: usize ,// how many busrecords are stored in the block
     state: BuszBlockState,
@@ -175,6 +175,50 @@ impl <'a> BuszBlock <'a> {
     fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder{
         newpfd::fibonacci::FibonacciDecoder::new(stream)
     }
+    /// The whole issue with decoding is the way bustools stored the different parts (CB/UMI...)
+    /// heres the layout
+    /// 
+    /// | CB     |   UMI   |    EC    |    COUNT   |   FLAG    |
+    /// |  a*64  |   b*64  |c*32|c*32 |    e*64    |   f *64   |  size in bits
+    /// 
+    /// In other words the CB/UMI/COUNT/FLAG as stored in multiples of 64 (adding padding if needed)
+    /// 
+    /// When bustools saves to disk it uses little endian for all u64,u32
+    /// The individual bytes look like this 
+    /// | CB         |   UMI       |    EC     |    COUNT   |   FLAG    |
+    /// |HGFEDCBA... |HGFEDCBA...  |4321 |8765 | HGFEDCBA   | HGFEDCBA ...
+    /// 
+    /// i.e. the stream of u8 we get from reading the busfile is DCBA...HGFE...
+    /// to convert to a bitstream we swap *the entire stream* to big endian (since we cant now how long de segments are)
+    /// | CB         |   UMI       |    EC     |    COUNT   |   FLAG    |
+    /// |ABCDEFGH... | ABCDEFGH... | 5678 1234 | ABCDEFGH...
+    /// Note how this screws up the order of the two u32s in EC (should really be 1234|5678 for proper iterating)
+    ///
+    /// Once we get to the start of the EC segment we have to undo this mess
+    /// Initially: 
+    /// - convert the bitvector (at this stage) to byte-vector, undo the 8byte endian swap and do a 4bye endian swap,convert Vec<u8> to bitvec
+    /// - after the EC block,undo 4byte swap, redo 8byte swap, convert Vec<u8> to bitvec
+    /// That is ALOT of unneeded swapping and conversion
+    /// 
+    /// New plan: 
+    /// - swaping until we get to the EC part
+    /// - subset the bitstream to bits[ec_start...]
+    /// - just switch the postitions of every pair of 4bytes: 5678 1234 - > 1234 5678  (this is exactly what swap_endian8_swap_endian4() is doing)
+    /// - parse the EC
+    /// - undo the swtiching for the remainder bits[countstart...] by running swap_endian8_swap_endian4 again
+    ///
+    /// BIG ISSUE:  The EC might have an uneven number of u32, hence it does NOT align with a u64 border
+    ///       ----------------------------u64-----------------------------|--------------------------u64------------
+    /// `aaaaaaaabbbbbbbbccccccccdddddddd|eeeeeeeeffffffffgggggggghhhhhhhh|iiiiiiiijjjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnoooooooopppppppp`
+    /// `EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC|CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC`  // E= EC, C=COUNT
+    /// 
+    /// Solution: we just check how many bits processed after EC:
+    /// - if n*64 : simple undo the swap_endian8_swap_endian4 on the remaining buffer
+    /// - if n*32 : the first 4 bytes are already in the correct place and order; just swap anything after the first 4 bytes via swap_endian8_swap_endian4
+    /// 
+    /// 
+    /// last thought: to avoid conversion we could run this endianess-swap in the bistream itself
+
 
     fn parse_cb(&mut self) -> Vec<u64> {
         assert_eq!(self.state, BuszBlockState::Cb);
@@ -188,7 +232,6 @@ impl <'a> BuszBlock <'a> {
         // let bits_before = self.buffer.len();
 
         let mut fibdec = Self::fibonacci_factory(cb_buffer);
-        // let mut fibdec = FibbonacciDecoder { bitstream: block_body};
 
         const CB_RLE_VAL:u64 = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut cb_delta_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
@@ -375,6 +418,7 @@ impl <'a> BuszBlock <'a> {
         // Solution: operate swaping on the entire buffer, THEN select the COUNTs part
 
         // undoing initial flip
+        /*
         let bytes = bitslice_to_bytes(self.buffer);
         // this is what happens in EC: undo u64-swap, apply u32-swap
         let b = swap_endian8_swap_endian4(&bytes);
@@ -389,10 +433,45 @@ impl <'a> BuszBlock <'a> {
         // println!("bytes\n{:?}", bytes);
         // println!("after bytes\n{:?}", d);
         let count_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
+        */
+
+        // this does the trick, but swaps and unswaps regardless of the alignemnt
+        // not swaping turns out to be tricky in rust: mem-managmanet
+        let _count_buffer = if self.pos % 64 == 0 {
+            self.buffer[self.pos..].to_bitvec()
+        } else {
+
+            // note that we acutally have to backtrack a bit in the original buffer
+            // self.buffer looks like this   (ABCDEF... being the actual bytes of the count buffer)
+            // EFGH1234| QRSTABCD|YZABMNOP|....UVWX
+            //     ^ pos
+            // due to the swapping inside EC, the correct EC buffer was processed, and the position moved correctly
+            // in the original buffer however, the some of count-buffer bytes ARE BEFORE the current cursor
+            //
+            // let move it back 4 bytes
+            // EFGH1234| QRSTABCD|YZABMNOP|....UVWX
+            // ^ pos
+            // swap:
+            // 1234EFGH|ABCDQRST|MNOPYZAB|UVWX....
+            // ^ pos
+            //
+            // remove the first 4
+            // 1234EFGH|ABCDQRST|MNOPYZAB|UVWX....
+            //     ^ pos
+            // and swap again
+            // 1234|ABCDEFGH|MNOPQRST|UVWXYZAB....
+            //     ^ pos
+            let tmp = &self.buffer[self.pos-32..];
+            let bytes_behind_ec = bitslice_to_bytes(tmp);
+            let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
+            let swapped_trunc = &swapped[4..];
+            let swapped_final = swap_endian8_swap_endian4(&swapped_trunc);
+            bv::BitVec::from_slice(&swapped_final)
+        };
+        let count_buffer = _count_buffer.as_bitslice();
+        
 
         // println!("Count buffer, reswapped\n{}", bitstream_to_string(count_buffer));
-
-
         // let mut count_buffer = &self.buffer[self.pos..];
         // println!("before transform count_buffer\n{}", bitstream_to_string(count_buffer));
 
@@ -444,6 +523,7 @@ impl <'a> BuszBlock <'a> {
         // do the same thing: transformations on the entire buffer, the move position to FLAG section
         // undoing initial flip
 
+        /*
         let bytes = bitslice_to_bytes(self.buffer);
         // this is what happens in EC: undo u64-swap, apply u32-swap
         let b = swap_endian8_swap_endian4(&bytes);
@@ -458,6 +538,40 @@ impl <'a> BuszBlock <'a> {
         // println!("after bytes\n{:?}", d);
         let flag_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
         // println!("flag_buffer\n{}", bitstream_to_string(flag_buffer));
+        */
+
+        let _flag_buffer = if self.pos % 64 == 0 {
+            self.buffer[self.pos..].to_bitvec()
+        } else {
+
+            // note that we acutally have to backtrack a bit in the original buffer
+            // self.buffer looks like this   (ABCDEF... being the actual bytes of the count buffer)
+            // EFGH1234| QRSTABCD|YZABMNOP|....UVWX
+            //     ^ pos
+            // due to the swapping inside EC, the correct EC buffer was processed, and the position moved correctly
+            // in the original buffer however, the some of count-buffer bytes ARE BEFORE the current cursor
+            //
+            // let move it back 4 bytes
+            // EFGH1234| QRSTABCD|YZABMNOP|....UVWX
+            // ^ pos
+            // swap:
+            // 1234EFGH|ABCDQRST|MNOPYZAB|UVWX....
+            // ^ pos
+            //
+            // remove the first 4
+            // 1234EFGH|ABCDQRST|MNOPYZAB|UVWX....
+            //     ^ pos
+            // and swap again
+            // 1234|ABCDEFGH|MNOPQRST|UVWXYZAB....
+            //     ^ pos
+            let tmp = &self.buffer[self.pos-32..];
+            let bytes_behind_ec = bitslice_to_bytes(tmp);
+            let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
+            let swapped_trunc = &swapped[4..];
+            let swapped_final = swap_endian8_swap_endian4(&swapped_trunc);
+            bv::BitVec::from_slice(&swapped_final)
+        };
+        let flag_buffer = _flag_buffer.as_bitslice();
 
 
         let mut fibdec = Self::fibonacci_factory(flag_buffer);
