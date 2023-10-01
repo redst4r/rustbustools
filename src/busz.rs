@@ -156,6 +156,8 @@ mod test {
     }
 
     mod external {
+        use tempfile::tempdir;
+        use pretty_assertions::assert_eq;
         use crate::io::{BusRecord, BusWriter, BusHeader, BusReader};
         use crate::busz::decode::{BuszReader, decompress_busfile};
         use crate::busz::encode::compress_busfile;
@@ -168,8 +170,13 @@ mod test {
                 BusRecord {CB:22,UMI:10,EC:10,COUNT:1, FLAG: 0 },   // 0
                 BusRecord {CB:22,UMI:11,EC:10,COUNT:1, FLAG: 0 },    // 1
             ];
+
+            let dir = tempdir().unwrap();
+            let file_path= dir.path().join("buscompress.bus");
+            let filename = file_path.to_str().unwrap();
+            
             let mut  writer = BusWriter::new(
-                "/tmp/buscompress.bus", 
+                filename, 
                 BusHeader::new(16, 12, 1)
             );
             writer.write_records(&v);
@@ -184,7 +191,15 @@ mod test {
                 BusRecord {CB:22,UMI:10,EC:10,COUNT:1, FLAG: 0 },   // 0
                 BusRecord {CB:22,UMI:11,EC:10,COUNT:1, FLAG: 0 },    // 1
             ];
-            let input_plain = "/tmp/buscompress.bus";
+
+            // write plain bus
+            // use tempfile::tempfile;
+            let dir = tempdir().unwrap();
+            let file_path= dir.path().join("buscompress.bus");
+            let input_plain = file_path.to_str().unwrap();
+
+            // let x = tempfile::tempfile().unwrap();
+            // x.
             let mut  writer = BusWriter::new(
                 input_plain, 
                 BusHeader::new(16, 12, 1)
@@ -192,7 +207,9 @@ mod test {
             writer.write_records(&v);
             drop(writer);
 
-            let copmressed_output = "/tmp/lalalala.busz";
+            // copmress it
+            let file_path= dir.path().join("lalalala.busz");
+            let copmressed_output = file_path.to_str().unwrap();
             println!("copmressing busfile");
             compress_busfile(
                 input_plain,
@@ -202,7 +219,7 @@ mod test {
             println!("decoding busfile");
 
             // // decode it
-            let reader = BuszReader::new("/tmp/lalalala.busz");
+            let reader = BuszReader::new(copmressed_output);
             let recs: Vec<_> = reader.collect();
             assert_eq!(v, recs);
 
