@@ -143,7 +143,6 @@ impl BuszHeader {
 #[cfg(test)]
 mod test {
     use crate::busz::CompressedBlockHeader;
-    // use crate::busz::encode::compress_busfile;
     
     #[test]
     fn test_header_encode_decode() {
@@ -184,7 +183,6 @@ mod test {
 
         #[test]
         fn test_encode_decode_busz(){
-            println!("Writing plain busfile");
             let v = vec![ 
                 BusRecord {CB:10,UMI:11,EC:10,COUNT:13, FLAG: 20 },   // 10
                 BusRecord {CB:11,UMI:11,EC:10,COUNT:13, FLAG: 20 },   // 0
@@ -210,13 +208,11 @@ mod test {
             // copmress it
             let file_path= dir.path().join("lalalala.busz");
             let copmressed_output = file_path.to_str().unwrap();
-            println!("copmressing busfile");
             compress_busfile(
                 input_plain,
                 copmressed_output,
                 100
             );
-            println!("decoding busfile");
 
             // // decode it
             let reader = BuszReader::new(copmressed_output);
@@ -242,7 +238,6 @@ mod test {
 
             // // decode it
             let reader = BuszReader::new("/tmp/output.corrected.sort.busz");
-            // reader.load_busz_block_faster();
             let recs: Vec<_> = reader.collect();
 
             let x = BusReader::new(input_compressed_true);
@@ -277,12 +272,10 @@ mod test {
         #[test]
         fn test_compress2() {
             let mut reader = BuszReader::new("/tmp/lalalala_true.busz");
-            // println!("{:?}", reader.bus_header);
             reader.next();
             println!("==========================================");
             println!("==========================================");
             let mut reader = BuszReader::new("/tmp/lalalala.busz");
-            // println!("{:?}", reader.bus_header);
 
             reader.next();
             // let records:Vec<_> = reader.collect();
@@ -294,19 +287,21 @@ mod test {
             let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
 
+            let dir = tempdir().unwrap();
+            let file_path= dir.path().join("buscompress_lala.bus");
+            let output = file_path.to_str().unwrap();
+
             let start = std::time::Instant::now();
             decompress_busfile(
                 input_compressed,
-                "/tmp/buscompress_lala.bus");
+                output);
 
             let elapsed = start.elapsed().as_millis();
             println!("decoding: {elapsed} ms");
 
 
-            let r = BusReader::new("/tmp/buscompress_lala.bus");
+            let r = BusReader::new(output);
             let records:Vec<_> = r.collect();
-            println!("{} compressed records read", records.len());
-
             let r_original = BusReader::new(input_plain);
             let records_original:Vec<_> = r_original.collect();
 

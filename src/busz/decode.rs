@@ -1,5 +1,5 @@
 use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
-use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}, runlength_codec::RunlengthCodec}};
+use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
 use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, PFD_BLOCKSIZE};
@@ -99,8 +99,8 @@ impl BuszReader {
         
         // conversion to big-endian to make the reading work right
         let bigendian_buf = swap_endian(&block_buffer, 8);
-        let theblock: &bv::BitVec<u8, bv::Msb0> = &bv::BitVec::from_slice(&bigendian_buf);
-        let mut block = BuszBlock::new(theblock.as_bitslice(),nrecords as usize);
+        let theblock: bv::BitVec<u8, bv::Msb0> = bv::BitVec::from_slice(&bigendian_buf);
+        let mut block = BuszBlock::new(&theblock,nrecords as usize);
         
         let records =block.parse_block();
     
@@ -113,7 +113,6 @@ impl Iterator for BuszReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buffer.is_empty(){
-            // println!("buffer empty, loading new block");
             // pull in another block
             let block =self.load_busz_block_faster(); 
             match block {
@@ -218,7 +217,14 @@ impl <'a> BuszBlock <'a> {
     /// 
     /// 
     /// last thought: to avoid conversion we could run this endianess-swap in the bistream itself
-
+    ///
+    /// =======================
+    /// parse the flags
+    /// since we already have the correct buffer alignment in count_buffer, we could just do decodeing of flags right there
+    /// (cant really store the modified buffer in the struct to pass it to parse_flag)
+    /// ACTUALLY, since flag is usually all 0, the entire flags are compressed into a single 0x runlength
+    /// and will only occupy a single u64! Just doing the swap thing will be very quick
+    // ======================= 
 
     fn parse_cb(&mut self) -> Vec<u64> {
         assert_eq!(self.state, BuszBlockState::Cb);
@@ -226,35 +232,23 @@ impl <'a> BuszBlock <'a> {
 
         //decode the CBs
         // note that its RLE encoded, i.e. each fibbonacci number is not really a cb
-        // println!("Decoding CBs {:?}", block_body);
 
         let cb_buffer = &self.buffer[self.pos..];
-        // let bits_before = self.buffer.len();
-
         let mut fibdec = Self::fibonacci_factory(cb_buffer);
 
         const CB_RLE_VAL:u64 = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut cb_delta_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
         let mut counter = 0;
         while counter < self.n_elements {
-            // println!("Counter {counter}");
-            // println!("Bits {:?}", fibdec.bitstream);
-            // let (item, mut block_body) = bitvec_single_fibbonacci_decode(block_body);
             let item = fibdec.next().unwrap();
-            // println!("Item {item}");
             if item == CB_RLE_VAL {
                 let runlength = fibdec.next().unwrap();
-                // let (runlength, remainder) = bitvec_single_fibbonacci_decode(&mut block_body);
-                // block_body = remainder;  //weird scope thing: if we call the above with return named block_body, it'll be its own var and not progagate
-                // println!("Decoding run of  {runlength}");
-                // println!("Body after   {:?}", fibdec.bitstream);
 
                 for _ in 0..runlength{
                     cb_delta_encoded.push(CB_RLE_VAL -1 );  //due to shift+1
                     counter+= 1;
                 }
             } else {
-                // println!("Decoding sigle element");
                 cb_delta_encoded.push(item - 1);//due to shift+1
                 counter+= 1;
             }
@@ -264,20 +258,11 @@ impl <'a> BuszBlock <'a> {
             *x += acc;
             *x
         });
-        // println!("cb_delta_encoded: {:?}", cb_delta_encoded);
-        // println!("decoded {:?} CBs", cb_delta_encoded.len());
-        // println!("Bitstream after CB {:?}", fibdec.bitstream);
 
         // need to remove the trailing 0 which come from padding to the next mutiple of u64 in th CB block
         // we know that the CB block has a length of n x 64
         let bits_processed = fibdec.get_bits_processed();
-
-        // let padded_size = round_to_multiple(bits_processed, 64);
         let zeros_toremoved = calc_n_trailing_bits(bits_processed); //padded_size - bits_processed;
-        // println!("before {bits_before}, after {bits_after}; zeros to remove: {zeros_toremoved}");
-        // println!("CBs: {}", cb_delta_encoded.len());
-        // println!("Cbs: bits proc {}, bits padded {}", bits_processed, zeros_toremoved);
-        // println!("CBs: buffer at {}", self.pos + bits_processed + zeros_toremoved);
 
         assert!(
             !self.buffer[self.pos + bits_processed..self.pos + bits_processed + zeros_toremoved].any()
@@ -305,18 +290,14 @@ impl <'a> BuszBlock <'a> {
         let mut umis: Vec<u64> = Vec::with_capacity(self.n_elements);
         while counter < self.n_elements {
             let diff = fibdec.next().unwrap() - 1;
-            // println!("Decoded item {diff}");
+
             let current_cb =  cbs[counter];
             if last_cb !=current_cb {
                 umi=0;
             }
-            // println!("Item {item}");
+
             if diff == UMI_RLE_VAL - 1 {
                 let runlength = fibdec.next().unwrap();
-                // let (runlength, remainder) = bitvec_single_fibbonacci_decode(&mut block_body);
-                // block_body = remainder;  //weird scope thing: if we call the above with return named block_body, it'll be its own var and not progagate
-                // println!("Decoding run of  {runlength}");
-                // println!("Body after   {:?}", fibdec.bitstream);
 
                 for _ in 0..runlength{
                     umis.push(umi -1 );  //due to shift+1
@@ -324,22 +305,17 @@ impl <'a> BuszBlock <'a> {
                 }
             } else {
                 umi+= diff;
-                // println!("Decoding sigle element");
+                // decoding single element
                 umis.push(umi - 1);//due to shift+1
                 counter+= 1;
             }
             last_cb = current_cb;
         }
-        // println!("UMIs {:?}", umis);
-        // println!("decoded {:?} UMIs", umis.len());
 
         // need to remove the trailing 0 which come from padding to the next mutiple of u64
         // we know that the CB block has a length of n x 64
         let bits_processed =  fibdec.get_bits_processed();
         let zeros_toremoved = calc_n_trailing_bits(bits_processed); //padded_size - bits_processed;
-        // println!("UMIs: {}", umis.len());
-        // println!("UMIs: bits proc {}, bits padded {}", bits_processed, zeros_toremoved);
-        // println!("UMIs: buffer at {}", self.pos + bits_processed + zeros_toremoved);
 
         assert!(
             !self.buffer[self.pos + bits_processed..self.pos + bits_processed + zeros_toremoved].any()
@@ -372,29 +348,15 @@ impl <'a> BuszBlock <'a> {
 
         let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&little_endian_32_bytes);
 
-        // println!("len remainder_little_endian_32 {}", remainder_little_endian_32.len());
-        // println!("remainder_little_endian_32\n{}", bitstream_to_string(remainder_little_endian_32));
-        // println!("main buf: remainder_little_endian_32\n{}", bitstream_to_string(ec_buffer));
-
         let (ecs, bits_consumed) = newpfd::newpfd_bitvec::decode(remainder_little_endian_32, self.n_elements, PFD_BLOCKSIZE);
 
-        // println!("EC buffer used:\n{}", bitstream_to_string(&remainder_little_endian_32[..bits_consumed]));
-
         self.pos += bits_consumed;
-        // println!("after EC main buffer: {}", bitstream_to_string(&self.buffer[self.pos..]));
-        // println!("after EC main buffer: {}", bitstream_to_string(&ec_buffer[bits_consumed..]));
-
-        // println!("ECs: {}", ecs.len());
-        // println!("ECs: bits proc {}, bits padded 0", bits_consumed);
-        // println!("ECs: buffer at {}", self.pos);
-
-
         self.state = BuszBlockState::Count;
 
         ecs
     }
 
-    fn parse_counts(&mut self) ->Vec<u64> {
+    fn parse_counts(&mut self) -> Vec<u64> {
         // ===============================
         // count decoding
         // note that its RLE encoded, i.e. each fibbonacci number is not really a cb
@@ -417,26 +379,9 @@ impl <'a> BuszBlock <'a> {
         //
         // Solution: operate swaping on the entire buffer, THEN select the COUNTs part
 
-        // undoing initial flip
-        /*
-        let bytes = bitslice_to_bytes(self.buffer);
-        // this is what happens in EC: undo u64-swap, apply u32-swap
-        let b = swap_endian8_swap_endian4(&bytes);
 
-        // move the bufferposition after EC
-        assert_eq!(self.pos % 8, 0);
-        let ec_pos = self.pos / 8;
-
-        let bytes_behind_ec = &b[ec_pos..];
-        let d = swap_endian8_swap_endian4(&bytes_behind_ec);
-
-        // println!("bytes\n{:?}", bytes);
-        // println!("after bytes\n{:?}", d);
-        let count_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
-        */
-
-        // this does the trick, but swaps and unswaps regardless of the alignemnt
-        // not swaping turns out to be tricky in rust: mem-managmanet
+        // this does the trick, but copies things (to_bitvec)
+        // kind of tricky to not copy in the if, only copy in the else (due to lifetimes)
         let _count_buffer = if self.pos % 64 == 0 {
             self.buffer[self.pos..].to_bitvec()
         } else {
@@ -465,16 +410,12 @@ impl <'a> BuszBlock <'a> {
             let bytes_behind_ec = bitslice_to_bytes(tmp);
             let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
             let swapped_trunc = &swapped[4..];
-            let swapped_final = swap_endian8_swap_endian4(&swapped_trunc);
+            let swapped_final = swap_endian8_swap_endian4(swapped_trunc);
             bv::BitVec::from_slice(&swapped_final)
         };
         let count_buffer = _count_buffer.as_bitslice();
         
-
-        // println!("Count buffer, reswapped\n{}", bitstream_to_string(count_buffer));
-        // let mut count_buffer = &self.buffer[self.pos..];
-        // println!("before transform count_buffer\n{}", bitstream_to_string(count_buffer));
-
+        // finally decoding the COUNT bytes
         let mut fibdec = Self::fibonacci_factory(count_buffer);
 
         const COUNT_RLE_VAL: u64 = 1;  //since everhthing is shifted + 1, the RLE element is also +1
@@ -482,27 +423,21 @@ impl <'a> BuszBlock <'a> {
         let mut counter = 0;
         while counter < self.n_elements {
             let item = fibdec.next().unwrap();
-            // println!("Item {item}");
+
             if item == COUNT_RLE_VAL {
                 let runlength = fibdec.next().unwrap() as usize;
-                // for _ in 0..runlength{
-                //     counts_encoded.push(COUNT_RLE_VAL);  //due to shift+1
-                //     counter+= 1;
-                // }
+                // just append the RLE repeatedly:
                 counts_encoded.resize(counts_encoded.len() + runlength, COUNT_RLE_VAL);
                 counter+=runlength;
             } else {
+                //decode single element
                 counts_encoded.push(item);//due to shift+1
                 counter+= 1;
             }
         }
 
-        let bits_processed =  fibdec.get_bits_processed();
-        let zeros_toremoved = calc_n_trailing_bits(bits_processed); //padded_size - bits_processed;
-
-        // println!("COUNT: {}", counts_encoded.len());
-        // println!("COUNT: bits proc {}, bits padded {}", bits_processed, zeros_toremoved);
-        // println!("COUNT: buffer at {}", self.pos + bits_processed + zeros_toremoved);
+        let bits_processed =  fibdec.get_bits_processed();       
+        let zeros_toremoved = calc_n_trailing_bits(bits_processed);
 
         assert!(
             !count_buffer[bits_processed..bits_processed + zeros_toremoved].any(),
@@ -520,26 +455,10 @@ impl <'a> BuszBlock <'a> {
         assert_eq!(self.state, BuszBlockState::Flag);
 
         // same issue as in count: some misalginemtn and endianess issues. 
-        // do the same thing: transformations on the entire buffer, the move position to FLAG section
-        // undoing initial flip
+        // do the same thing as in counts
+        // if the alignment is off, fix and swap
 
-        /*
-        let bytes = bitslice_to_bytes(self.buffer);
-        // this is what happens in EC: undo u64-swap, apply u32-swap
-        let b = swap_endian8_swap_endian4(&bytes);
-
-        // move the bufferposition after EC
-        assert_eq!(self.pos % 8, 0);
-        let count_pos = self.pos / 8;
-
-        let bytes_behind_count = &b[count_pos..];
-        let d = swap_endian8_swap_endian4(&bytes_behind_count);
-
-        // println!("after bytes\n{:?}", d);
-        let flag_buffer: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&d);
-        // println!("flag_buffer\n{}", bitstream_to_string(flag_buffer));
-        */
-
+ 
         let _flag_buffer = if self.pos % 64 == 0 {
             self.buffer[self.pos..].to_bitvec()
         } else {
@@ -568,33 +487,23 @@ impl <'a> BuszBlock <'a> {
             let bytes_behind_ec = bitslice_to_bytes(tmp);
             let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
             let swapped_trunc = &swapped[4..];
-            let swapped_final = swap_endian8_swap_endian4(&swapped_trunc);
+            let swapped_final = swap_endian8_swap_endian4(swapped_trunc);
             bv::BitVec::from_slice(&swapped_final)
         };
         let flag_buffer = _flag_buffer.as_bitslice();
 
-
+        // decode flags
         let mut fibdec = Self::fibonacci_factory(flag_buffer);
 
         const FLAG_RLE_VAL: u64 = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut flag_decoded: Vec<u64> = Vec::with_capacity(self.n_elements);
         let mut counter = 0;
         while counter < self.n_elements {
-            // println!("Counter {counter}");
-            // println!("Bits {:?}", fibdec.bitstream);
-            // let (item, mut block_body) = bitvec_single_fibbonacci_decode(block_body);
+
             let item = fibdec.next().unwrap();
-            // println!("Item {item}");
             if item == FLAG_RLE_VAL {
                 let runlength = fibdec.next().unwrap() as usize;
-                // let (runlength, remainder) = bitvec_single_fibbonacci_decode(&mut block_body);
-                // block_body = remainder;  //weird scope thing: if we call the above with return named block_body, it'll be its own var and not progagate
-                // println!("Decoding run of  {runlength}");
-                // println!("Body after   {:?}", fibdec.bitstream);
-                // for _ in 0..runlength{
-                //     flag_decoded.push(FLAG_RLE_VAL - 1 );  //due to shift+1
-                //     counter+= 1;
-                // }
+                // repeatedly add RLE
                 flag_decoded.resize(
                     flag_decoded.len() + runlength,
                     FLAG_RLE_VAL - 1 //due to shift+1
@@ -602,16 +511,14 @@ impl <'a> BuszBlock <'a> {
                 counter+=runlength;
 
             } else {
-                // println!("Decoding sigle element {}", item-1 );
+                //decode single element
                 flag_decoded.push(item-1); //due to shift+1
                 counter+= 1;
             }
         }
-        // println!("Falgs: {:?}", flag_decoded);
-        // println!("Reamining: {:?}", fibdec.bitstream);
 
         let bits_processed = fibdec.get_bits_processed();
-        let zeros_toremoved = calc_n_trailing_bits(bits_processed); //padded_size - bits_processed;
+        let zeros_toremoved = calc_n_trailing_bits(bits_processed);
         
         assert!(
             !flag_buffer[bits_processed..bits_processed + zeros_toremoved].any()
@@ -640,7 +547,6 @@ impl <'a> BuszBlock <'a> {
 
             println!("UMI pos {}", self.pos);
             }
-        // println!("umi: {}", bitstream_to_string(&block.buffer[block.pos..]));
         let umis = self.parse_umi(&cbs);
 
 
@@ -649,7 +555,6 @@ impl <'a> BuszBlock <'a> {
 
             println!("EC pos {}", self.pos);
             }
-        // println!("ec: {}", bitstream_to_string(&block.buffer[block.pos..]));
         let ec = self.parse_ec();
 
 
@@ -659,7 +564,6 @@ impl <'a> BuszBlock <'a> {
             println!("COUNT pos {}", self.pos);
             println!("COUNT buf\n{}", bitstream_to_string(&self.buffer[self.pos..]));
             }
-        // println!("count: {}", bitstream_to_string(&block.buffer[block.pos..]));
         let count = self.parse_counts();
 
 
@@ -668,16 +572,10 @@ impl <'a> BuszBlock <'a> {
 
             println!("FLAG pos {}", self.pos);
             }
-        // println!("flag: {}", bitstream_to_string(&block.buffer[block.pos..]));
         let flag = self.parse_flags();
         if self.debug {
             println!("flag: {:?}", flag);
         }
-        // println!("{:?}", cbs);
-        // println!("{:?}", umis);
-        // println!("{:?}", ec);
-        // println!("{:?}", count);
-        // println!("{:?}", flag);
 
         let mut decoded_records = Vec::with_capacity(self.n_elements);
         for (cb,umi,ec,count,flag) in izip!(cbs, umis, ec, count, flag) {

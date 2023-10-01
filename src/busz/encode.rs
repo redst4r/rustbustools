@@ -17,13 +17,11 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
         delta_encoded.push(el-last_el);
         last_el=el
     }
-    // println!("Delta enc: {:?}",delta_encoded);
+
     let runlen_encoded = runlength_codec.encode(delta_encoded.into_iter());
-    // println!("run enc: {:?}",runlen_encoded);
 
     //fibbonaci encoding
     let mut enc = fib_enc_multiple_fast(&runlen_encoded);
-
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -78,7 +76,6 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     let ecs = records.iter().map(|r|r.EC as u64);
     let (mut encoded, _n_el) = newpfd::newpfd_bitvec::encode(ecs, PFD_BLOCKSIZE);
 
-    // let n_pad = round_to_multiple(encoded.len(), 64) - encoded.len();
     let n_pad = round_to_multiple(encoded.len(), 32) - encoded.len();
     for _ in 0..n_pad {
         encoded.push(false);
@@ -160,43 +157,6 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
     header_bytes.extend(body_bytes); 
 
     header_bytes
-    // let _a = bcs.as_bitslice().load_be();
-    // assert_eq!(
-        // _a,
-        // bitslice_to_bytes(&bcs));
-  
-
-    // println!("encode CB pos:{}", 0);
-    // println!("encode UMI pos:{}", bcs.len());
-    // //concat
-    // bcs.append(&mut umis);
-    // println!("encode ecs pos:{}", bcs.len());
-
-    // bcs.append(&mut ecs);
-    // println!("encode counts pos:{}", bcs.len());
-
-    // bcs.append(&mut counts);
-    // println!("encode flag pos:{}", bcs.len());
-    // bcs.append(&mut flags);
-    // println!("encode end pos:{}", bcs.len());
-
-    // // need to be a multiple of 8
-    // assert_eq!(bcs.len() % 8 , 0);
-
-    // // need to be a multiple of 864
-    // assert_eq!(bcs.len() % 64 , 0);
-
-    // let nbytes = bcs.len() / 8;
-    // let header = CompressedBlockHeader::new(
-    //     nbytes.try_into().unwrap(), 
-    //     records.len().try_into().unwrap());
-
-    // // let mut header_bits = bit_vec::BitVec::from_bytes(&header.header_bytes.to_be_bytes()) ; 
-    // let mut header_bits: bv::BitVec<u8, bv::Msb0> = bv::BitVec::from_slice(&header.header_bytes.to_be_bytes()) ; // definitely BE here
-
-    // header_bits.append(&mut bcs);
-    // header_bits
-    // // header.header_bytes
 }
 
 /// Compress `input` busfile into `output` busz-file using `blocksize`
@@ -281,11 +241,9 @@ impl BuszWriter {
 
         if self.internal_buffer.len() < self.busz_blocksize - 1{  // adding an element, but it doesnt fill the buffer
             self.internal_buffer.push(record);
-            // println!("adding to buffer: {}", self.internal_buffer.len());
         }
         else { // buffer is full including this element
             self.internal_buffer.push(record);
-            // println!("buffer full: {}", self.internal_buffer.len());
             self.write_buffer_to_disk()
         }
     }
@@ -294,7 +252,6 @@ impl BuszWriter {
         if self.state == BuszWriterState::FlushedAndClosed {
             panic!("Buffer has been flushed and closed!")
         }
-        // println!("Writing to disk {} entires", self.internal_buffer.len());
         let compressed_block = compress_busrecords_into_block(&self.internal_buffer);
         self.writer.write_all(&compressed_block).unwrap();
         self.internal_buffer.clear();
