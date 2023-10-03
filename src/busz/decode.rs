@@ -2,6 +2,7 @@ use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File
 use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
+use newpfd::fibonacci::FbDec;
 use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
@@ -171,9 +172,14 @@ impl <'a> BuszBlock <'a> {
 
     // just a streamlined way to generate a fibonacci decoder
     // which is used in parse_xxx()
-    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder{
-        newpfd::fibonacci::FibonacciDecoder::new(stream)
+    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder { 
+        newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     }
+
+    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
+    //     newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
+    // }
+
     /// The whole issue with decoding is the way bustools stored the different parts (CB/UMI...)
     /// heres the layout
     /// 
@@ -238,19 +244,14 @@ impl <'a> BuszBlock <'a> {
 
         const CB_RLE_VAL:u64 = 0 + 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut cb_delta_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
-        let mut counter = 0;
-        while counter < self.n_elements {
+        while cb_delta_encoded.len() < self.n_elements {
             let item = fibdec.next().unwrap();
             if item == CB_RLE_VAL {
-                let runlength = fibdec.next().unwrap();
-
-                for _ in 0..runlength{
-                    cb_delta_encoded.push(CB_RLE_VAL -1 );  //due to shift+1
-                    counter+= 1;
-                }
+                let runlength = fibdec.next().unwrap() as usize;
+                // add the same element over and over
+                cb_delta_encoded.resize(cb_delta_encoded.len() + runlength, CB_RLE_VAL -1);
             } else {
                 cb_delta_encoded.push(item - 1);//due to shift+1
-                counter+= 1;
             }
         }
         // undo delta encoding, i,e. sumsum
@@ -282,32 +283,27 @@ impl <'a> BuszBlock <'a> {
         let mut fibdec = Self::fibonacci_factory(umi_buffer);
 
         const UMI_RLE_VAL: u64 = 0 + 1 ; // since shifted
-        let mut counter = 0;
 
         // guarantee that last_barcode != rows[0].barcode
         let mut last_cb = cbs[0] + 1;
         let mut umi =0_u64;
         let mut umis: Vec<u64> = Vec::with_capacity(self.n_elements);
-        while counter < self.n_elements {
+        while umis.len() < self.n_elements {
             let diff = fibdec.next().unwrap() - 1;
 
-            let current_cb =  cbs[counter];
+            let current_cb =  cbs[umis.len()];
             if last_cb !=current_cb {
                 umi=0;
             }
 
             if diff == UMI_RLE_VAL - 1 {
-                let runlength = fibdec.next().unwrap();
-
-                for _ in 0..runlength{
-                    umis.push(umi -1 );  //due to shift+1
-                    counter+= 1;
-                }
+                let runlength = fibdec.next().unwrap() as usize; 
+                // adding the same element repeatedly
+                umis.resize(umis.len() + runlength, umi - 1);
             } else {
                 umi+= diff;
                 // decoding single element
                 umis.push(umi - 1);//due to shift+1
-                counter+= 1;
             }
             last_cb = current_cb;
         }
@@ -420,19 +416,16 @@ impl <'a> BuszBlock <'a> {
 
         const COUNT_RLE_VAL: u64 = 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut counts_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
-        let mut counter = 0;
-        while counter < self.n_elements {
+        while counts_encoded.len() < self.n_elements {
             let item = fibdec.next().unwrap();
 
             if item == COUNT_RLE_VAL {
                 let runlength = fibdec.next().unwrap() as usize;
                 // just append the RLE repeatedly:
                 counts_encoded.resize(counts_encoded.len() + runlength, COUNT_RLE_VAL);
-                counter+=runlength;
             } else {
                 //decode single element
                 counts_encoded.push(item);//due to shift+1
-                counter+= 1;
             }
         }
 
@@ -497,8 +490,7 @@ impl <'a> BuszBlock <'a> {
 
         const FLAG_RLE_VAL: u64 = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut flag_decoded: Vec<u64> = Vec::with_capacity(self.n_elements);
-        let mut counter = 0;
-        while counter < self.n_elements {
+        while flag_decoded.len() < self.n_elements {
 
             let item = fibdec.next().unwrap();
             if item == FLAG_RLE_VAL {
@@ -508,12 +500,9 @@ impl <'a> BuszBlock <'a> {
                     flag_decoded.len() + runlength,
                     FLAG_RLE_VAL - 1 //due to shift+1
                 );
-                counter+=runlength;
-
             } else {
                 //decode single element
                 flag_decoded.push(item-1); //due to shift+1
-                counter+= 1;
             }
         }
 

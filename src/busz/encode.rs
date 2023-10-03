@@ -166,7 +166,7 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
 pub fn compress_busfile(input: &str, output: &str, blocksize: usize) {
 
     let reader = BusReader::new(input);
-    let mut  writer = BuszWriter::new(output, reader.bus_header.clone(), blocksize);
+    let mut writer = BuszWriter::new(output, reader.bus_header.clone(), blocksize);
     writer.write_iterator(reader.into_iter());
 }
 
@@ -204,18 +204,18 @@ pub struct BuszWriter {
 }
 
 impl BuszWriter {
-    /// create a BuszWriter from an open Filehandle
+    /// create a [`BuszWriter`] from an open Filehandle
     pub fn from_filehandle(file_handle: File, header: BusHeader, busz_blocksize: usize) -> BuszWriter {
         BuszWriter::new_with_capacity(file_handle, header, busz_blocksize)
     }
 
-    /// create a Buszwriter that streams records into a file
+    /// create a [`BuszWriter`] that streams records into a file
     pub fn new(filename: &str, header: BusHeader, busz_blocksize: usize) -> BuszWriter {
         let file_handle: File = File::create(filename).expect("FAILED to open");
         BuszWriter::from_filehandle(file_handle, header, busz_blocksize)
     }
 
-    /// Writes an iterator of Busrecords into a compressed busfile on disk
+    /// Writes an iterator of `[`BusRecord`]s into a compressed busfile on disk
     /// This is the preferred way of using BusZWriter as it guarantees
     /// proper EOF and closing the compressed file
     pub fn write_iterator(&mut self, iter: impl Iterator<Item=BusRecord>) {
@@ -232,7 +232,7 @@ impl BuszWriter {
     }
 
 
-    /// Writing a single BusRecord
+    /// Writing a single [`BusRecord`]
     pub fn write_record(&mut self, record: BusRecord) {
 
         if self.state == BuszWriterState::FlushedAndClosed {
@@ -260,7 +260,7 @@ impl BuszWriter {
         self.writer.flush().unwrap();
     }
 
-    /// Writing multiple BusRecords at once
+    /// Writing multiple [`BusRecord`]s at once
     pub fn write_records(&mut self, records: Vec<BusRecord>) {
         if self.state == BuszWriterState::FlushedAndClosed {
             panic!("Buffer has been flushed and closed!")
@@ -343,7 +343,7 @@ mod test {
 
     // convenience function
     fn fib_factory(stream: &BitSlice<u8, Msb0>) ->newpfd::fibonacci::FibonacciDecoder {
-        newpfd::fibonacci::FibonacciDecoder::new(stream)
+        newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     }
 
     #[test]

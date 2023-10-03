@@ -120,7 +120,7 @@ struct BuszHeader {
     lossy_umi: u32,
 }
 impl BuszHeader {
-    /// desearializes a BusHeader from Bytes; when reading busfiles
+    /// desearializes a `BusHeader` from Bytes; when reading busfiles
     /// assumes Little-Endian! [see here](https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions)
     pub fn from_bytes(bytes: &[u8]) -> BuszHeader {
         let header_struct: BuszHeader =
@@ -257,7 +257,7 @@ mod test {
             );
         }
 
-        #[test]
+        // #[test]
         fn test_compress_full() {
             // let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";

@@ -28,7 +28,7 @@ impl RunlengthCodec {
                     // encode the runlength
                     encoded.push(runlen);
                     // reset runlength
-                    runlen = 0
+                    runlen = 0;
                 }
                 // we're just encoding a single value
                 if self.shift_up_1{
@@ -65,7 +65,7 @@ impl RunlengthCodec {
                     decoded.push(self.rle_val);  // shifting the value by -1, or equivalently use RLE
                 }
             } else {
-                decoded.push(adjusted_item)
+                decoded.push(adjusted_item);
             }   
         }
         decoded

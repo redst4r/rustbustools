@@ -452,7 +452,8 @@ fn busmulti_vs_merger(c: &mut Criterion){
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
 // criterion_group!(benches, plain_iterator_speed);
-criterion_group!(benches, bench_busz_compression_write);
-// criterion_group!(benches, bench_busz_compression_read);
+// criterion_group!(benches, bench_busz_compression_write);
+criterion_group!(benches, bench_busz_compression_read);
+// criterion_group!(benches, swap_vecu8_vs_bistream);
 
 criterion_main!(benches);

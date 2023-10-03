@@ -70,6 +70,7 @@
 //! let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
 //! let gene_names = bfolder.ec2gene.get_genenames(EC(1));
 //! ```
+
 // #![deny(missing_docs)]
 pub mod io;
 pub mod iterators;
