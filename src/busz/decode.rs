@@ -172,13 +172,13 @@ impl <'a> BuszBlock <'a> {
 
     // just a streamlined way to generate a fibonacci decoder
     // which is used in parse_xxx()
-    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder { 
-        newpfd::fibonacci::FibonacciDecoder::new(stream, false)
-    }
-
-    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
-    //     newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
+    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder { 
+    //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     // }
+
+    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
+        newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
+    }
 
     /// The whole issue with decoding is the way bustools stored the different parts (CB/UMI...)
     /// heres the layout

@@ -338,12 +338,15 @@ impl BuszWriter {
 #[cfg(test)]
 mod test {
     use bitvec::{slice::BitSlice, prelude::Msb0};
-
     use crate::{io::BusRecord, busz::encode::{compress_barcodes2, compress_umis, compress_ecs}};
 
     // convenience function
-    fn fib_factory(stream: &BitSlice<u8, Msb0>) ->newpfd::fibonacci::FibonacciDecoder {
-        newpfd::fibonacci::FibonacciDecoder::new(stream, false)
+    // fn fib_factory(stream: &BitSlice<u8, Msb0>) ->newpfd::fibonacci::FibonacciDecoder {
+    //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
+    // }
+
+    fn fib_factory(stream: &BitSlice<u8, Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
+        newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
     }
 
     #[test]
