@@ -6,14 +6,14 @@
 //! At this point, it's **far from complete and correct**, but rather a project to learn rust.
 //! 
 //! # Basics of the library
-//! The basic unit is the [io::BusRecord], which represents a single entry in a busfile,
+//! The basic unit is the [`io::BusRecord`], which represents a single entry in a busfile,
 //! consisting of CB, UMI, EC, COUNT and Flag.
 //! 
 //! ## Iterate over a busfile
-//! [io] contains the code to read and write from busfiles.
-//! In particular it defines a simpe iterator over [io::BusRecord]s via [io::BusReader].
-//! BusReader implements the trait [io::CUGIterator], a marker trait for anything that 
-//! iterates/produced streams of [io::BusRecord]s in our library.
+//! [`io`] contains the code to read and write from busfiles.
+//! In particular it defines a simpe iterator over [`io::BusRecord`]s via [`io::BusReader`].
+//! BusReader implements the trait [`io::CUGIterator`], a marker trait for anything that 
+//! iterates/produced streams of [`io::BusRecord`]s in our library.
 //! ```rust, no_run
 //! # use bustools::io::BusReader;
 //! let breader = BusReader::new("/path/to/some.bus");
@@ -23,10 +23,10 @@
 //! ```
 //! 
 //! ## Advanced Iterators over busfiles
-//! While [io::BusReader] lets you iterate over single [io::BusRecord]s, 
+//! While [`io::BusReader`] lets you iterate over single [`io::BusRecord`]s, 
 //! it is often convenient to group the records by CB (all records from the same cell)
 //! or by CB+UMI (all records from the same mRNA).
-//! [iterators] contains the code to enable `chaining` iterators over BusRecords. 
+//! [`iterators`] contains the code to enable `chaining` iterators over BusRecords. 
 //! 
 //! Note that the bus file must be **sorted** (by CB/UMI) to enable these iterators (they will panic if used on an unsorted busfile).
 //! 
@@ -44,7 +44,7 @@
 //! ```
 //! 
 //! ### Iterate over molecules
-//! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
+//! To iterate over a **sorted** busfile, grouping all records by CB+UMI:
 //! ```rust, no_run
 //! # use bustools::io::BusReader; 
 //! use bustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope
@@ -56,17 +56,16 @@
 //! }
 //! ```
 //! ## EC to gene mapping
-//! More convenient features are provided by [io::BusFolder], 
+//! More convenient features are provided by [`io::BusFolder`], 
 //! which wraps around the busfile, the matric.ec and transcripts.txt created by `kallisto bus`.
 //! Those files tell us what a particular bus record `(CB,UMI,EC,Count,flag)` 
 //! actually maps to as specified by its EC (equivalence class, a set of transcripts).
-//! This automatically constructs a mapper from equivalence class to gene via [consistent_genes::Ec2GeneMapper]
+//! This automatically constructs a mapper from equivalence class to gene via [`consistent_genes::Ec2GeneMapper`]
 //! which allows to resolve ECs to genes
 //! 
 //! ```rust, no_run
 //! # use bustools::io::BusFolder;
 //! # use bustools::consistent_genes::EC;
-//! 
 //! let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
 //! let gene_names = bfolder.ec2gene.get_genenames(EC(1));
 //! ```

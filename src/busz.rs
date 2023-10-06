@@ -27,10 +27,11 @@
 //! ```
 //! 
 //! # About Bitvec and Memory layout
-//! This code relies heavily on BitVec. It uses BitVec to encode/decode
-//! the bits of the busz records, in particular Fibbonnaci encoding and NewPFD encoding
+//! This code relies heavily on BitVec. It uses [`bitvec`] to encode/decode
+//! the bits of the busz records, in particular Fibbonnaci encoding and NewPFD encoding.
+//! 
 //! **A certain peculiarity though**:
-//! To turn bytes (e.g from a u64 or read from the file) into Bitvec we use `BitVec::from_bytes(byte_Array)`
+//! To turn bytes (e.g from a u64 or read from the file) into [`bitvec::vec::BitVec`] we use `BitVec::from_bytes(byte_Array)`
 //! This takes the bytes literally in the order of the array.
 //! Yet `bustools` writes busz in little endian format, i.e. the byte order is reversed.
 //! In particular, each busz block contains entries for CB,UMI... each PADDED with zeros afterwards(to a multiple of 64)

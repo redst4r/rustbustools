@@ -7,7 +7,7 @@ use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_e
 
 /// Reading a compressed busfile
 /// 
-/// The analog of [crate::io::BusReader] for compressed bus files
+/// The analog of [`crate::io::BusReader`] for compressed bus files
 /// 
 /// # Example
 /// ```rust, no_run
