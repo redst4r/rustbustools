@@ -67,19 +67,8 @@ pub use decode::decompress_busfile;
 
 const PFD_BLOCKSIZE: usize = 512; // size of a PFD block within busz (this many ECs get encoded together)
 
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-struct BuszSpecificHeader {
-    block_size: u32,
-    pfd_block_size: u32,
-    lossy_umi: u32
-}
-impl BuszSpecificHeader {
-    fn to_bytes(&self) -> Vec<u8>{
-        bincode::serialize(self).expect("FAILED to serialze header")
-    }
-}
-
+/// Each block in the compressed busz starts with a BlockHeader
+/// which contains the blocksize (in bytes) and the number of records in the block.
 struct CompressedBlockHeader {
     // the 34 most significant bits denote the size of the compressed block in bytes. 
     // The 30 least significant bits denote the number of BUS records in the block.
@@ -114,6 +103,7 @@ impl CompressedBlockHeader {
 
 
 const BUSZ_HEADER_SIZE: usize = 4+4+4;
+/// Some busz-file specific headers, coming after the regular [`BusHeader`]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 struct BuszHeader {
     block_size: u32,

@@ -3,7 +3,7 @@ use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{util
 use bitvec::prelude as bv;
 use itertools::Itertools;
 use newpfd::fibonacci::fib_enc_multiple_fast;
-use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszSpecificHeader};
+use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszHeader};
 
 
 fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
@@ -318,7 +318,7 @@ impl BuszWriter {
             .expect("FAILED to write var header");
         
         // BusZ header
-        let busz_header = BuszSpecificHeader {
+        let busz_header = BuszHeader {
             block_size: busz_blocksize.try_into().unwrap(),
             pfd_block_size: 512,
             lossy_umi: 0
