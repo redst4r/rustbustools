@@ -2,7 +2,7 @@ use std::{fs::File, io::{BufWriter, Write}};
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
-use newpfd::fibonacci::fib_enc_multiple_fast;
+use fastfibonacci::fibonacci;
 use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszHeader};
 
 
@@ -21,7 +21,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
     let runlen_encoded = runlength_codec.encode(delta_encoded.into_iter());
 
     //fibbonaci encoding
-    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
+    let mut enc = fibonacci::encode(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -60,7 +60,7 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     };
     let runlen_encoded = runlength_codec.encode(periodic_delta_encoded.into_iter());
     //fibbonaci encoding    
-    let mut enc= fib_enc_multiple_fast(&runlen_encoded);
+    let mut enc= fibonacci::encode(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -100,7 +100,7 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     let runlen_encoded = runlength_codec.encode(count_iter);
 
     //fibbonaci encoding
-    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
+    let mut enc = fibonacci::encode(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -118,7 +118,7 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     let runlen_encoded = runlength_codec.encode(flag_iter);
 
     //fibbonaci encoding
-    let mut enc = fib_enc_multiple_fast(&runlen_encoded);
+    let mut enc = fibonacci::encode(&runlen_encoded);
 
     // pad to next multiple of 64
     let n_pad =  round_to_multiple(enc.len(), 64) - enc.len();
@@ -345,8 +345,8 @@ mod test {
     //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fib_factory(stream: &BitSlice<u8, Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
-        newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
+    fn fib_factory(stream: &BitSlice<u8, Msb0>) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
+        fastfibonacci::fast::get_u8_decoder(stream, false)
     }
 
     #[test]

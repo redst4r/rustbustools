@@ -2,7 +2,7 @@ use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File
 use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
-use newpfd::fibonacci::FbDec;
+use fastfibonacci::FbDec;
 use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
@@ -156,8 +156,7 @@ struct BuszBlock <'a> {
 }
 
 impl <'a> BuszBlock <'a> {
-    // pub fn new(buffer: &'a BitSlice<u8, Msb0>, n_elements: usize) -> Self {
-    pub fn new(buffer: &'a bv::BitSlice<u8, bv::Msb0>, n_elements: usize) -> Self {
+    fn new(buffer: &'a bv::BitSlice<u8, bv::Msb0>, n_elements: usize) -> Self {
         // TODO: warning, buffer must be conveted in a special way if the bytes come out of a file
         // see BuszReader::load_busz_block_faster
         // cant do it in herer due to lifetime issues
@@ -176,8 +175,8 @@ impl <'a> BuszBlock <'a> {
     //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci_fast::FastFibonacciDecoder{
-        newpfd::fibonacci_fast::FastFibonacciDecoder::new(stream, false)
+    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
+        fastfibonacci::fast::get_u8_decoder(stream, false)
     }
 
     /// The whole issue with decoding is the way bustools stored the different parts (CB/UMI...)
@@ -524,7 +523,7 @@ impl <'a> BuszBlock <'a> {
 
     /// parses the raw bytes in this block
     /// into a list of busrecords
-    pub fn parse_block(&mut self) -> Vec<BusRecord>{
+    fn parse_block(&mut self) -> Vec<BusRecord>{
         if self.debug {
             println!("Block-bits:\n{}", bitstream_to_string(&self.buffer[self.pos..]));
             println!("CB pos {}", self.pos);

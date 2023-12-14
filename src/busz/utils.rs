@@ -4,7 +4,7 @@ use itertools::Itertools;
 /// turn a bitslice into an array of bytes
 /// the first 8 bits (bits[..8]) will become the first byte in the result
 /// i.e. a sort of BigEndian encoding
-pub (crate)  fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
+pub (crate) fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
 
     assert_eq!(bits.len() % 8,  0, "cant covnert to bytes if Bitsclie is not a multiple of 8");
 
@@ -49,7 +49,7 @@ pub(crate) fn calc_n_trailing_bits(bits_processed: usize) -> usize {
 /// simply grabs each 8byte section and reverses the order within
 /// # params
 /// * wordsize: 4 (bytes) for u32, 8(bytes) for u64
-pub fn swap_endian(bytes: &[u8], wordsize: usize) -> Vec<u8>{
+pub (crate) fn swap_endian(bytes: &[u8], wordsize: usize) -> Vec<u8>{
     let mut swapped_endian: Vec<u8> = Vec::with_capacity(bytes.len());
     for bytes in bytes.chunks(wordsize){
         swapped_endian.extend(bytes.iter().rev());
@@ -105,17 +105,18 @@ fn test_swap_endian8_swap_endian4() {
 ///  assert_eq!(round_to_multiple(11,10), 20);
 ///  assert_eq!(round_to_multiple(6,5), 10);
 /// ```
-pub fn round_to_multiple(i: usize, multiple: usize) -> usize {
-    ((i+multiple-1)/multiple)*multiple
+pub (crate) fn round_to_multiple(i: usize, multiple: usize) -> usize {
+    // ((i+multiple-1)/multiple)*multiple
+    i.next_multiple_of(multiple)  // rust 1.73
 }
 
 /// set the lowest x bits in a 32bit vecotr (represented as u32)
-pub fn setbits_u32(x: u8) -> u32 {
+pub (crate) fn setbits_u32(x: u8) -> u32 {
     u32::MAX >> (32 - x)
 }
 
 /// set the lowest x bits in a 64bit vecotr (represented as u32)
-pub fn setbits_u64(x: u8) -> u64 {
+pub (crate) fn setbits_u64(x: u8) -> u64 {
     u64::MAX >> (64 - x)
 }
 

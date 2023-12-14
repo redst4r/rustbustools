@@ -20,10 +20,11 @@ indicatif = "0.17"
 statrs = "0.16"
 rand = "0.8"
 probability="0.20"  # for faster Binomial Sampling, using inverse pdf
-itertools="0.11"
+itertools="0.12"
 tempfile="3.7.0"
 bitvec="1"
-newpfd= { path = "/home/michi/Dropbox/newpfd-rs", version="0.5.1" }
+newpfd= { version="0.7.0" }
+fastfibonacci= { version="0.3.0" }
 
 # crossbeam = "0.8"
 # flume = "0.10"
