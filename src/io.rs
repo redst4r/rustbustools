@@ -66,6 +66,7 @@ impl BusRecord {
         bincode::deserialize(bytes).expect("deserial error")
     }
 }
+
 /// Header of a busfile, as specified by kallisto
 /// the only things that are variable are:
 /// - cb_len: The number of bases in the cellbarcode (usually 16BP)

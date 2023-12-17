@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
+use bitvec::field::BitField;
 use bustools::busz::{BuszWriter, BuszReader};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::Itertools;
@@ -445,6 +446,65 @@ fn busmulti_vs_merger(c: &mut Criterion){
     c.bench_function("busmulti", |b| b.iter(|| dummy_busmulti(black_box(fname1), black_box(fname2), n )));
     c.bench_function("merger"  , |b| b.iter(|| dummy_merger(black_box(fname1), black_box(fname2), n )));
 
+}
+
+use bitvec::prelude::{self as bv, Msb0};
+use rand::distributions::Uniform;
+use rand::prelude::Distribution;
+pub fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
+
+    assert_eq!(bits.len() % 8,  0, "cant covnert to bytes if Bitsclie is not a multiple of 8");
+
+    let nbytes = bits.len() / 8;
+    let mut bytes = Vec::with_capacity(nbytes);
+    for i in 0..nbytes {
+        let b = &bits[i*8.. (i+1)*8];
+        let a: u8 = b.load_be(); // doesnt matter if be/le here since its only 1byte anyway
+        bytes.push(a);
+    }
+    bytes
+}
+
+pub fn swap_endian(bytes: &[u8], wordsize: usize) -> Vec<u8>{
+    let mut swapped_endian: Vec<u8> = Vec::with_capacity(bytes.len());
+    for bytes in bytes.chunks(wordsize){
+        swapped_endian.extend(bytes.iter().rev());
+    }
+    swapped_endian
+}
+fn swap_vecu8_vs_bistream(c: &mut Criterion){
+    let n_elements = 1000;
+    let data_dist = Uniform::from(0..255);
+    let mut rng = rand::thread_rng();
+    let mut data: Vec<u8> = Vec::with_capacity(n_elements);
+    for _ in 0..n_elements {
+        data.push(data_dist.sample(&mut rng) as u8);
+    }
+
+    let bits = bv::BitVec::from_slice(&data);
+
+    fn convert_and_swap(bits: bv::BitVec<u8, bv::Msb0>) -> bv::BitVec<u8, bv::Msb0>  {
+        let x = bitslice_to_bytes(&bits);
+        let swapped = swap_endian(&x, 8);
+        let swapped_bits = bv::BitVec::from_slice(&swapped);
+        swapped_bits
+    }
+
+    fn direct_swap(bits: bv::BitVec<u8, Msb0>) -> bv::BitVec<u8, bv::Msb0>  {
+
+        let mut res: bv::BitVec<u8, bv::Msb0> = bv::BitVec::with_capacity(bits.len());
+        for c in bits.chunks(8*8) {
+            // let mut owned = c.to_bitvec();
+            // owned.reverse();
+            res.extend(c.iter().rev());
+        }
+        res
+    }
+
+    c.bench_function(&format!("convert and swap"), |b| b.iter(|| convert_and_swap(black_box(bits.clone()))));
+    c.bench_function(&format!("direct swap"), |b| b.iter(|| direct_swap(black_box(bits.clone()))));
+
+    // let x_swapped = 
 }
 
 
