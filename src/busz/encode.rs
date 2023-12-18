@@ -190,7 +190,10 @@ enum BuszWriterState {
 /// 
 /// # Important:
 /// One **ALWAYS** has to call `terminal_flush()` in the end to properly terminate the busz file.
-/// Otherwise the .busz won't be readable and some entries might not make it to disk
+/// Otherwise the .busz won't be readable and some entries might not make it to disk.
+/// 
+/// Alternatively, once the [``BuszWriter] goes out of scope (and `drop()` gets called), 
+/// the file gets terminated properly too.
 /// 
 /// The safest option is to rely on the `write_iterator` method. 
 /// This writes the entire iterator to file with proper termination.
@@ -225,12 +228,9 @@ impl BuszWriter {
             self.writer.write_all(&compressed_block).unwrap();
         }
     
-        // write a final, emtpy block header (0_u64) that signals the EOF
-        self.writer.write_all(&[0;8]).unwrap();
-        self.writer.flush().unwrap();
-        self.state = BuszWriterState::FlushedAndClosed;
+        // add EOF and flush
+        self.terminal_flush();
     }
-
 
     /// Writing a single [`BusRecord`]
     pub fn write_record(&mut self, record: BusRecord) {
@@ -241,13 +241,14 @@ impl BuszWriter {
 
         if self.internal_buffer.len() < self.busz_blocksize - 1{  // adding an element, but it doesnt fill the buffer
             self.internal_buffer.push(record);
-        }
-        else { // buffer is full including this element
+        } else { 
+            // buffer is full including this element
             self.internal_buffer.push(record);
             self.write_buffer_to_disk()
         }
     }
 
+    /// writes the internal buffer into the busz file
     fn write_buffer_to_disk(&mut self) {
         if self.state == BuszWriterState::FlushedAndClosed {
             panic!("Buffer has been flushed and closed!")
@@ -262,11 +263,6 @@ impl BuszWriter {
 
     /// Writing multiple [`BusRecord`]s at once
     pub fn write_records(&mut self, records: Vec<BusRecord>) {
-        if self.state == BuszWriterState::FlushedAndClosed {
-            panic!("Buffer has been flushed and closed!")
-        }
-
-        // writes several recordsd and flushes
         for r in records {
             self.write_record(r)
         }
@@ -275,17 +271,13 @@ impl BuszWriter {
     /// this needs to be called when we're done writing to the buszfile
     /// empties the internal buffer, adds the EOF
     pub fn terminal_flush(&mut self) {
-
         if !self.internal_buffer.is_empty() {
             self.write_buffer_to_disk();
         }
-
         // write a final, emtpy block header (0_u64) that signals the EOF
         self.writer.write_all(&[0;8]).unwrap();
         self.writer.flush().unwrap();
-
         self.state = BuszWriterState::FlushedAndClosed;
-
     }
 
     /// creates a buszwriter with specified buffer capacity (after how many records an actual write happens)
@@ -332,6 +324,19 @@ impl BuszWriter {
 
         BuszWriter { writer, internal_buffer, busz_blocksize, header, state: BuszWriterState::Open }
     
+    }
+}
+
+
+/// implementing Drop on the writer to make sure the internal buffer gets flushed out to
+/// the file eventually
+impl Drop for BuszWriter {
+    fn drop(&mut self) {
+        // close the file properly, if not done already
+        match self.state {
+            BuszWriterState::Open => {self.terminal_flush()},
+            BuszWriterState::FlushedAndClosed => { /* already been closed, nothing to do */},
+        };
     }
 }
 
@@ -433,7 +438,7 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test.buzs";
+            let buszfile = "/tmp/busz_writer_test.busz";
             let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, header , blocksize);
             writer.write_records(v.clone());
@@ -457,7 +462,7 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test2.buzs";
+            let buszfile = "/tmp/busz_writer_test2.busz";
             let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, header , blocksize);
             writer.write_records(v.clone());
@@ -471,6 +476,33 @@ mod test {
         }
 
         #[test]
+        fn test_busz_writer_crooked_blocksize_flush_on_drop() {
+
+            // lets make sure things get properly flushed when 
+            // the writer goes out of scope
+
+            let blocksize = 3;  // blocksize wont fit all elements
+            let v = vec![ 
+                BusRecord {CB:0,UMI:10,EC:0,COUNT:1, FLAG: 0 },   // 10
+                BusRecord {CB:0,UMI:10,EC:1,COUNT:1, FLAG: 0 },   // 0
+                BusRecord {CB:0,UMI:10,EC:1,COUNT:1, FLAG: 0 },   // 0
+                BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
+            ];
+
+            let buszfile = "/tmp/busz_writer_test2.busz";
+            let header = BusHeader::new(16,12,0);
+            {
+                let mut writer = BuszWriter::new(buszfile, header , blocksize);
+                writer.write_records(v.clone());
+            }
+            // writer dropped, should flush
+
+            let reader = BuszReader::new(buszfile);
+            assert_eq!(reader.collect::<Vec<BusRecord>>(), v);
+        }
+
+
+        #[test]
         fn test_busz_write_iterator() {
             let blocksize = 3;  // blocksize wont fit all elements
 
@@ -480,7 +512,7 @@ mod test {
                 BusRecord {CB:0,UMI:10,EC:1,COUNT:1, FLAG: 0 },   // 0
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
-            let buszfile = "/tmp/busz_writer_test3.buzs";
+            let buszfile = "/tmp/busz_writer_test3.busz";
             let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, header , blocksize);
             writer.write_iterator(v.iter().cloned());
