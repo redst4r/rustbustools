@@ -47,6 +47,11 @@ impl BuszReader {
 
         // read the regular busheader
         let bus_header = BusHeader::from_file(filename);
+        assert_eq!(
+            &bus_header.magic, b"BUS\x01",
+            "Header struct not matching; MAGIC is wrong"
+        );
+
         let mut file_handle = File::open(filename).expect("FAIL");
 
         // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
