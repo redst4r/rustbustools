@@ -7,7 +7,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::Itertools;
 use bustools::bus_multi::CellIteratorMulti;
 use bustools::consistent_genes::{Ec2GeneMapper, Genename, EC};
-use bustools::io::{BusReader, BusRecord, BusWriter, BusHeader};
+use bustools::io::{BusReader, BusRecord, BusWriter, BusParams};
 use bustools::iterators::{CellGroup, CbUmiGroup, CellGroupIterator, CbUmiGroupIterator};
 use bustools::merger::MultiIterator;
 use bustools::multinomial::{multinomial_sample, multinomial_sample_binary_search};
@@ -290,8 +290,8 @@ fn bench_buswriter_buffersize(c: &mut Criterion){
     fn dummy(buffersize: usize) -> usize{
 
         let fname_nozip = "/tmp/test.bus";
-        let header = BusHeader::new(16, 12, 20);
-        let mut bw =  BusWriter::new_with_capacity( File::create(fname_nozip).unwrap(), header, buffersize);
+        let params = BusParams{ cb_len:16, umi_len: 12 };
+        let mut bw =  BusWriter::new_with_capacity( File::create(fname_nozip).unwrap(), params, buffersize);
         for i in 0..1000{
             for j in 0..10000{
                 let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
@@ -310,8 +310,8 @@ fn bench_busz_compression_write(c: &mut Criterion){
 
     fn dummy_uncompressed() -> usize{
         let fname_nozip = "/tmp/test.bus";
-        let header = BusHeader::new(16, 12, 20);
-        let mut bw =  BusWriter::new( fname_nozip, header);
+        let params = BusParams{ cb_len:16, umi_len: 12 };
+        let mut bw =  BusWriter::new( fname_nozip, params);
         for i in 1..501{
             for j in 1..10001{
                 let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
@@ -325,8 +325,8 @@ fn bench_busz_compression_write(c: &mut Criterion){
     fn dummy_compressed() -> usize{
         let fname_zip = "/tmp/test.busz";
         let buszblocksize = 1000;
-        let header = BusHeader::new(16, 12, 20);
-        let mut bw =  BuszWriter::new( fname_zip, header, buszblocksize);
+        let params = BusParams{ cb_len:16, umi_len: 12 };
+        let mut bw =  BuszWriter::new( fname_zip, params, buszblocksize);
         
         for i in 1..501{
             for j in 1..10001{

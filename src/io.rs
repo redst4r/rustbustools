@@ -8,10 +8,10 @@
 //!
 //! # Example
 //! ```rust, no_run
-//! # use bustools::io::{BusReader, BusHeader, BusWriter};
+//! # use bustools::io::{BusReader, BusParams, BusWriter};
 //! let bus = BusReader::new("/tmp/some.bus");
-//! let header = BusHeader::from_file("/tmp/some.bus");
-//! let mut writer = BusWriter::new("/tmp/out.bus", header);
+//! let params = BusParams {cb_len: 16, umi_len: 12};
+//! let mut writer = BusWriter::new("/tmp/out.bus", params);
 //! for record in bus{
 //!     writer.write_record(&record);
 //! }
@@ -67,19 +67,25 @@ impl BusRecord {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct BusParams {
+    pub cb_len: u32,
+    pub umi_len: u32,    
+}
+
 /// Header of a busfile, as specified by kallisto
 /// the only things that are variable are:
 /// - cb_len: The number of bases in the cellbarcode (usually 16BP)
 /// - umi_len: The number of bases in the cellbarcode (usually 12BP)
 /// # Example
 /// ```
-/// use bustools::io::BusHeader;
-/// let header = BusHeader::new(16, 12, 1);
+/// // use bustools::io::BusHeader;
+/// // let header = BusHeader::new(16, 12, 1);
 /// // can also be obtained from an existing busfile
 /// // let header = BusHeader::from_file("somefile.bus");
 /// ```
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct BusHeader {
+pub (crate) struct BusHeader {
     //4sIIII: 20bytes
     pub(crate) magic: [u8; 4],
     pub(crate) version: u32,
@@ -90,8 +96,13 @@ pub struct BusHeader {
 
 impl BusHeader {
     /// construct a busheader from CB/UMI length
-    pub fn new(cb_len: u32, umi_len: u32, tlen: u32) -> BusHeader {
-        let magic: [u8; 4] = *b"BUS\x00";
+    pub (crate) fn new(cb_len: u32, umi_len: u32, tlen: u32, compressed: bool) -> BusHeader {
+        let magic: [u8; 4] = if compressed {
+            *b"BUS\x01"
+        } else {
+            *b"BUS\x00"
+
+        };
         BusHeader { cb_len, umi_len, tlen, magic, version: 1 }
     }
 
@@ -111,10 +122,6 @@ impl BusHeader {
     pub fn from_bytes(bytes: &[u8]) -> BusHeader {
         let header_struct: BusHeader =
             bincode::deserialize(bytes).expect("FAILED to deserialze header");
-        // assert_eq!(
-        //     &header_struct.magic, b"BUS\x00",
-        //     "Header struct not matching; MAGIC is wrong"
-        // );
         header_struct
     }
 
@@ -172,8 +179,8 @@ pub trait CUGIterator: Iterator<Item = BusRecord> {}
 /// };
 /// ```
 pub struct BusReader {
-    /// Header of the busfile, containing info about CB-length, UMI length for decoding
-    pub bus_header: BusHeader,
+    /// containing info about CB-length, UMI length for decoding
+    pub params: BusParams,
     reader: BufReader<File>,
 }
 
@@ -190,6 +197,13 @@ impl BusReader {
     /// Creates a buffered reader over busfiles, with specific buffersize
     pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader {
         let bus_header = BusHeader::from_file(filename);
+
+        assert_eq!(
+            &bus_header.magic, b"BUS\x00",
+            "Header struct not matching; MAGIC is wrong"
+        );
+
+        let params = BusParams{cb_len: bus_header.cb_len, umi_len: bus_header.umi_len };
         let mut file_handle = File::open(filename).expect("FAIL");
 
         // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
@@ -197,7 +211,7 @@ impl BusReader {
         let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
 
         let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusReader { bus_header, reader: buf }
+        BusReader { params, reader: buf }
     }
 }
 
@@ -228,10 +242,10 @@ impl CUGIterator for BusReader {}
 /// needs the Header of the busfile to be specified (length of CB and UMI)
 /// # Example
 /// ```
-/// # use bustools::io::{BusWriter, BusHeader, BusRecord};
+/// # use bustools::io::{BusWriter, BusParams, BusRecord};
 ///
-/// let header = BusHeader::new(16, 12, 1);
-/// let mut w = BusWriter::new("/tmp/target.bus", header);
+/// let params = BusParams { cb_len: 16, umi_len: 12};
+/// let mut w = BusWriter::new("/tmp/target.bus", params);
 /// let record = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 10, FLAG: 0};
 /// w.write_record(&record);
 /// ```
@@ -242,14 +256,14 @@ pub struct BusWriter {
 
 impl BusWriter {
     /// create a BusWriter from an open Filehandle
-    pub fn from_filehandle(file_handle: File, header: BusHeader) -> BusWriter {
-        BusWriter::new_with_capacity(file_handle, header, DEFAULT_BUF_SIZE)
+    pub fn from_filehandle(file_handle: File, params: BusParams) -> BusWriter {
+        BusWriter::new_with_capacity(file_handle, params, DEFAULT_BUF_SIZE)
     }
 
     /// create a Buswriter that streams records into a file
-    pub fn new(filename: &str, header: BusHeader) -> BusWriter {
+    pub fn new(filename: &str, params: BusParams) -> BusWriter {
         let file_handle: File = File::create(filename).expect("FAILED to open");
-        BusWriter::from_filehandle(file_handle, header)
+        BusWriter::from_filehandle(file_handle, params)
     }
 
     /// Writing a single BusRecord
@@ -271,8 +285,10 @@ impl BusWriter {
 
     /// creates a buswriter with specified buffer capacity (after how many records an actual write happens)
     /// dont use , 800KB is the default buffer size and optimal for performance
-    pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self {
+    pub fn new_with_capacity(file_handle: File, params: BusParams, bufsize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(bufsize, file_handle);
+
+        let header = BusHeader::new(params.cb_len, params.umi_len, 0, false);
 
         // write the header into the file
         let binheader = header.to_bytes();
@@ -493,8 +509,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     let file_path = dir.path().join("output.corrected.sort.bus");
     let tmpfilename = file_path.to_str().unwrap();
 
-    let header = BusHeader::new(16, 12, 20);
-    let mut writer = BusWriter::new(tmpfilename, header);
+    let mut writer = BusWriter::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
     writer.write_records(records);
 
     (tmpfilename.to_string(), dir)
@@ -503,12 +518,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
 pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
     // write the first nrecords of the intput file into the output
     let busiter = BusReader::new(bfile);
-    let newheader = BusHeader::new(
-        busiter.bus_header.cb_len,
-        busiter.bus_header.umi_len,
-        busiter.bus_header.tlen,
-    );
-    let mut buswriter = BusWriter::new(boutfile, newheader);
+    let mut buswriter = BusWriter::new(boutfile, busiter.params.clone());
 
     for record in busiter.take(nrecords) {
         buswriter.write_record(&record);
@@ -519,21 +529,27 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
 #[cfg(test)]
 mod tests {
     use crate::consistent_genes::EC;
-    use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter};
+    use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter, BusParams};
     use std::io::Write;
 
     #[test]
     fn test_read_write_header() {
         let r1 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
-        let header = BusHeader::new(16, 12, 20);
         let busname = "/tmp/test_read_write_header.bus";
-        let mut writer = BusWriter::new(busname, header);
+        let mut writer = BusWriter::new(busname, BusParams {cb_len: 16, umi_len: 12});
         writer.write_record(&r1);
         writer.writer.flush().unwrap();
 
         let bheader = BusHeader::from_file(&busname);
-        let header = BusHeader::new(16, 12, 20);
-        assert_eq!(header, bheader);
+        let header = BusHeader::new(16, 12, 20, false);
+        // let params = BusParams{cb_len: 16, umi_len:12 };
+
+        assert_eq!(header.magic, bheader.magic);
+        assert_eq!(header.cb_len, bheader.cb_len);
+        assert_eq!(header.umi_len, bheader.umi_len);
+        assert_eq!(header.version, bheader.version);
+        // Note: tlen is not preserved!!
+
     }
 
     #[test]

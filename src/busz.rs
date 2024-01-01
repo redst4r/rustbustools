@@ -12,9 +12,10 @@
 //! ## Writing to a compressed bus file
 //! ```rust, no_run
 //! use bustools::busz::BuszWriter;
-//! use bustools::io::{BusRecord, BusHeader};
+//! use bustools::io::{BusRecord, BusParams};
 //! let blocksize = 10000;
-//! let mut writer = BuszWriter::new("/some/file.busz", BusHeader::new(16,12,0), blocksize);
+//! let params = BusParams {cb_len: 16, umi_len: 12};
+//! let mut writer = BuszWriter::new("/some/file.busz", params, blocksize);
 //! let records = vec![
 //!     BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 },
 //!     BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 },
@@ -148,7 +149,7 @@ mod test {
     mod external {
         use tempfile::tempdir;
         use pretty_assertions::assert_eq;
-        use crate::io::{BusRecord, BusWriter, BusHeader, BusReader};
+        use crate::io::{BusRecord, BusWriter, BusReader, BusParams};
         use crate::busz::decode::{BuszReader, decompress_busfile};
         use crate::busz::encode::compress_busfile;
 
@@ -167,7 +168,7 @@ mod test {
             
             let mut  writer = BusWriter::new(
                 filename, 
-                BusHeader::new(16, 12, 1)
+                BusParams {cb_len: 16, umi_len: 12}
             );
             writer.write_records(&v);
         }
@@ -191,7 +192,7 @@ mod test {
             // x.
             let mut  writer = BusWriter::new(
                 input_plain, 
-                BusHeader::new(16, 12, 1)
+                BusParams {cb_len: 16, umi_len: 12}
             );
             writer.write_records(&v);
             drop(writer);
@@ -216,7 +217,6 @@ mod test {
         fn test_encode_decode_busz_biggerfile(){
 
             let input_plain = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-            let input_compressed_true = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
             let copmressed_output = "/tmp/output.corrected.sort.busz";
             println!("copmressing busfile");
@@ -231,7 +231,7 @@ mod test {
             let reader = BuszReader::new("/tmp/output.corrected.sort.busz");
             let recs: Vec<_> = reader.collect();
 
-            let x = BusReader::new(input_compressed_true);
+            let x = BusReader::new(input_plain);
             assert_eq!(x.collect::<Vec<_>>(), recs);
 
         }
@@ -260,18 +260,6 @@ mod test {
             );
         }
 
-        #[test]
-        fn test_compress2() {
-            let mut reader = BuszReader::new("/tmp/lalalala_true.busz");
-            reader.next();
-            println!("==========================================");
-            println!("==========================================");
-            let mut reader = BuszReader::new("/tmp/lalalala.busz");
-
-            reader.next();
-            // let records:Vec<_> = reader.collect();
-            // println!("{}", records.len())
-        }
         #[test]
         fn test_decompress(){
             // decompress a busfile, check that the contents match the true (uncompressed version)

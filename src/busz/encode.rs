@@ -1,5 +1,5 @@
 use std::{fs::File, io::{BufWriter, Write}};
-use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
+use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader, BusParams}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
 use fastfibonacci::fibonacci;
@@ -166,7 +166,7 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
 pub fn compress_busfile(input: &str, output: &str, blocksize: usize) {
 
     let reader = BusReader::new(input);
-    let mut writer = BuszWriter::new(output, reader.bus_header.clone(), blocksize);
+    let mut writer = BuszWriter::new(output, reader.params.clone(), blocksize);
     writer.write_iterator(reader.into_iter());
 }
 
@@ -202,20 +202,20 @@ pub struct BuszWriter {
     writer: BufWriter<File>,
     internal_buffer: Vec<BusRecord>, // store items until we got enough to write a new block
     busz_blocksize: usize,
-    header: BusHeader,
+    params: BusParams,
     state: BuszWriterState
 }
 
 impl BuszWriter {
     /// create a [`BuszWriter`] from an open Filehandle
-    pub fn from_filehandle(file_handle: File, header: BusHeader, busz_blocksize: usize) -> BuszWriter {
-        BuszWriter::new_with_capacity(file_handle, header, busz_blocksize)
+    pub fn from_filehandle(file_handle: File, params: BusParams, busz_blocksize: usize) -> BuszWriter {
+        BuszWriter::new_with_capacity(file_handle, params, busz_blocksize)
     }
 
     /// create a [`BuszWriter`] that streams records into a file
-    pub fn new(filename: &str, header: BusHeader, busz_blocksize: usize) -> BuszWriter {
+    pub fn new(filename: &str, params: BusParams, busz_blocksize: usize) -> BuszWriter {
         let file_handle: File = File::create(filename).expect("FAILED to open");
-        BuszWriter::from_filehandle(file_handle, header, busz_blocksize)
+        BuszWriter::from_filehandle(file_handle, params, busz_blocksize)
     }
 
     /// Writes an iterator of `[`BusRecord`]s into a compressed busfile on disk
@@ -282,19 +282,16 @@ impl BuszWriter {
 
     /// creates a buszwriter with specified buffer capacity (after how many records an actual write happens)
     /// dont use , 800KB is the default buffer size and optimal for performance
-    pub fn new_with_capacity(file_handle: File, header: BusHeader, busz_blocksize: usize) -> Self {
+    pub fn new_with_capacity(file_handle: File, params: BusParams, busz_blocksize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(DEFAULT_BUF_SIZE, file_handle);
 
         // write the header into the file
-        // write the header into the file
-        let magic: [u8; 4] = *b"BUS\x01";
-        let busheader = BusHeader{
-            magic, 
-            version: header.version, 
-            cb_len: header.cb_len, 
-            umi_len: header.umi_len, 
-            tlen: 0 //header.tlen
-        };
+        let busheader = BusHeader::new(
+            params.cb_len,
+            params.umi_len,
+            0,
+            true
+        );
         let binheader = busheader.to_bytes();
         writer
             .write_all(&binheader)
@@ -322,7 +319,7 @@ impl BuszWriter {
 
         let internal_buffer: Vec<BusRecord> = Vec::with_capacity(busz_blocksize);
 
-        BuszWriter { writer, internal_buffer, busz_blocksize, header, state: BuszWriterState::Open }
+        BuszWriter { writer, internal_buffer, busz_blocksize, params, state: BuszWriterState::Open }
     
     }
 }
@@ -425,7 +422,7 @@ mod test {
     }   
 
     mod buszwriter {
-        use crate::{io::{BusRecord, BusHeader}, busz::{encode::{BuszWriter, BuszWriterState}, decode::BuszReader}};
+        use crate::{io::{BusRecord, BusParams}, busz::{encode::{BuszWriter, BuszWriterState}, decode::BuszReader}};
 
         #[test]
         fn test_busz_writer_good_blocksize() {
@@ -439,8 +436,8 @@ mod test {
             ];
 
             let buszfile = "/tmp/busz_writer_test.busz";
-            let header = BusHeader::new(16,12,0);
-            let mut writer = BuszWriter::new(buszfile, header , blocksize);
+            // let header = BusHeader::new(16,12,0);
+            let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_records(v.clone());
             writer.terminal_flush();
 
@@ -463,8 +460,8 @@ mod test {
             ];
 
             let buszfile = "/tmp/busz_writer_test2.busz";
-            let header = BusHeader::new(16,12,0);
-            let mut writer = BuszWriter::new(buszfile, header , blocksize);
+            // let header = BusHeader::new(16,12,0);
+            let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_records(v.clone());
             writer.terminal_flush();
 
@@ -489,10 +486,10 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test2.busz";
-            let header = BusHeader::new(16,12,0);
+            let buszfile = "/tmp/busz_writer_test3.busz";
+            // let header = BusHeader::new(16,12,0);
             {
-                let mut writer = BuszWriter::new(buszfile, header , blocksize);
+                let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
                 writer.write_records(v.clone());
             }
             // writer dropped, should flush
@@ -512,9 +509,9 @@ mod test {
                 BusRecord {CB:0,UMI:10,EC:1,COUNT:1, FLAG: 0 },   // 0
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
-            let buszfile = "/tmp/busz_writer_test3.busz";
-            let header = BusHeader::new(16,12,0);
-            let mut writer = BuszWriter::new(buszfile, header , blocksize);
+            let buszfile = "/tmp/busz_writer_test4.busz";
+            // let header = BusHeader::new(16,12,0);
+            let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_iterator(v.iter().cloned());
 
 

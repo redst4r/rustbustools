@@ -1,5 +1,5 @@
 use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
-use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
+use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator, BusParams}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
 use fastfibonacci::FbDec;
@@ -30,7 +30,7 @@ use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_e
 /// 
 #[derive(Debug)]
 pub struct BuszReader {
-    bus_header: BusHeader,
+    params: BusParams,
     busz_header: BuszHeader,
     reader: BufReader<File>,
     buffer: VecDeque<BusRecord>
@@ -62,7 +62,9 @@ impl BuszReader {
         let buf = BufReader::with_capacity(bufsize, file_handle);
 
         let buffer = VecDeque::with_capacity(bzheader.block_size as usize);
-        BuszReader { bus_header, busz_header:bzheader, reader: buf, buffer }
+
+        let params = BusParams {cb_len: bus_header.cb_len, umi_len: bus_header.umi_len};
+        BuszReader { params, busz_header:bzheader, reader: buf, buffer }
     }
 
     /// takes the next 8 bytes (u64) out of the stream and interprets it as a buszheader
@@ -585,9 +587,11 @@ impl <'a> BuszBlock <'a> {
 pub fn decompress_busfile(input: &str, output: &str) {
 
     let reader = BuszReader::new(input);
+
+
     let mut writer = BusWriter::new(
         output,
-        reader.bus_header.clone()
+        reader.params.clone()
     );
 
     for r in reader {
