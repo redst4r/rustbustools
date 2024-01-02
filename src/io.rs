@@ -213,6 +213,10 @@ impl BusReader {
         let buf = BufReader::with_capacity(bufsize, file_handle);
         BusReader { params, reader: buf }
     }
+
+    pub fn get_params(&self) -> &BusParams {
+        &self.params
+    }
 }
 
 impl Iterator for BusReader {
@@ -306,6 +310,13 @@ impl BusWriter {
             .expect("FAILED to write var header");
 
         BusWriter { writer, header }
+    }
+
+    pub fn write_iterator(&mut self, iter: impl Iterator<Item=BusRecord>) {
+        for r in iter {
+            self.write_record(&r)
+        }
+        self.writer.flush().unwrap();
     }
 }
 //=================================================================================
@@ -444,8 +455,13 @@ impl BusFolder {
     }
 
     /// return the busfiles header
-    pub fn get_bus_header(&self) -> BusHeader {
-        BusHeader::from_file(&self.get_busfile())
+    // pub fn get_bus_header(&self) -> BusHeader {
+    //     BusHeader::from_file(&self.get_busfile())
+    // }
+
+    pub fn get_bus_params(&self) -> BusParams {
+        let h = BusHeader::from_file(&self.get_busfile());
+        BusParams {cb_len:h.cb_len, umi_len: h.umi_len}
     }
 
     /// return the matric.ec file
