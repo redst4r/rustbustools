@@ -30,8 +30,10 @@
 //! - CellUmiIteratorMulti -> iterate, grouping bt cell/umi
 //!
 use crate::io::{BusReader, BusRecord};
-use crate::iterators::{CbUmiGroup, CellGroup};
+use crate::iterators::{CbUmiGroup, CellGroup, CbUmiGroupIterator, CellGroupIterator};
+use crate::utils::get_progressbar;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 /// Iterator over cells across multiple busfiles
 pub struct CellIteratorMulti {
@@ -247,6 +249,69 @@ impl Iterator for CellUmiIteratorMulti {
         }
         Some((current_min_cb, the_emission))
     }
+}
+
+
+pub fn detect_cbumi_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String>, usize> {
+    // deprecated
+    // mesures the number of ovelapping CUGs across the experiments
+
+    let mut total = 0;
+    // TODO: this doesnt check if the EC overlaps
+    for v in busfolders.values() {
+        println!("determine size of iterator {}", v);
+        let total_records = BusReader::new(v).groupby_cbumi().count();
+        if total < total_records {
+            total = total_records
+        }
+    }
+    println!("total records {}", total);
+
+    let multi_iter = CellUmiIteratorMulti::new(&busfolders);
+    let bar = get_progressbar(total as u64);
+    let mut counter: HashMap<Vec<String>, usize> = HashMap::new();
+
+    for (i, ((_cb, _umi), record_dict)) in multi_iter.enumerate() {
+        let mut the_set: Vec<String> = record_dict.keys().cloned().collect();
+        the_set.sort();
+        let val = counter.entry(the_set).or_insert(0);
+        *val += 1;
+
+        if i % 1000000 == 0 {
+            bar.inc(1000000);
+        }
+    }
+    counter
+}
+
+pub fn detect_cb_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String>, usize> {
+
+    let mut total = 0;
+    // TODO: this doesnt check if the EC overlaps
+    for v in busfolders.values() {
+        println!("determine size of iterator {}", v);
+        let total_records = BusReader::new(v).groupby_cb().count();
+        if total < total_records {
+            total = total_records
+        }
+    }
+    println!("total records {}", total);
+
+    let multi_iter = CellIteratorMulti::new(&busfolders);
+    let bar = get_progressbar(total as u64);
+    let mut counter: HashMap<Vec<String>, usize> = HashMap::new();
+
+    for (i, (_cb, record_dict)) in multi_iter.enumerate() {
+        let mut the_set: Vec<String> = record_dict.keys().cloned().collect();
+        the_set.sort();
+        let val = counter.entry(the_set).or_insert(0);
+        *val += 1;
+
+        if i % 1000000 == 0 {
+            bar.inc(1000000);
+        }
+    }
+    counter
 }
 
 #[cfg(test)]
