@@ -17,11 +17,11 @@
 //! }
 //!
 
-use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
+use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use tempfile::TempDir;
@@ -331,7 +331,6 @@ impl BusWriter {
 /// the Ec2GeneMapper
 pub struct BusFolder {
     pub foldername: String,
-    pub ec2gene: Ec2GeneMapper,
 }
 
 pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
@@ -369,78 +368,9 @@ fn parse_transcript(filename: &str) -> HashMap<u32, String> {
     transcript_dict
 }
 
-fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
-    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();
-    let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
-    let reader = BufReader::new(file);
-    for (_i, line) in reader.lines().enumerate() {
-        if let Ok(l) = line {
-            let mut s = l.split_whitespace();
-            let transcript_id = s.next().unwrap();
-            let ensemble_id = s.next().unwrap();
-            let _symbol = s.next().unwrap();
-
-            assert!(!t2g_dict.contains_key(&transcript_id.to_string())); //make sure transcripts dont map to multiple genes
-            t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
-        }
-    }
-    t2g_dict
-}
-
-fn build_ec2gene(
-    ec_dict: &HashMap<EC, Vec<u32>>,
-    transcript_dict: &HashMap<u32, String>,
-    t2g_dict: &HashMap<String, Genename>,
-) -> HashMap<EC, HashSet<Genename>> {
-    let mut ec2gene: HashMap<EC, HashSet<Genename>> = HashMap::new();
-
-    for (ec, transcript_ints) in ec_dict.iter() {
-        let mut genes: HashSet<Genename> = HashSet::new();
-
-        for t_int in transcript_ints {
-            let t_name = transcript_dict.get(t_int).unwrap();
-
-            // if we can resolve, put the genename, otherwsise use the transcript name instead
-            //
-            // actually, turns out that kallisto/bustools treats it differently:
-            // if the transcript doenst resolve, just drop tha trasncrip from the EC set
-            // TODO what happens if non of the EC transcripts resolve
-            if let Some(genename) = t2g_dict.get(t_name) {
-                genes.insert(genename.clone());
-            }
-            // else { genes.insert(Genename(t_name.clone())); }
-        }
-        ec2gene.insert(*ec, genes);
-    }
-    // // sanity check, make sure no Ec set is empty
-    // for (ec, gset) in ec2gene.iter(){
-    //     if gset.is_empty(){
-    //         println!("{ec:?}'s geneset is empty");
-    //     }
-    // }
-
-    ec2gene
-}
-
 impl BusFolder {
-    pub fn new(foldername: &str, t2g_file: &str) -> BusFolder {
-        println!("building EC->gene for {}", foldername);
-        // read EC dict
-        let filename = format!("{}/{}", foldername, "matrix.ec");
-        let ec_dict = parse_ecmatrix(&filename);
-
-        // read transcript dict
-        let filename = format!("{}/{}", foldername, "transcripts.txt");
-        let transcript_dict = parse_transcript(&filename);
-
-        // read transcript to gene file
-        let t2g_dict = parse_t2g(t2g_file);
-
-        // create the EC->gene mapping
-        let ec2gene = build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict);
-        let ecmapper = Ec2GeneMapper::new(ec2gene);
-
-        BusFolder { foldername: foldername.to_string(), ec2gene: ecmapper }
+    pub fn new(foldername: &str) -> BusFolder {
+        BusFolder { foldername: foldername.to_string() }
     }
 
     /// returns an iterator of the folder's busfile
@@ -499,6 +429,10 @@ impl BusFolder {
     pub fn get_cbumi_size(&self) -> usize {
         let cb_iter_tmp = self.get_iterator().groupby_cbumi();
         cb_iter_tmp.count()
+    }
+
+    pub fn make_mapper(&self, t2g_file: &str) -> Ec2GeneMapper {
+        make_mapper(self, t2g_file)
     }
 }
 

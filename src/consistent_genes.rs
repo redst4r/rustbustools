@@ -12,10 +12,13 @@
 //!
 //! See [Ec2GeneMapper] and [MappingResult]
 //!
+use crate::io::BusFolder;
 use crate::{disjoint::Intersector, io::BusRecord};
 use itertools::izip;
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::hash::Hash;
+use std::io::{BufReader, BufRead};
 
 /*
 just some wrappers for Strings and ints that we use for genes and equivalence classes
@@ -61,6 +64,22 @@ pub enum MappingResult {
     /// records are inconsistent, pointing to different genes
     Inconsistent,
 }
+
+pub enum MappingMode {
+    EC(InconsistentResolution), // just the EC as the molecular identiy of a read
+    // IgnoreMultipleCbUmi,  // if we come arcoss a CB/UMI with more than one busrecord (,i.e. multiple ECs), just skip that cb/umi
+    Gene(Ec2GeneMapper, InconsistentResolution),  // use the gene 
+}
+
+/// if we come across a CB/UMI the has inconsistent mapping
+/// i.e. mapping to 2 different genes, how to handle
+#[derive(Debug)]
+pub enum InconsistentResolution {
+    IgnoreInconsistent, // simply ignore the entire CB/UMI (as if we'd never seen it)
+    AsDistinct, // treat as distinct entities, i.e. a chance collision of two different molecules (mRNAs)
+    AsSingle,  // just ignore the fact that the moelcule might be different, aggregate all counts
+}
+
 
 /// For a set of busrecords (coming from the same molecule), this function tries
 /// to map those records to genes consistently.
@@ -131,7 +150,7 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
 /// let ec = EC(1234);
 /// let genenames: HashSet<Genename> = ec2g.get_genenames(ec);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ec2GeneMapper {
     /*
     A struct to help deal with the complicated relationship between
@@ -297,6 +316,71 @@ impl Ec2GeneMapper {
     }
 }
 
+pub fn make_mapper(busfolder: &BusFolder, t2g_file: &str) -> Ec2GeneMapper{
+    let t2g_dict = parse_t2g(t2g_file);
+    let e2g = build_ec2gene(
+        &busfolder.parse_ecmatrix(), 
+        &busfolder.parse_transcript(),
+        &t2g_dict);
+    Ec2GeneMapper::new(e2g)
+}
+
+
+fn build_ec2gene(
+    ec_dict: &HashMap<EC, Vec<u32>>,
+    transcript_dict: &HashMap<u32, String>,
+    t2g_dict: &HashMap<String, Genename>,
+) -> HashMap<EC, HashSet<Genename>> {
+    let mut ec2gene: HashMap<EC, HashSet<Genename>> = HashMap::new();
+
+    for (ec, transcript_ints) in ec_dict.iter() {
+        let mut genes: HashSet<Genename> = HashSet::new();
+
+        for t_int in transcript_ints {
+            let t_name = transcript_dict.get(t_int).unwrap();
+
+            // if we can resolve, put the genename, otherwsise use the transcript name instead
+            //
+            // actually, turns out that kallisto/bustools treats it differently:
+            // if the transcript doenst resolve, just drop tha trasncrip from the EC set
+            // TODO what happens if non of the EC transcripts resolve
+            if let Some(genename) = t2g_dict.get(t_name) {
+                genes.insert(genename.clone());
+            }
+            // else { genes.insert(Genename(t_name.clone())); }
+        }
+        ec2gene.insert(*ec, genes);
+    }
+    // // sanity check, make sure no Ec set is empty
+    // for (ec, gset) in ec2gene.iter(){
+    //     if gset.is_empty(){
+    //         println!("{ec:?}'s geneset is empty");
+    //     }
+    // }
+
+    ec2gene
+}
+
+fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
+    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();
+    let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
+    let reader = BufReader::new(file);
+    for (_i, line) in reader.lines().enumerate() {
+        if let Ok(l) = line {
+            let mut s = l.split_whitespace();
+            let transcript_id = s.next().unwrap();
+            let ensemble_id = s.next().unwrap();
+            let _symbol = s.next().unwrap();
+
+            assert!(!t2g_dict.contains_key(&transcript_id.to_string())); //make sure transcripts dont map to multiple genes
+            t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
+        }
+    }
+    t2g_dict
+}
+
+
+
 /// Represents a busrecord (actually an observed CB/UIM combination)
 /// with a set of consistent genes (genes that this CB/UMI could map to)
 /// and the number of times this combination was seen in the busfile
@@ -341,7 +425,7 @@ mod testing {
     };
     use std::collections::{HashMap, HashSet};
 
-    use super::{Ec2GeneMapper, EC};
+    use super::{Ec2GeneMapper, EC, make_mapper};
 
     #[test]
     fn test_consistent() {
@@ -533,8 +617,8 @@ mod testing {
     fn test_ec() {
         let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
         let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
-        let b = BusFolder::new(folder, t2g_file);
-        let ecmapper = b.ec2gene;
+        let b = BusFolder::new(folder);
+        let ecmapper = make_mapper(&b, t2g_file);
 
         for g in 0..ecmapper.int_to_gene.len() {
             ecmapper.resolve_geneid_to_ec_uniquely(g as u32).unwrap();
