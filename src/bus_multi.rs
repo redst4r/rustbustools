@@ -33,9 +33,9 @@ use crate::io::{BusReader, BusRecord};
 use crate::iterators::{CbUmiGroup, CellGroup, CbUmiGroupIterator, CellGroupIterator};
 use crate::utils::get_progressbar;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 /// Iterator over cells across multiple busfiles
+#[deprecated(note="please use `merger.MultiIteratorFast` instead")]
 pub struct CellIteratorMulti {
     iterators: HashMap<String, CellGroup<BusReader>>,
     current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
@@ -145,8 +145,10 @@ impl Iterator for CellIteratorMulti {
     }
 }
 
+
 // =================================================================
 /// Iterator over cells across multiple busfiles
+#[deprecated(note="please use `merger.MultiIteratorFast` instead")]
 pub struct CellUmiIteratorMulti {
     iterators: HashMap<String, CbUmiGroup<BusReader>>,
     current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
@@ -251,68 +253,6 @@ impl Iterator for CellUmiIteratorMulti {
     }
 }
 
-
-pub fn detect_cbumi_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String>, usize> {
-    // deprecated
-    // mesures the number of ovelapping CUGs across the experiments
-
-    let mut total = 0;
-    // TODO: this doesnt check if the EC overlaps
-    for v in busfolders.values() {
-        println!("determine size of iterator {}", v);
-        let total_records = BusReader::new(v).groupby_cbumi().count();
-        if total < total_records {
-            total = total_records
-        }
-    }
-    println!("total records {}", total);
-
-    let multi_iter = CellUmiIteratorMulti::new(&busfolders);
-    let bar = get_progressbar(total as u64);
-    let mut counter: HashMap<Vec<String>, usize> = HashMap::new();
-
-    for (i, ((_cb, _umi), record_dict)) in multi_iter.enumerate() {
-        let mut the_set: Vec<String> = record_dict.keys().cloned().collect();
-        the_set.sort();
-        let val = counter.entry(the_set).or_insert(0);
-        *val += 1;
-
-        if i % 1000000 == 0 {
-            bar.inc(1000000);
-        }
-    }
-    counter
-}
-
-pub fn detect_cb_overlap(busfolders: HashMap<String, String>) -> HashMap<Vec<String>, usize> {
-
-    let mut total = 0;
-    // TODO: this doesnt check if the EC overlaps
-    for v in busfolders.values() {
-        println!("determine size of iterator {}", v);
-        let total_records = BusReader::new(v).groupby_cb().count();
-        if total < total_records {
-            total = total_records
-        }
-    }
-    println!("total records {}", total);
-
-    let multi_iter = CellIteratorMulti::new(&busfolders);
-    let bar = get_progressbar(total as u64);
-    let mut counter: HashMap<Vec<String>, usize> = HashMap::new();
-
-    for (i, (_cb, record_dict)) in multi_iter.enumerate() {
-        let mut the_set: Vec<String> = record_dict.keys().cloned().collect();
-        the_set.sort();
-        let val = counter.entry(the_set).or_insert(0);
-        *val += 1;
-
-        if i % 1000000 == 0 {
-            bar.inc(1000000);
-        }
-    }
-    counter
-}
 
 #[cfg(test)]
 mod tests {
@@ -425,5 +365,22 @@ mod tests {
         for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii) {
             assert_eq!(r_expect, r_obs);
         }
+    }
+
+    #[test]
+    fn test_real_cbumi() {
+        let input1 = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+        let input2 = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus";
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), input1.to_owned()),
+            ("test2".to_string(), input2.to_owned()),
+        ]);
+        let m = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let mut counter = 0;
+        for (_cbumi, w) in m{
+            counter += w.len();
+        }
+        println!("{counter}");
     }
 }

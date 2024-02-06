@@ -7,9 +7,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::Itertools;
 use bustools::bus_multi::CellIteratorMulti;
 use bustools::consistent_genes::{Ec2GeneMapper, Genename, EC};
-use bustools::io::{BusReader, BusRecord, BusWriter, BusParams};
+use bustools::io::{BusReader, BusRecord, BusWriter, BusParams, setup_busfile};
 use bustools::iterators::{CellGroup, CbUmiGroup, CellGroupIterator, CbUmiGroupIterator};
-use bustools::merger::MultiIterator;
+use bustools::merger::{MultiIteratorSlow, MultiIterator};
 use bustools::multinomial::{multinomial_sample, multinomial_sample_binary_search};
 
 // use bustools::iterators_clone::CellIteratorClone;
@@ -438,7 +438,7 @@ fn busmulti_vs_merger(c: &mut Criterion){
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
         ]);
-        let iii = MultiIterator::new(hashmap);
+        let iii = MultiIteratorSlow::new(hashmap);
         let v: Vec<_> = iii.take(n).collect();
         v.len()
     }
@@ -508,12 +508,132 @@ fn swap_vecu8_vs_bistream(c: &mut Criterion){
 }
 
 
+fn bench_merger(c: &mut Criterion){
+
+    let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+    let r2 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+    let r3 = BusRecord { CB: 1, UMI: 3, EC: 0, COUNT: 2, FLAG: 0 };
+    let r4 = BusRecord { CB: 3, UMI: 0, EC: 0, COUNT: 2, FLAG: 0 };
+
+    let v1 = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
+
+    let s1 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+    let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+    let s3 = BusRecord { CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0 };
+    let s4 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+    let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
+    let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
+
+    // write the records to file
+    let (busname1, _dir1) = setup_busfile(&v1);
+    let (busname2, _dir2) = setup_busfile(&v2);
+
+    fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
+
+        let b1 = BusReader::new(fname1).groupby_cb();
+        let b2 = BusReader::new(fname2).groupby_cb();
+        let hashmap = HashMap::from([
+            ("test1".to_string(), b1),
+            ("test2".to_string(), b2),
+        ]);
+        let iii = MultiIteratorSlow::new(hashmap);
+        let v: Vec<_> = iii.take(n).collect();
+        v.len()
+    }
+
+    fn dummy_merger_fast(fname1: &str,fname2: &str, n:usize) -> usize{
+
+        let b1 = BusReader::new(fname1).groupby_cb();
+        let b2 = BusReader::new(fname2).groupby_cb();
+        let hashmap = HashMap::from([
+            ("test1".to_string(), b1),
+            ("test2".to_string(), b2),
+        ]);
+        let iii = MultiIterator::new(hashmap);
+        let v: Vec<_> = iii.take(n).collect();
+        v.len()
+    }
+
+    let n = 1000;
+    c.bench_function(
+        "merger",
+        |b| b.iter(
+            || dummy_merger(
+                black_box(&busname1), 
+                black_box(&busname2), 
+                n)
+        ));
+
+        c.bench_function(
+            "merger fast",
+            |b| b.iter(
+                || dummy_merger_fast(
+                    black_box(&busname1), 
+                    black_box(&busname2), 
+                    n)
+            ));
+}
+
+fn bench_merger_real(c: &mut Criterion){
+    let busname1 = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+    let busname2 = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
+
+    fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
+
+        let b1 = BusReader::new(fname1).groupby_cbumi();
+        let b2 = BusReader::new(fname2).groupby_cbumi();
+        let hashmap = HashMap::from([
+            ("test1".to_string(), b1),
+            ("test2".to_string(), b2),
+        ]);
+        let iii = MultiIteratorSlow::new(hashmap);
+        let v: Vec<_> = iii.take(n).collect();
+        v.len()
+    }
+
+    fn dummy_merger_fast(fname1: &str,fname2: &str, n:usize) -> usize{
+
+        let b1 = BusReader::new(fname1).groupby_cbumi();
+        let b2 = BusReader::new(fname2).groupby_cbumi();
+        let hashmap = HashMap::from([
+            ("test1".to_string(), b1),
+            ("test2".to_string(), b2),
+        ]);
+        let iii = MultiIterator::new(hashmap);
+        let v: Vec<_> = iii.take(n).collect();
+        v.len()
+    }
+
+    let n = 10000;
+    c.bench_function(
+        "merger",
+        |b| b.iter(
+            || dummy_merger(
+                black_box(&busname1), 
+                black_box(&busname2), 
+                n)
+        ));
+
+        c.bench_function(
+            "merger fast",
+            |b| b.iter(
+                || dummy_merger_fast(
+                    black_box(&busname1), 
+                    black_box(&busname2), 
+                    n)
+            ));    
+}
+
+
+
 // criterion_group!(benches, criterion_benchmark);
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
 // criterion_group!(benches, plain_iterator_speed);
 // criterion_group!(benches, bench_busz_compression_write);
-criterion_group!(benches, bench_busz_compression_read);
+// criterion_group!(benches, bench_busz_compression_read);
 // criterion_group!(benches, swap_vecu8_vs_bistream);
+
+criterion_group!(benches, bench_merger_real);
 
 criterion_main!(benches);
