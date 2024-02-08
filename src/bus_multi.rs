@@ -30,8 +30,7 @@
 //! - CellUmiIteratorMulti -> iterate, grouping bt cell/umi
 //!
 use crate::io::{BusReader, BusRecord};
-use crate::iterators::{CbUmiGroup, CellGroup, CbUmiGroupIterator, CellGroupIterator};
-use crate::utils::get_progressbar;
+use crate::iterators::{CbUmiGroup, CellGroup};
 use std::collections::HashMap;
 
 /// Iterator over cells across multiple busfiles

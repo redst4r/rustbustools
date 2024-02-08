@@ -145,8 +145,8 @@ pub fn find_consistent(records: &[BusRecord], ec2gene: &Ec2GeneMapper) -> Mappin
 /// # use bustools::io::BusFolder;
 /// # use std::collections::HashSet;
 /// # use bustools::consistent_genes::{Genename, EC};
-/// let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
-/// let ec2g = bfolder.ec2gene;
+/// let bfolder = BusFolder::new("/path/to/busfolder");
+/// let ec2g = bfolder.make_mapper("/path/to/transcripts_to_genes.txt");
 /// let ec = EC(1234);
 /// let genenames: HashSet<Genename> = ec2g.get_genenames(ec);
 /// ```
@@ -365,7 +365,7 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
     let mut t2g_dict: HashMap<String, Genename> = HashMap::new();
     let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
     let reader = BufReader::new(file);
-    for (_i, line) in reader.lines().enumerate() {
+    for line in reader.lines() {
         if let Ok(l) = line {
             let mut s = l.split_whitespace();
             let transcript_id = s.next().unwrap();
@@ -408,7 +408,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
     // for (gset, grouped_records) in inter.iterate_items(){
     for (gset, grouped_records) in izip!(inter.keys, inter.items) {
         let counts: u32 = grouped_records.iter().map(|x| x.COUNT).sum();
-        let r1 = grouped_records.get(0).unwrap();
+        let r1 = grouped_records.first().unwrap();
 
         let new_record = CUGset { CB: r1.CB, UMI: r1.UMI, GENESET: gset, COUNT: counts };
         emissions.push(new_record);
@@ -425,7 +425,7 @@ mod testing {
     };
     use std::collections::{HashMap, HashSet};
 
-    use super::{Ec2GeneMapper, EC, make_mapper};
+    use super::{Ec2GeneMapper, EC};
 
     #[test]
     fn test_consistent() {
@@ -618,7 +618,7 @@ mod testing {
         let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
         let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
         let b = BusFolder::new(folder);
-        let ecmapper = make_mapper(&b, t2g_file);
+        let ecmapper = b.make_mapper(t2g_file);
 
         for g in 0..ecmapper.int_to_gene.len() {
             ecmapper.resolve_geneid_to_ec_uniquely(g as u32).unwrap();

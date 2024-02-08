@@ -219,7 +219,6 @@ where
             None
         }
     }
-                // let ix = self.names.iter().position(|x| x == itername).expect("itername must exist");
 
     /// gets the smallest key (K) across the iterators
     fn get_current_min_items(&mut self) -> K {

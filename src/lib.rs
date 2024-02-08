@@ -66,8 +66,9 @@
 //! ```rust, no_run
 //! # use bustools::io::BusFolder;
 //! # use bustools::consistent_genes::EC;
-//! let bfolder = BusFolder::new("/path/to/busfolder", "/path/to/transcripts_to_genes.txt");
-//! let gene_names = bfolder.ec2gene.get_genenames(EC(1));
+//! let bfolder = BusFolder::new("/path/to/busfolder");
+//! let ec_mapper = bfolder.make_mapper("/path/to/transcripts_to_genes.txt");
+//! let gene_names = ec_mapper.get_genenames(EC(1));
 //! ```
 
 // #![deny(missing_docs)]
