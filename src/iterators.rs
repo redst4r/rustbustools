@@ -40,8 +40,7 @@ pub struct CbUmiGroup<I: CUGIterator> {
 }
 
 impl<I> Iterator for CbUmiGroup<I>
-where
-    I: CUGIterator,
+where I: CUGIterator,
 {
     type Item = ((u64, u64), Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
@@ -101,8 +100,7 @@ where
 }
 
 impl<I> CbUmiGroup<I>
-where
-    I: CUGIterator,
+where I: CUGIterator,
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
@@ -110,10 +108,63 @@ where
     }
 }
 
+pub struct CbUmiGroupFaster<I: CUGIterator> {
+    iter: I,
+    current_records: Vec<BusRecord>, //option needed to mark the final element of the iteration
+    current_cbumi: (u64, u64),
+}
+impl<I> CbUmiGroupFaster<I>
+where I: CUGIterator,
+{
+    pub fn new(mut iter: I) -> Self {
+        let last_record = iter.next().expect("min one item needed"); //initilize with the first record in the file
+        let current_cbumi = (last_record.CB, last_record.UMI);
+        let current_records = vec![last_record];
+        Self { iter, current_records, current_cbumi }
+    }
+}
+impl<I> Iterator for CbUmiGroupFaster<I>
+where I: CUGIterator,
+{
+    type Item = ((u64, u64), Vec<BusRecord>);
+    fn next(&mut self) -> Option<Self::Item> {
+
+        loop {
+            // anything left in the basic iterator (if not, just emit whatever is stored in self.last_element)
+            if let Some(new_record) = self.iter.next() {
+                // the newly seen record
+                // let (new_cb, new_umi) = (new_record.CB, new_record.UMI);
+                let new_cbumi = (new_record.CB, new_record.UMI);
+
+                match new_cbumi.cmp(&self.current_cbumi){
+                    std::cmp::Ordering::Equal => { self.current_records.push(new_record); },// the stored element from the previous iteration
+                    std::cmp::Ordering::Less => {panic!("Unsorted busfile: {:?} -> {:?}", self.current_cbumi, new_cbumi)},
+                    std::cmp::Ordering::Greater => {
+                        let new_records = vec![new_record];
+                        let to_emit = std::mem::replace(&mut self.current_records, new_records);
+                        let current_cbumi = std::mem::replace(&mut self.current_cbumi, new_cbumi);
+                        return Some((current_cbumi, to_emit));  
+                    },
+                }
+            } else {
+                // note: this is the last iteration, but next() will be called once more, expected to yield None!
+                let to_emit = std::mem::take(&mut self.current_records);
+                let result = if !to_emit.is_empty() {
+                    let current_cbumi = std::mem::take(&mut self.current_cbumi);
+                    Some((current_cbumi, to_emit))        
+                } else {
+                    None // truely done now
+                };
+                return result    
+            }
+        }
+    }
+}
+
 /// gets iterator chaining working! Just a wrapper around CbUmiGroupIterator::new()
 pub trait CbUmiGroupIterator: CUGIterator + Sized {
-    fn groupby_cbumi(self) -> CbUmiGroup<Self> {
-        CbUmiGroup::new(self)
+    fn groupby_cbumi(self) -> CbUmiGroupFaster<Self> {
+        CbUmiGroupFaster::new(self)
     }
 }
 // implements the .groupby_cbumi() synthax for any `CUGIterator`
@@ -127,13 +178,14 @@ pub struct CellGroup<I: CUGIterator> {
 }
 
 impl<I> Iterator for CellGroup<I>
-where
-    I: CUGIterator,
+where I: CUGIterator,
 {
     type Item = (u64, Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
+        // TODO: allocated every .next() call. maybe move into the struct?
+        
         let mut busrecords: Vec<BusRecord> = Vec::new(); // storing the result to be emitted
-                                                         // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
+        // let mut busrecords: Vec<BusRecord> = Vec::with_capacity(self.buffersize); // storing the result to be emitted
 
         loop {
             if let Some(new_record) = self.iter.next() {
@@ -184,8 +236,7 @@ where
 }
 
 impl<I> CellGroup<I>
-where
-    I: CUGIterator,
+where I: CUGIterator,
 {
     pub fn new(mut iter: I) -> Self {
         let last_record = iter.next(); //initilize with the first record in the file
@@ -193,10 +244,62 @@ where
     }
 }
 
+pub struct CellGroupFaster<I: CUGIterator> {
+    iter: I,
+    current_records: Vec<BusRecord>,
+    current_cb: u64,
+}
+impl<I> CellGroupFaster<I>
+where I: CUGIterator,
+{
+    pub fn new(mut iter: I) -> Self {
+        let last_record = iter.next().expect("expected at least one value in iterator"); //initilize with the first record in the file
+        let current_cb = last_record.CB;
+        let current_records = vec![last_record];
+        Self { iter, current_records, current_cb}
+    }
+}
+
+impl<I> Iterator for CellGroupFaster<I>
+where I: CUGIterator,
+{
+    type Item = (u64, Vec<BusRecord>);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(new_record) = self.iter.next() {
+                // the newly seen record
+                let new_cb = new_record.CB;
+                match new_cb.cmp(&self.current_cb) {
+                    std::cmp::Ordering::Equal => { self.current_records.push(new_record) },  // just another record to add
+                    std::cmp::Ordering::Less =>  { panic!("Unsorted busfile: {} -> {}", self.current_cb, new_cb) },
+                    std::cmp::Ordering::Greater => {
+                        // start a new recordlist, emit the old one
+                        let new_records = vec![new_record];
+                        let to_emit = std::mem::replace(&mut self.current_records, new_records);
+                        let current_cb = std::mem::replace(&mut self.current_cb, new_cb);
+                        return Some((current_cb, to_emit));  
+                    },
+                }
+            } else {
+                // note: this is the last iteration, but next() will be called once more, expected to yield None!
+                let to_emit = std::mem::take(&mut self.current_records);
+                let result = if !to_emit.is_empty() {
+                    let current_cb = std::mem::take(&mut self.current_cb);
+                    Some((current_cb, to_emit))        
+                } else {
+                    None // truely done now
+                };
+                return result   
+            }
+        }
+    }
+}
+
+
 /// gets iterator chaining working! Just a wrapper around CellGroupIterator::new()
 pub trait CellGroupIterator: CUGIterator + Sized {
-    fn groupby_cb(self) -> CellGroup<Self> {
-        CellGroup::new(self)
+    fn groupby_cb(self) -> CellGroupFaster<Self> {
+        CellGroupFaster::new(self)
     }
 }
 impl<I: CUGIterator> CellGroupIterator for I {}
@@ -242,6 +345,40 @@ mod tests {
     use crate::io::{setup_busfile, BusRecord};
     use crate::iterators::{CbUmiGroupIterator, CellGroup, CellGroupIterator};
     use crate::utils::vec2set;
+
+    #[test]
+    fn test_cb_single_elem() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let records = vec![r1.clone()];
+        let mut it = records.into_iter().groupby_cb();
+
+        assert_eq!(
+            it.next(),
+            Some((0, vec![r1]))
+        );
+
+        assert_eq!(
+            it.next(),
+            None
+        );
+    }
+
+    #[test]
+    fn test_cbumi_single_elem() {
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let records = vec![r1.clone()];
+        let mut it = records.into_iter().groupby_cbumi();
+
+        assert_eq!(
+            it.next(),
+            Some(((0,2), vec![r1]))
+        );
+
+        assert_eq!(
+            it.next(),
+            None
+        );
+    }
 
     #[test]
     fn test_cb_iter_last_element1() {
