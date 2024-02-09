@@ -7,11 +7,14 @@
 //! ```rust, no_run
 //! # use std::collections::HashMap;
 //! # use bustools::bus_multi::CellUmiIteratorMulti;
+//! # use bustools::io::BusReader;
+//! use crate::bustools::iterators::CbUmiGroupIterator;
 //! // two busfiles, named
 //! let hashmap = HashMap::from([
-//!     ("test1".to_string(), "/tmp/some1.bus".to_string()),
-//!     ("test2".to_string(), "/tmp/some2.bus".to_string())]);
-//! let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+//!     ("test1".to_string(), BusReader::new("/tmp/some1.bus").groupby_cbumi()),
+//!     ("test2".to_string(), BusReader::new("/tmp/some2.bus").groupby_cbumi())
+//! ]);
+//! let iii = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
 //!
 //! for (cb, emission_dict) in iii{
 //!     // get the records wrt to cb
@@ -29,38 +32,33 @@
 //! - CellIteratorMulti  -> iterate, grouping by cell
 //! - CellUmiIteratorMulti -> iterate, grouping bt cell/umi
 //!
-use crate::io::{BusReader, BusRecord};
-use crate::iterators::{CbUmiGroup, CellGroup};
+use crate::io::{BusRecord, CUGIterator};
+use crate::iterators::{CbUmiGroupFaster, CellGroupFaster};
 use std::collections::HashMap;
 
 /// Iterator over cells across multiple busfiles
 #[deprecated(note="please use `merger.MultiIteratorFast` instead")]
-pub struct CellIteratorMulti {
-    iterators: HashMap<String, CellGroup<BusReader>>,
+pub struct CellIteratorMulti<I: CUGIterator> {
+    iterators: HashMap<String, CellGroupFaster<I>>,
     current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
 }
 
-impl CellIteratorMulti {
-    pub fn new(fnames: &HashMap<String, String>) -> CellIteratorMulti {
-        let mut iterators: HashMap<String, CellGroup<BusReader>> = HashMap::new();
+impl <I: CUGIterator>CellIteratorMulti<I> {
+    pub fn new(iterators: HashMap<String, CellGroupFaster<I>>) -> CellIteratorMulti<I> {
+        
+        let mut iterators2: HashMap<String, CellGroupFaster<I>> = HashMap::new();
         let mut current_items: HashMap<String, (u64, Vec<BusRecord>)> = HashMap::new();
 
-        for (name, fname) in fnames {
-            // create new cell iterator
-            let mut the_iter = CellGroup::new(BusReader::new(fname));
-
+        for (name, mut the_iter) in iterators {
             // populate first elements from that iterator
-            let item = the_iter.next();
-            match item {
-                Some(record_list) => current_items.insert(name.clone(), record_list),
-                None => None, //TODO we should probably drop this iterator here already
-            };
-
-            // store for later
-            iterators.insert(name.clone(), the_iter);
+            if let Some(record_list) = the_iter.next() {
+                    current_items.insert(name.clone(), record_list);
+            } else {
+                    //TODO we should probably drop this iterator here already
+            }
+            iterators2.insert(name, the_iter);
         }
-
-        CellIteratorMulti { iterators, current_items }
+        CellIteratorMulti { iterators:iterators2, current_items }
     }
 
     fn advance_iter(&mut self, itername: &String) -> Option<(u64, Vec<BusRecord>)> {
@@ -86,7 +84,7 @@ impl CellIteratorMulti {
     }
 }
 
-impl Iterator for CellIteratorMulti {
+impl <I: CUGIterator>Iterator for CellIteratorMulti<I> {
     // for each file, returns a vector of records for that cell
     type Item = (u64, HashMap<String, Vec<BusRecord>>);
 
@@ -148,30 +146,27 @@ impl Iterator for CellIteratorMulti {
 // =================================================================
 /// Iterator over cells across multiple busfiles
 #[deprecated(note="please use `merger.MultiIteratorFast` instead")]
-pub struct CellUmiIteratorMulti {
-    iterators: HashMap<String, CbUmiGroup<BusReader>>,
+pub struct CellUmiIteratorMulti <I:CUGIterator> {
+    iterators: HashMap<String, CbUmiGroupFaster<I>>,
     current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
 }
-impl CellUmiIteratorMulti {
-    pub fn new(fnames: &HashMap<String, String>) -> CellUmiIteratorMulti {
-        let mut iterators: HashMap<String, CbUmiGroup<BusReader>> = HashMap::new();
+impl <I:CUGIterator> CellUmiIteratorMulti <I> {
+
+    pub fn new(iterators: HashMap<String, CbUmiGroupFaster<I>>) -> Self {
+        
+        let mut iterators2: HashMap<String, CbUmiGroupFaster<I>> = HashMap::new();
         let mut current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)> = HashMap::new();
 
-        for (name, fname) in fnames {
-            // create new cell iterator
-            let mut the_iter = CbUmiGroup::new(BusReader::new(fname));
-
+        for (name, mut the_iter) in iterators {
             // populate first elements from that iterator
-            let item = the_iter.next();
-            match item {
-                Some(record_list) => current_items.insert(name.clone(), record_list),
-                None => None, //TODO we should probably drop this iterator here already
+            if let Some(record_list) = the_iter.next() {
+                current_items.insert(name.clone(), record_list);
+            } else {
+                //TODO we should probably drop this iterator here already
             };
-
-            // store for later
-            iterators.insert(name.clone(), the_iter);
+            iterators2.insert(name, the_iter);
         }
-        CellUmiIteratorMulti { iterators, current_items }
+        CellUmiIteratorMulti { iterators:iterators2, current_items }
     }
 
     fn advance_iter(&mut self, itername: &String) -> Option<((u64, u64), Vec<BusRecord>)> {
@@ -198,7 +193,7 @@ impl CellUmiIteratorMulti {
     }
 }
 
-impl Iterator for CellUmiIteratorMulti {
+impl <I:CUGIterator>Iterator for CellUmiIteratorMulti<I> {
     // for each file, returns a vector of records for that cell
     type Item = ((u64, u64), HashMap<String, Vec<BusRecord>>);
 
@@ -256,7 +251,7 @@ impl Iterator for CellUmiIteratorMulti {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{setup_busfile, BusRecord};
+    use crate::{io::{BusReader, BusRecord}, iterators::{CbUmiGroupIterator, CellGroupIterator}};
     use std::collections::HashMap;
 
     #[test]
@@ -282,16 +277,9 @@ mod tests {
         let s3 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
         let v2 = vec![s1.clone(), s2.clone(), s3.clone()];
 
-        // write the records to file
-        let (busname1, _dir1) = setup_busfile(&v1);
-        let (busname2, _dir2) = setup_busfile(&v2);
-
-        // create_busfile(busname1, v1);
-        // create_busfile(busname2, v2);
-
         let hashmap = HashMap::from([
-            ("test1".to_string(), busname1.to_string()),
-            ("test2".to_string(), busname2.to_string()),
+            ("test1".to_string(), v1.into_iter().groupby_cb()),
+            ("test2".to_string(), v2.into_iter().groupby_cb()),
         ]);
 
         // what we expect to get
@@ -309,7 +297,7 @@ mod tests {
         ];
 
         // iterate, see if it meets the expectations
-        let iii = CellIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let iii = CellIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
 
         for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii) {
             assert_eq!(r_expect, r_obs);
@@ -333,14 +321,10 @@ mod tests {
         let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
         let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
 
-        // write the records to file
-        let (busname1, _dir1) = setup_busfile(&v1);
-        let (busname2, _dir2) = setup_busfile(&v2);
-
-        let hashmap = HashMap::from([
-            ("test1".to_string(), busname1.to_string()),
-            ("test2".to_string(), busname2.to_string()),
-        ]);
+         let hashmap = HashMap::from([
+            ("test1".to_string(), v1.into_iter().groupby_cbumi()),
+            ("test2".to_string(), v2.into_iter().groupby_cbumi()),
+        ]);        
 
         // what we expect to get
         let expected_pairs = vec![
@@ -359,7 +343,7 @@ mod tests {
         ];
 
         // iterate, see if it meets the expectations
-        let iii = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let iii = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
 
         for (r_expect, (_cb, r_obs)) in zip(expected_pairs, iii) {
             assert_eq!(r_expect, r_obs);
@@ -372,10 +356,10 @@ mod tests {
         let input2 = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus";
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), input1.to_owned()),
-            ("test2".to_string(), input2.to_owned()),
+            ("test1".to_string(), BusReader::new(input1).groupby_cbumi()),
+            ("test2".to_string(), BusReader::new(input2).groupby_cbumi()),
         ]);
-        let m = CellUmiIteratorMulti::new(&hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let m = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
         let mut counter = 0;
         for (_cbumi, w) in m{
             counter += w.len();

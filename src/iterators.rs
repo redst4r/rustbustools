@@ -128,12 +128,10 @@ where I: CUGIterator,
 {
     type Item = ((u64, u64), Vec<BusRecord>);
     fn next(&mut self) -> Option<Self::Item> {
-
         loop {
             // anything left in the basic iterator (if not, just emit whatever is stored in self.last_element)
             if let Some(new_record) = self.iter.next() {
                 // the newly seen record
-                // let (new_cb, new_umi) = (new_record.CB, new_record.UMI);
                 let new_cbumi = (new_record.CB, new_record.UMI);
 
                 match new_cbumi.cmp(&self.current_cbumi){
@@ -341,8 +339,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use crate::consistent_genes::{Ec2GeneMapper, Genename, EC};
-    use crate::io::BusReader;
-    use crate::io::{setup_busfile, BusRecord};
+    use crate::io::BusRecord;
     use crate::iterators::{CbUmiGroupIterator, CellGroup, CellGroupIterator};
     use crate::utils::vec2set;
 
@@ -388,23 +385,15 @@ mod tests {
         let r3 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
 
         let records = vec![r1.clone(), r2.clone(), r3.clone()];
-        // let n: Vec<_> = records.into_iter().groupby_cb().map(|(_cb, records)| records).collect();
-        let (busname, _dir) = setup_busfile(&records);
-
-        let b = BusReader::new(&busname);
-        let n: Vec<_> = b.groupby_cb().map(|(_cb, records)| records).collect();
-
-        // println!("{:?}", n);
-        // assert_eq!(n, vec![vec![r1, r2], vec![r3]]);
+        let n: Vec<_> = records.clone().into_iter().groupby_cb().map(|(_cb, records)| records).collect();
         assert_eq!(n.len(), 2);
 
         let rlist = &n[1];
         assert_eq!(rlist.len(), 1);
 
         // another wayto initialize,  no chaining
-        let (busname, _dir) = setup_busfile(&records);
-        let b = BusReader::new(&busname);
-        let n: Vec<_> = CellGroup::new(b).map(|(_cb, records)| records).collect();
+        let iter = records.into_iter();
+        let n: Vec<_> = CellGroup::new(iter).map(|(_cb, records)| records).collect();
         assert_eq!(n.len(), 2);
 
         let rlist = &n[1];
@@ -419,13 +408,7 @@ mod tests {
         let r3 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let r4 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let records = vec![r1.clone(), r2.clone(), r3.clone(), r4.clone()];
-        let (busname, _dir) = setup_busfile(&records);
-
-        let b = BusReader::new(&busname);
-        let n: Vec<_> = b.groupby_cb().collect();
-
-        // println!("{:?}", n);
-
+        let n: Vec<_> = records.into_iter().groupby_cb().collect();
         assert_eq!(n.len(), 2);
 
         let (_cb, rlist) = &n[1];
@@ -449,13 +432,7 @@ mod tests {
             r5.clone(),
             r6.clone(),
         ];
-
-        // let n: Vec<(u64, Vec<BusRecord>)> = records.into_iter().groupby_cb().collect();
-
-        let (busname, _dir) = setup_busfile(&records);
-
-        let b = BusReader::new(&busname);
-        let n: Vec<(u64, Vec<BusRecord>)> = b.groupby_cb().collect();
+        let n: Vec<(u64, Vec<BusRecord>)> = records.into_iter().groupby_cb().collect();
 
         assert_eq!(n.len(), 4);
         // println!("{:?}", n);
@@ -494,13 +471,8 @@ mod tests {
             r5.clone(),
             r6.clone(),
         ];
-        // let n: Vec<((u64, u64), Vec<BusRecord>)> = records.into_iter().groupby_cbumi().collect();
 
-        let (busname, _dir) = setup_busfile(&records);
-
-        let b = BusReader::new(&busname);
-        let cb_iter = b.groupby_cbumi();
-        // let n: Vec<Vec<BusRecord>> = cb_iter.map(|(_cb, rec)| rec).collect();
+        let cb_iter = records.into_iter().groupby_cbumi();
         let n: Vec<((u64, u64), Vec<BusRecord>)> = cb_iter.collect();
         // println!("{:?}", n);
 
@@ -533,28 +505,19 @@ mod tests {
         let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
         let r3 = BusRecord { CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let r4 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
-
         let records = vec![r1, r2, r3, r4];
-
-        // let busname = "/tmp/test_panic_on_unsorted.bus";
-        let (busname, _dir) = setup_busfile(&records);
-        let b = BusReader::new(&busname);
-        b.groupby_cb().count();
+        records.into_iter().groupby_cb().count();
     }
 
     #[test]
-    #[should_panic(expected = "Unsorted busfile: 2/2 -> 0/1")]
+    #[should_panic(expected = "Unsorted busfile: (2, 2) -> (0, 1)")]
     fn test_panic_on_unsorted_cbumi() {
         let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let r2 = BusRecord { CB: 0, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
         let r3 = BusRecord { CB: 2, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
         let r4 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
-
         let records = vec![r1, r2, r3, r4];
-
-        let (busname, _dir) = setup_busfile(&records);
-        let b = BusReader::new(&busname);
-        b.groupby_cbumi().count();
+        records.into_iter().groupby_cbumi().count();
     }
 
     use crate::iterators::GroupbyGeneIterator;
@@ -585,12 +548,7 @@ mod tests {
         let s2 = BusRecord { CB: 0, UMI: 2, EC: 1, COUNT: 4, FLAG: 0 }; //B
 
         let records = vec![r1.clone(), r2.clone(), s1.clone(), s2.clone()];
-
-        let (busname, _dir) = setup_busfile(&records);
-
-        let b = BusReader::new(&busname);
-
-        let cb_iter = b.groupby_cbumi();
+        let cb_iter = records.into_iter().groupby_cbumi();
 
         let results: Vec<_> = cb_iter.map(|(_cbumi, r)| r).group_by_gene(es).collect();
 

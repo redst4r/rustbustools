@@ -240,6 +240,11 @@ impl Iterator for BusReader {
 // tag our iterator to be compatible with our framework
 impl CUGIterator for BusReader {}
 
+
+/// actually, also make general iterators of BusRecord amenable
+// impl CUGIterator for dyn Iterator<Item = BusRecord> {}
+impl CUGIterator for std::vec::IntoIter<BusRecord> {}
+
 // ========================================
 /// Writing BusRecords into a File, using Buffers
 /// needs the Header of the busfile to be specified (length of CB and UMI)

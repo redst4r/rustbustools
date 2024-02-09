@@ -309,9 +309,9 @@ where
 mod tests {
     use super::{MultiIteratorSlow, MultiIterator};
     use crate::{
-        bus_multi::CellUmiIteratorMulti,
-        io::{setup_busfile, BusReader, BusRecord},
-        iterators::CbUmiGroupIterator,
+        bus_multi::{CellIteratorMulti, CellUmiIteratorMulti},
+        io::{BusReader, BusRecord},
+        iterators::{CbUmiGroupIterator, CellGroupIterator},
     };
     use itertools::izip;
     use std::collections::HashMap;
@@ -355,37 +355,16 @@ mod tests {
         let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
         let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
 
-        // write the records to file
-        let (busname1, _dir1) = setup_busfile(&v1);
-        let (busname2, _dir2) = setup_busfile(&v2);
-
-        let hashmap_fname = HashMap::from([
-            ("test1".to_string(), busname1.to_string()),
-            ("test2".to_string(), busname2.to_string()),
-        ]);
-
-        // // what we expect to get
-        // let expected_pairs = vec![
-        //     HashMap::from([
-        //         ("test1".to_string(), vec![r1]),
-        //         ("test2".to_string(), vec![s1]),
-        //     ]),
-        //     HashMap::from([("test1".to_string(), vec![r2])]),
-        //     HashMap::from([("test2".to_string(), vec![s2])]),
-        //     HashMap::from([
-        //         ("test1".to_string(), vec![r3]),
-        //         ("test2".to_string(), vec![s3]),
-        //     ]),
-        //     HashMap::from([("test2".to_string(), vec![s4, s5])]),
-        //     HashMap::from([("test1".to_string(), vec![r4])]),
-        // ];
 
         // iterate, see if it meets the expectations
-        let iii = CellUmiIteratorMulti::new(&hashmap_fname); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
-
         let hashmap = HashMap::from([
-            ("test1".to_string(), BusReader::new(&busname1).groupby_cbumi()),
-            ("test2".to_string(), BusReader::new(&busname2).groupby_cbumi()),
+            ("test1".to_string(), v1.clone().into_iter().groupby_cbumi()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cbumi()),
+        ]);        
+        let iii = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let hashmap = HashMap::from([
+            ("test1".to_string(), v1.clone().into_iter().groupby_cbumi()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cbumi()),
         ]);
 
         let miter = MultiIteratorSlow::new(hashmap);
@@ -395,11 +374,15 @@ mod tests {
             }
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), BusReader::new(&busname1).groupby_cbumi()),
-            ("test2".to_string(), BusReader::new(&busname2).groupby_cbumi()),
+            ("test1".to_string(), v1.clone().into_iter().groupby_cbumi()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cbumi()),
         ]);
-        let iii = CellUmiIteratorMulti::new(&hashmap_fname); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+        let iii = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
 
+        let hashmap = HashMap::from([
+            ("test1".to_string(), v1.clone().into_iter().groupby_cbumi()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cbumi()),
+        ]);
         let miter = MultiIterator::new(hashmap);
         for ((cbumi1, q),(cbumi2, w)) in izip!(iii, miter){
             assert_eq!(cbumi1, cbumi2);
@@ -450,4 +433,40 @@ mod tests {
     }
 
     // TODO write test where two iterators are removed in the same iteration (changes indexing)
+    #[test]
+    fn remove_multiple() {
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let v1 = vec![r1.clone()];
+
+        let s1 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let s2 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 12, FLAG: 0 };
+        let s3 = BusRecord { CB: 1, UMI: 3, EC: 1, COUNT: 12, FLAG: 0 };
+        let s4 = BusRecord { CB: 2, UMI: 3, EC: 1, COUNT: 2, FLAG: 0 };
+        let s5 = BusRecord { CB: 2, UMI: 3, EC: 2, COUNT: 2, FLAG: 0 };
+        let v2 = vec![s1.clone(), s2.clone(), s3.clone(), s4.clone(), s5.clone()];
+
+        let r3 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
+        let v3 = vec![r3.clone()];
+
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), v1.clone().into_iter().groupby_cb()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cb()),
+            ("test3".to_string(), v3.clone().into_iter().groupby_cb()),
+        ]);        
+        let hashmap2 = HashMap::from([
+            ("test1".to_string(), v1.clone().into_iter().groupby_cb()),
+            ("test2".to_string(), v2.clone().into_iter().groupby_cb()),
+            ("test3".to_string(), v3.clone().into_iter().groupby_cb()),
+        ]);        
+
+        let iii = CellIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
+
+        let miter = MultiIterator::new(hashmap2);
+        for ((cbumi1, q),(cbumi2, w)) in izip!(iii, miter){
+            assert_eq!(cbumi1, cbumi2);
+            assert_eq!(q, w);
+        }
+    }
+
 }

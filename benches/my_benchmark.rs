@@ -4,11 +4,11 @@ use std::fs::File;
 use bitvec::field::BitField;
 use bustools::busz::{BuszWriter, BuszReader};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use bustools::bus_multi::CellIteratorMulti;
 use bustools::consistent_genes::{Ec2GeneMapper, Genename, EC};
 use bustools::io::{BusReader, BusRecord, BusWriter, BusParams, setup_busfile};
-use bustools::iterators::{CellGroup, CbUmiGroup, CellGroupIterator, CbUmiGroupIterator};
+use bustools::iterators::{CbUmiGroup, CbUmiGroupIterator, CellGroup, CellGroupIterator};
 use bustools::merger::{MultiIteratorSlow, MultiIterator};
 use bustools::multinomial::{multinomial_sample, multinomial_sample_binary_search};
 
@@ -419,13 +419,13 @@ fn busmulti_vs_merger(c: &mut Criterion){
 
     fn dummy_busmulti(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        // let b1 = BusReader::new(fname1).groupby_cb();
-        // let b2 = BusReader::new(fname2).groupby_cb();
+        let b1 = BusReader::new(fname1).groupby_cb();
+        let b2 = BusReader::new(fname2).groupby_cb();
         let hashmap = HashMap::from([
-            ("test1".to_string(), fname1.to_string()),
-            ("test2".to_string(), fname2.to_string()),
+            ("test1".to_string(), b1),
+            ("test2".to_string(), b2),
         ]);
-        let iii = CellIteratorMulti::new(&hashmap);
+        let iii = CellIteratorMulti::new(hashmap);
         let v: Vec<_> = iii.take(n).collect();
         v.len()
     }
@@ -578,6 +578,37 @@ fn bench_merger_real(c: &mut Criterion){
     let busname1 = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     let busname2 = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
+    let n = 100000;
+
+    // lets pull those into mem, so that its not just disk access we measure
+    let b1 = BusReader::new(busname1).groupby_cbumi().take(n);
+    let b2 = BusReader::new(busname2).groupby_cbumi().take(n);
+
+    let r1 = b1.collect::<Vec<_>>();
+    let r2 = b2.collect::<Vec<_>>();
+
+    fn dummy_merger_mem(r1: Vec<((u64, u64), Vec<BusRecord>)>,r2:Vec<((u64, u64), Vec<BusRecord>)>) -> usize{
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), r1.into_iter()),
+            ("test2".to_string(), r2.into_iter()),
+        ]);
+        let iii = MultiIteratorSlow::new(hashmap);
+        let v: Vec<_> = iii.collect();
+        v.len()
+    }
+
+    fn dummy_merger_fast_mem(r1: Vec<((u64, u64), Vec<BusRecord>)>,r2:Vec<((u64, u64), Vec<BusRecord>)>) -> usize{
+
+        let hashmap = HashMap::from([
+            ("test1".to_string(), r1.into_iter()),
+            ("test2".to_string(), r2.into_iter()),
+        ]);
+        let iii = MultiIterator::new(hashmap);
+        let v: Vec<_> = iii.collect();
+        v.len()
+    }
+
     fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
 
         let b1 = BusReader::new(fname1).groupby_cbumi();
@@ -604,27 +635,41 @@ fn bench_merger_real(c: &mut Criterion){
         v.len()
     }
 
-    let n = 10000;
+    // c.bench_function(
+    //     "merger",
+    //     |b| b.iter(
+    //         || dummy_merger(
+    //             black_box(&busname1), 
+    //             black_box(&busname2), 
+    //             n)
+    //     ));
+
+    // c.bench_function(
+    //     "merger fast",
+    //     |b| b.iter(
+    //         || dummy_merger_fast(
+    //             black_box(&busname1), 
+    //             black_box(&busname2), 
+    //             n)
+    //     ));    
     c.bench_function(
         "merger",
         |b| b.iter(
-            || dummy_merger(
-                black_box(&busname1), 
-                black_box(&busname2), 
-                n)
+            || dummy_merger_mem(
+                black_box(r1.clone()), 
+                black_box(r2.clone()), 
+                )
         ));
 
-        c.bench_function(
-            "merger fast",
-            |b| b.iter(
-                || dummy_merger_fast(
-                    black_box(&busname1), 
-                    black_box(&busname2), 
-                    n)
-            ));    
+    c.bench_function(
+        "merger fast",
+        |b| b.iter(
+            || dummy_merger_fast_mem(
+                black_box(r1.clone()), 
+                black_box(r2.clone()), 
+                )
+        ));    
 }
-
-
 
 // criterion_group!(benches, criterion_benchmark);
 // criterion_group!(benches, bench_buswriter_buffersize);
