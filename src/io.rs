@@ -135,10 +135,9 @@ impl BusHeader {
         self.tlen
     }
 
-    /// return the length of the Cell Barcode in the busfile
-    pub fn get_cb_len(&self) -> u32 {
-        self.cb_len
-    }
+    // pub fn get_cb_len(&self) -> u32 {
+    //     self.cb_len
+    // }
 }
 
 /// A marker trait for iterators over CB/UMI/gene_EC iterators
@@ -330,7 +329,11 @@ impl BusWriter {
 /// To construct it, one has to supply a transcript_to_gene mapping file. This allows ECs to be mapped to a set of genes via
 /// the Ec2GeneMapper
 pub struct BusFolder {
-    pub foldername: String,
+    // pub foldername: String,
+    busfile: String,
+    matrix_ec_file: String,
+    transcript_file: String,
+
 }
 
 pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
@@ -370,9 +373,19 @@ fn parse_transcript(filename: &str) -> HashMap<u32, String> {
 
 impl BusFolder {
     pub fn new(foldername: &str) -> BusFolder {
-        BusFolder { foldername: foldername.to_string() }
+
+        // the default names
+        let busfile = format!("{foldername}/output.corrected.sort.bus");
+        let matrix_ec_file = format!("{foldername}/matrix.ec");
+        let transcript_file = format!("{foldername}/transcripts.txt");
+
+        BusFolder { busfile, matrix_ec_file, transcript_file}
     }
 
+    pub fn from_files(busfile: &str, matrix_ec_file: &str, transcript_file: &str) -> Self{
+        BusFolder { busfile: busfile.to_string(), matrix_ec_file: matrix_ec_file.to_string(), transcript_file: transcript_file.to_string()}
+    }
+ 
     /// returns an iterator of the folder's busfile
     pub fn get_iterator(&self) -> BusReader {
         let bfile = self.get_busfile();
@@ -381,7 +394,7 @@ impl BusFolder {
 
     /// return the folders busfile
     pub fn get_busfile(&self) -> String {
-        format!("{}/output.corrected.sort.bus", self.foldername)
+        self.busfile.clone()
     }
 
     /// return the busfiles header
@@ -396,12 +409,12 @@ impl BusFolder {
 
     /// return the matric.ec file
     pub fn get_ecmatrix_file(&self) -> String {
-        format!("{}/matrix.ec", self.foldername)
+        self.matrix_ec_file.clone()
     }
 
     /// return the transcript file
     pub fn get_transcript_file(&self) -> String {
-        format!("{}/transcripts.txt", self.foldername)
+        self.transcript_file.clone()
     }
 
     /// return the matric.ec file
@@ -443,7 +456,7 @@ pub fn group_record_by_cb_umi(record_list: Vec<BusRecord>) -> HashMap<(u64, u64)
     let mut cbumi_map: HashMap<(u64, u64), Vec<BusRecord>> = HashMap::new();
 
     for r in record_list {
-        let rlist = cbumi_map.entry((r.CB, r.UMI)).or_insert(Vec::new());
+        let rlist = cbumi_map.entry((r.CB, r.UMI)).or_default(); // inserts a Vec::new if not present
         rlist.push(r);
     }
     cbumi_map
