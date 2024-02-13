@@ -473,7 +473,6 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     // returns TempDir so that it doesnt go out of scope and gets deleted right after tis function returns
     use tempfile::tempdir;
     let dir = tempdir().unwrap();
-
     let file_path = dir.path().join("output.corrected.sort.bus");
     let tmpfilename = file_path.to_str().unwrap();
 
@@ -498,12 +497,17 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
 mod tests {
     use crate::consistent_genes::EC;
     use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter, BusParams};
-    use std::io::Write;
+    use std::io::{BufReader, Read, Write};
+    use tempfile::tempdir;
 
     #[test]
     fn test_read_write_header() {
         let r1 = BusRecord { CB: 1, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
-        let busname = "/tmp/test_read_write_header.bus";
+
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_read_write_header.bus");
+        let busname = file_path.to_str().unwrap();
+
         let mut writer = BusWriter::new(busname, BusParams {cb_len: 16, umi_len: 12});
         writer.write_record(&r1);
         writer.writer.flush().unwrap();
@@ -538,14 +542,19 @@ mod tests {
     use super::parse_ecmatrix;
     #[test]
     fn test_ecmatrix() {
-        let f = File::create("/tmp/foo").expect("Unable to create file");
-        let mut f = BufWriter::new(f);
+
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("foo.txt");
+        let tmpfilename = file_path.to_str().unwrap();
+
+        let file = File::create(tmpfilename).expect("Unable to create file");
+        let mut f = BufWriter::new(file);
 
         let data = "0 1,2,3\n1 3,4\n2 4";
         f.write_all(data.as_bytes()).expect("Unable to write data");
         f.flush().unwrap();
 
-        let ec = parse_ecmatrix("/tmp/foo");
+        let ec = parse_ecmatrix(tmpfilename);
         // println!("{}", ec.len());
         // println!("{:?}", ec);
         let e1 = ec.get(&EC(0)).unwrap();
@@ -587,5 +596,39 @@ mod tests {
 
         let g4 = grouped.get(&(1 as u64, 2 as u64)).unwrap();
         assert_eq!(*g4, vec![r5]);
+    }
+
+    #[test]
+    /// make sure the format on disk stays the same when we write it
+    fn test_insta_binary_format_write() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.bus");
+        let tmpfilename = file_path.to_str().unwrap();
+
+        let mut wri = BusWriter::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
+        let b = BusRecord {CB: 1, UMI: 1, EC: 1, COUNT: 3, FLAG: 0};
+        let c = BusRecord {CB: 0, UMI: 1, EC: 1, COUNT: 3, FLAG: 0};
+        let records = vec![b, c];
+        wri.write_iterator(records.into_iter());
+
+        let file = File::open(&tmpfilename).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut buffer = Vec::new();
+    
+        // Read file into vector.
+        reader.read_to_end(&mut buffer).unwrap();
+        let digest_str = format!("{:x}", md5::compute(buffer));
+        insta::assert_yaml_snapshot!(digest_str, @r###"
+        ---
+        7c8244640a360b26bfae2351b6200ec2
+        "###);
+    }
+
+    #[test]
+    /// make sure the format on disk stays the same when we read it
+    fn test_insta_binary_format_read() {
+        let external_file = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+        let records: Vec<BusRecord> = BusReader::new(external_file).step_by(10000).take(100).collect();
+        insta::assert_yaml_snapshot!(records)
     }
 }
