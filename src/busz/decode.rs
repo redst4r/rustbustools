@@ -544,14 +544,12 @@ impl <'a> BuszBlock <'a> {
             }
         let umis = self.parse_umi(&cbs);
 
-
         if self.debug {
             println!("UMIs: {:?}", umis);
 
             println!("EC pos {}", self.pos);
             }
         let ec = self.parse_ec();
-
 
         if self.debug {
             println!("ECs: {:?}", ec);
@@ -560,7 +558,6 @@ impl <'a> BuszBlock <'a> {
             println!("COUNT buf\n{}", bitstream_to_string(&self.buffer[self.pos..]));
             }
         let count = self.parse_counts();
-
 
         if self.debug {
             println!("count: {:?}", count);
@@ -590,10 +587,7 @@ impl <'a> BuszBlock <'a> {
 
 /// Decompress the `input` busz file into a plain busfile, `output`
 pub fn decompress_busfile(input: &str, output: &str) {
-
     let reader = BuszReader::new(input);
-
-
     let mut writer = BusWriter::new(
         output,
         reader.params.clone()

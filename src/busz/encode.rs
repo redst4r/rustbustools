@@ -422,6 +422,8 @@ mod test {
     }   
 
     mod buszwriter {
+        use tempfile::tempdir;
+
         use crate::{io::{BusRecord, BusParams}, busz::{encode::{BuszWriter, BuszWriterState}, decode::BuszReader}};
 
         #[test]
@@ -435,7 +437,10 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test.busz";
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("test.busz");
+            let buszfile = file_path.to_str().unwrap();
+            
             // let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_records(v.clone());
@@ -459,7 +464,10 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test2.busz";
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("test.busz");
+            let buszfile = file_path.to_str().unwrap();
+
             // let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_records(v.clone());
@@ -486,8 +494,9 @@ mod test {
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
 
-            let buszfile = "/tmp/busz_writer_test3.busz";
-            // let header = BusHeader::new(16,12,0);
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("test.busz");
+            let buszfile = file_path.to_str().unwrap();
             {
                 let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
                 writer.write_records(v.clone());
@@ -497,7 +506,6 @@ mod test {
             let reader = BuszReader::new(buszfile);
             assert_eq!(reader.collect::<Vec<BusRecord>>(), v);
         }
-
 
         #[test]
         fn test_busz_write_iterator() {
@@ -509,11 +517,14 @@ mod test {
                 BusRecord {CB:0,UMI:10,EC:1,COUNT:1, FLAG: 0 },   // 0
                 BusRecord {CB:1,UMI:0,EC:1,COUNT:1, FLAG: 0 },    // 1
             ];
-            let buszfile = "/tmp/busz_writer_test4.busz";
+
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("test.busz");
+            let buszfile = file_path.to_str().unwrap();
+
             // let header = BusHeader::new(16,12,0);
             let mut writer = BuszWriter::new(buszfile, BusParams {cb_len: 16, umi_len: 12} , blocksize);
             writer.write_iterator(v.iter().cloned());
-
 
             assert_eq!(writer.state, BuszWriterState::FlushedAndClosed);
             assert_eq!(writer.internal_buffer.len(), 0);

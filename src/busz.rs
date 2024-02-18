@@ -118,6 +118,8 @@ impl BuszHeader {
         let header_struct: BuszHeader =
             // this interprets the bytes in Little Endian!, i.e bytes=[1,0,0,0,0,0,0,0] = 1_u64
             bincode::deserialize(bytes).expect("FAILED to deserialze busz header");
+            // bincode::serde::decode_from_slice(bytes, bincode::config::legacy()).expect("FAILED to deserialze record").0; //.expect("FAILED to deserialze header");
+
         assert_eq!(
             header_struct.lossy_umi, 0,
             "lossy_umi != 0 not supported"
@@ -128,6 +130,8 @@ impl BuszHeader {
     /// assumes Little-Endian! [see here](https://docs.rs/bincode/latest/bincode/config/index.html#options-struct-vs-bincode-functions)
     pub fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).expect("FAILED to serialze header")
+        // bincode::serde::encode_to_vec(self, bincode::config::legacy()).expect("FAILED to serialze header") //.expect("FAILED to deserialze header");
+
     }
 }
 
@@ -218,7 +222,11 @@ mod test {
 
             let input_plain = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
-            let copmressed_output = "/tmp/output.corrected.sort.busz";
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("output.corrected.sort.busz");
+            let copmressed_output = file_path.to_str().unwrap();
+
+            // let copmressed_output = "/tmp/output.corrected.sort.busz";
             println!("copmressing busfile");
             compress_busfile(
                 input_plain,
@@ -226,9 +234,8 @@ mod test {
                 10000
             );
             println!("decoding busfile");
-
             // // decode it
-            let reader = BuszReader::new("/tmp/output.corrected.sort.busz");
+            let reader = BuszReader::new(copmressed_output);
             let recs: Vec<_> = reader.collect();
 
             let x = BusReader::new(input_plain);
@@ -236,11 +243,14 @@ mod test {
 
         }
 
-        #[test]
+        // #[test]
         fn test_compress1() {
             // let input_compressed = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-            let copmressed_output = "/tmp/buscompress_testing.busz";
+            let dir = tempdir().unwrap();
+            let file_path = dir.path().join("buscompress_testing.busz");
+            let copmressed_output = file_path.to_str().unwrap();
+
             compress_busfile(
                 input_plain,
                 copmressed_output,
@@ -249,6 +259,7 @@ mod test {
         }
 
         // #[test]
+        #[allow(dead_code)]
         fn test_compress_full() {
             // let input_compressed = "/home/michi/bus_testing/bus_output/output.corrected.sort.busz"; 
             let input_plain = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";

@@ -20,11 +20,12 @@
 use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
-use serde::{Deserialize, Serialize};
+use serde;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use tempfile::TempDir;
+use rkyv::{self, Deserialize};
 
 const BUS_ENTRY_SIZE: usize = 32;
 pub const BUS_HEADER_SIZE: usize = 20;
@@ -38,8 +39,9 @@ pub const BUS_HEADER_SIZE: usize = 20;
 /// Q: 8byte unsigned long,long int
 /// i: 4byte int
 /// I: unsigned int, 4byte
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)] // TODO take away the copy and clone
+#[archive(check_bytes)]
 #[allow(non_snake_case)]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)] // TODO take away the copy and clone
 pub struct BusRecord {
     pub CB: u64,    // 8byte
     pub UMI: u64,   // 8byte
@@ -52,6 +54,7 @@ impl BusRecord {
     /// converts a busrecord to byte representation, e.g. to write the bytes to a busfile
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut binrecord = bincode::serialize(self).expect("FAILED to serialze record");
+        // let mut binrecord = bincode::serde::encode_to_vec(self, bincode::config::legacy()).unwrap(); //.expect("FAILED to deserialze header");
 
         // the struct is only 28bytes, so we need 4 padding bytes
         for _i in 0..4 {
@@ -63,7 +66,13 @@ impl BusRecord {
 
     /// coverts bytes into burecord, e.g. when reading a busfile
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        bincode::deserialize(bytes).expect("deserial error")
+        // bincode::serde::decode_from_slice(bytes, bincode::config::legacy()).expect("FAILED to deserialze record").0 //.expect("FAILED to deserialze header");
+
+        // let archived = rkyv::check_archived_root::<BusRecord>(&bytes[..]).unwrap();
+        let archived = unsafe { rkyv::archived_root::<BusRecord>(&bytes) };
+        let s:BusRecord = archived.deserialize(&mut rkyv::Infallible).unwrap();
+        s
+        // bincode::deserialize(bytes).expect("deserial error")
     }
 }
 
@@ -84,7 +93,7 @@ pub struct BusParams {
 /// // can also be obtained from an existing busfile
 /// // let header = BusHeader::from_file("somefile.bus");
 /// ```
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
 pub (crate) struct BusHeader {
     //4sIIII: 20bytes
     pub(crate) magic: [u8; 4],
@@ -101,7 +110,6 @@ impl BusHeader {
             *b"BUS\x01"
         } else {
             *b"BUS\x00"
-
         };
         BusHeader { cb_len, umi_len, tlen, magic, version: 1 }
     }
@@ -120,13 +128,13 @@ impl BusHeader {
 
     /// desearializes a BusHeader from Bytes; when reading busfiles
     pub fn from_bytes(bytes: &[u8]) -> BusHeader {
-        let header_struct: BusHeader =
-            bincode::deserialize(bytes).expect("FAILED to deserialze header");
-        header_struct
+        bincode::deserialize(bytes).expect("FAILED to deserialze header")
+        // bincode::serde::decode_from_slice(bytes, bincode::config::legacy()).expect("FAILED to deserialze header").0 //.expect("FAILED to deserialze header");
     }
 
     /// seialize the header to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
+        // bincode::serde::encode_to_vec(self, bincode::config::legacy()).unwrap() //.expect("FAILED to deserialze header");
         bincode::serialize(self).expect("FAILED to serialze header")
     }
 

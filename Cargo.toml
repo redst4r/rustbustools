@@ -1,6 +1,6 @@
 [package]
 name = "bustools"
-version = "0.11.1"
+version = "0.12.0"
 edition = "2021"
 license = " GPL-3.0-or-later"
 description = "Interacting with the kallisto/bus format of scRNAseq data"
@@ -15,13 +15,15 @@ include = ["/src", "README.md"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-bincode = "1.2.1"
+# bincode = { version = "2.0.0-rc.3", features = ["serde"]  }
+bincode = "1.3.3"
 indicatif = "0.17"
 statrs = "0.16"
 rand = "0.8"
 probability="0.20"  # for faster Binomial Sampling, using inverse pdf
 itertools="0.12"
-tempfile="3.7.0"
+tempfile="3.10.0"
+rkyv= {version = "0.7.43", features =["validation"] }
 bitvec="1"
 newpfd= { version="0.7.0" }
 fastfibonacci= { version="0.3.0" }

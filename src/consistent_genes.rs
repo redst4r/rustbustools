@@ -614,6 +614,7 @@ mod testing {
     }
 
     // #[test]
+    #[allow(dead_code)]
     fn test_ec() {
         let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
         let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
