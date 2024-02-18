@@ -222,20 +222,28 @@ impl Iterator for BusReader {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
+        /* 
+        The previous version using only `read()` had a bit of a bug:
+        from unknown reasons (but consitent with the `read() documentation)
+        `read` will not fill the entire buffer, which would case the previous implementation
+        to throw an error.
+        We can instead use `read_exact`. Drawback: 
+        This is a bit of a dangerous version: We dont check what happens at the EOF. 
+        If the file contains a truncated last record, we would just skip over that 
+
+        However: It's much faster than the above take/read_to_end (~5x)
+        */
         let mut buffer = [0; BUS_ENTRY_SIZE]; // TODO this gets allocated at each next(). We could move it out into the struct: Actually doesnt make a diference, bottleneck is the reading
-        match self.reader.read(&mut buffer) {
-            Ok(BUS_ENTRY_SIZE) => Some(BusRecord::from_bytes(&buffer)),
-            Ok(0) => None,
-            Ok(n) => {
-                let s: BusRecord = BusRecord::from_bytes(&buffer);
-                panic!(
-                    "Wrong number of bytes {:?}. Buffer: {:?} record: {:?}",
-                    n, buffer, s
-                )
+        match self.reader.read_exact(&mut buffer) {
+            Ok(()) => Some(BusRecord::from_bytes(&buffer)),
+            Err(e) => match e.kind() {
+                // this can happen due to a real EOF, or we're almost at the EOF 
+                // and try to read more bytes than whats left (i.e. a truncated file)
+                std::io::ErrorKind::UnexpectedEof => None,  
+                _ => panic!("{e}"),
             }
-            Err(e) => panic!("{:?}", e),
         }
-    }
+    }    
 }
 // tag our iterator to be compatible with our framework
 impl CUGIterator for BusReader {}
