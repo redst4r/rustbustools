@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
+use std::io::{BufReader, Read};
 
 use bitvec::field::BitField;
 use bustools::busz::{BuszWriter, BuszReader};
@@ -103,17 +104,39 @@ fn multinomial_speed(c: &mut Criterion){
 
 }
 
+
+/// puls a busfile into memory; careful for large files!
+fn bus_to_mem(busfile: &str) -> Vec<u8>{
+    let mut buffer = Vec::new();
+    let mut f= File::open(busfile).unwrap();
+    f.read_to_end(&mut buffer).unwrap();
+    buffer
+}
 #[allow(dead_code)]
+/// profiling the deserializing of the busfile more or less
 fn plain_iterator_speed(c: &mut Criterion){
     
-    fn _dummy(n: usize) -> u32{
-        let busname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-        let biter= BusReader::new(busname);
-        let total = biter.take(n).map(|r|r.COUNT).sum::<u32>();
-        total
-    }
+    // let busname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    let busname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
 
-    c.bench_function("plain_iterator", |b| b.iter(|| _dummy(black_box(100000))));
+    // pull the file into memory, to alleviate disk access
+    let buffer = bus_to_mem(busname);
+
+    c.bench_function("plain_iterator",
+     |b| b.iter(|| {
+        let n = 100000;
+        BusReader::from_read(buffer.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
+     }
+    ));
+
+
+    // do it on disk
+    c.bench_function("plain_iterator on disk",
+     |b| b.iter(|| {
+        let n = 100000;
+        BusReader::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
+     }
+    ));
 }
 
 
@@ -123,98 +146,22 @@ fn plain_iterator_speed(c: &mut Criterion){
 fn iterator_speed(c: &mut Criterion){
 
      pub const FOLDERNAME:&str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-
-    fn dummy_CB_group(n: usize) ->Vec<Vec<BusRecord>>{
-        let biter= BusReader::new(FOLDERNAME);
-        let s:Vec<Vec<BusRecord>> = biter
-            .group_by(|r| r.CB)
-            .into_iter().map(|(_a, records)|records.collect())
-            .take(n)
-            .collect();
-        s
-    }
     
-    fn dummy_CB_mine(n: usize) ->Vec<Vec<BusRecord>>{
-        let biter2= BusReader::new(FOLDERNAME).groupby_cb();
-        let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
-        s2
-    }
-
-    fn dummy_CB_mine_clone(n: usize) ->Vec<Vec<BusRecord>>{
+    fn dummy_cb_mine(n: usize) ->Vec<Vec<BusRecord>>{
         let biter2= BusReader::new(FOLDERNAME).groupby_cb();
         let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
         s2
     }
     
-    fn dummy_CBUMI_group(n: usize) ->Vec<Vec<BusRecord>>{
-        let biter= BusReader::new(FOLDERNAME);
-        let s:Vec<Vec<BusRecord>> = biter.group_by(|r| (r.CB, r.UMI)).into_iter().map(|(_a, records)|records.collect()).take(n).collect();
-        s
-    }
-    
-    fn dummy_CBUMI_mine(n: usize) ->Vec<Vec<BusRecord>>{
+    fn dummy_cbumi_mine(n: usize) ->Vec<Vec<BusRecord>>{
         let biter2= BusReader::new(FOLDERNAME).groupby_cbumi();
         let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
         s2
     }
 
-
-    c.bench_function("CB group", |b| b.iter(|| dummy_CB_group(black_box(100000))));
-    c.bench_function("CB mine", |b| b.iter(|| dummy_CB_mine(black_box(100000))));
-    c.bench_function("CB mine clone", |b| b.iter(|| dummy_CB_mine_clone(black_box(100000))));
-
-
-    // c.bench_function("S3", |b| b.iter(|| dummy_CBUMI_group(black_box(100000))));
-    // c.bench_function("S4", |b| b.iter(|| dummy_CBUMI_mine(black_box(100000))));
-
+    c.bench_function("CB mine", |b| b.iter(|| dummy_cb_mine(black_box(100000))));
+    c.bench_function("CBUMI mine", |b| b.iter(|| dummy_cbumi_mine(black_box(100000))));
 }
-
-#[allow(dead_code)]
-fn speed_with_capacity(c: &mut Criterion){
-
-    fn dummy_no_capacity(n: usize) -> usize{
-        let mut v = Vec::new();
-        for i in 1..n {
-            v.push(i);
-        }
-        v.len()
-    }
-    
-    fn dummy_with_capacity(n: usize) -> usize{
-        let mut v = Vec::with_capacity(n);
-        for i in 1..n {
-            v.push(i);
-        }
-        v.len()
-    }
-
-    c.bench_function("no capacity", |b| b.iter(|| dummy_no_capacity(black_box(10000))));
-    c.bench_function("with capacity", |b| b.iter(|| dummy_with_capacity(black_box(10000))));
-
-}
-
-
-// fn clone_vs_ref_CB_iterators(c: &mut Criterion){
-
-//     fn dummy_clone(n: usize) -> Vec<(u64, Vec<BusRecord>)> {
-//         let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-//         let biter2= CellIteratorClone::new(foldername);
-//         let v: Vec<_> = biter2.take(n).collect();
-//         v
-//     }
-
-//     fn dummy_ref(n: usize) -> Vec<(u64, Vec<BusRecord>)> {
-//         let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-//         let biter2= CellIterator::new(foldername);
-//         let v: Vec<_> = biter2.take(n).collect();
-//         v
-//     }
-
-//     c.bench_function("CB iter with clone", |b| b.iter(|| dummy_clone(black_box(10000))));
-//     c.bench_function("CB iter with ref", |b| b.iter(|| dummy_ref(black_box(10000))));
-
-// }
-
 
 #[allow(dead_code)]
 fn create_dummy_ec() ->Ec2GeneMapper{
@@ -277,7 +224,10 @@ fn bench_busreader_buffersize(c: &mut Criterion){
     let buffersize_vector = vec![800, 8_000, 80_000, 800_000, 8_000_000];
     fn dummy(buffersize: usize) -> usize{
         let bfile = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-        return BusReader::new_with_capacity(bfile, buffersize).count();
+        // return BusReader::new_with_capacity(bfile, buffersize).count();
+        let reader = BufReader::with_capacity(buffersize, File::open(bfile).unwrap());
+        BusReader::from_read(reader).count()
+
     }
     for bsize in buffersize_vector{
         c.bench_function(&format!("Buffersize: {bsize}"), |b| b.iter(|| dummy(black_box(bsize))));
@@ -306,6 +256,7 @@ fn bench_buswriter_buffersize(c: &mut Criterion){
     }
 }
 
+#[allow(dead_code)]
 fn bench_busz_compression_write(c: &mut Criterion){
 
     fn dummy_uncompressed() -> usize{
@@ -341,6 +292,7 @@ fn bench_busz_compression_write(c: &mut Criterion){
     c.bench_function(&format!("Compressed writing"), |b| b.iter(|| dummy_compressed()));
 }
 
+#[allow(dead_code)]
 fn bench_busz_compression_read(c: &mut Criterion){
     
     fn dummy_uncompressed(fname :&str) -> usize{
@@ -370,46 +322,6 @@ fn bench_busz_compression_read(c: &mut Criterion){
 
 }
 
-// fn bench_busreader_gzip(c: &mut Criterion){
-//     let fname_zip = "/tmp/test.bus.gz";
-
-//     let header = BusHeader::new(16, 12, 20);
-//     let mut bw =  BusWriter::from_gzip(fname_zip, header);
-//     println!("Writing big record");
-//     for i in 0..1000{
-//         for j in 0..1000{
-//             let r = BusRecord {CB: i, UMI: j, EC:0, COUNT:1, FLAG: 0};
-//             bw.write_record(&r);
-//         }
-//     }
-//     drop(bw);
-
-//     let fname_nozip = "/tmp/test.bus";
-//     let header = BusHeader::new(16, 12, 20);
-//     let mut bw =  BusWriter::new( fname_nozip, header);
-//     println!("Writing big record");
-//     for i in 0..1000{
-//         for j in 0..1000{
-//             let r = BusRecord {CB: i, UMI: j, EC:0, COUNT:1, FLAG: 0};
-//             bw.write_record(&r);
-//         }
-//     }
-//     drop(bw);
-
-//     fn dummy_gzip(fname: &str) -> usize{
-//         let reader = BusReader::from_gzip(fname);
-//         let n = reader.count();
-//         n
-//     }
-//     fn dummy_no_gzip(fname: &str) -> usize{
-//         let reader = BusReader::new(fname);
-//         let n = reader.count();
-//         n
-//     }
-//     c.bench_function(&format!("Read CB gzipped"), |b| b.iter(|| dummy_gzip(black_box(fname_zip))));
-//     c.bench_function(&format!("Read CB unzipped"), |b| b.iter(|| dummy_no_gzip(black_box(fname_nozip))));
-
-// }
 
 #[allow(dead_code)]
 fn busmulti_vs_merger(c: &mut Criterion){
@@ -507,7 +419,7 @@ fn swap_vecu8_vs_bistream(c: &mut Criterion){
     // let x_swapped = 
 }
 
-
+#[allow(dead_code)]
 fn bench_merger(c: &mut Criterion){
 
     let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
@@ -574,6 +486,7 @@ fn bench_merger(c: &mut Criterion){
             ));
 }
 
+#[allow(dead_code)]
 fn bench_merger_real(c: &mut Criterion){
     let busname1 = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     let busname2 = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
@@ -671,14 +584,77 @@ fn bench_merger_real(c: &mut Criterion){
         ));    
 }
 
+
+use ahash::{AHasher, RandomState};
+
+fn bench_hashmaps(c: &mut Criterion){
+
+    let keys = vec!["ada", "gfsg", "sgrs","hsdfs", "dsf","asd","favm"];
+    let values = vec![1,2,3,4,5,6,7];
+
+    c.bench_function(
+        "ahash fast",
+        |b| b.iter(
+            || {
+                let mut h : HashMap<String, usize, RandomState> = HashMap::default();
+
+                for (k, v) in izip!(keys.iter(), values.iter()) {
+                    h.insert(k.to_string(), *v);
+                }
+            }
+        ));  
+    c.bench_function(
+        "regular hashmap",
+        |b| b.iter(
+            || {
+                let mut h : HashMap<String, usize> = HashMap::new();
+
+                for (k, v) in izip!(keys.iter(), values.iter()) {
+                    h.insert(k.to_string(), *v);
+                }
+            }
+        ));  
+
+}
+
+
+/// how much difference does it make to pull busfiles into memory
+/// for profiling the code. Things might be influenced by disk asscess alot
+fn bench_io_vs_inmem(c: &mut Criterion){
+
+    let busfiles = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
+
+    c.bench_function("from disk ",
+        |b| b.iter(|| {
+            let s: u32 = BusReader::new(busfiles).map(|r|r.COUNT).sum();
+            s
+        })
+    );
+
+    // pull into mem
+    let mut buffer = Vec::new();
+    let mut f= File::open(busfiles).unwrap();
+    f.read_to_end(&mut buffer).unwrap();
+    c.bench_function("in mem",
+    |b| b.iter(|| {
+        let s: u32 = BusReader::from_read(buffer.as_slice()).map(|r|r.COUNT).sum();
+        s
+    })
+    );
+}
 // criterion_group!(benches, criterion_benchmark);
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
+criterion_group!(benches, iterator_speed);
 // criterion_group!(benches, plain_iterator_speed);
+// criterion_group!(benches, bench_io_vs_inmem);
+
+
 // criterion_group!(benches, bench_busz_compression_write);
 // criterion_group!(benches, bench_busz_compression_read);
 // criterion_group!(benches, swap_vecu8_vs_bistream);
 
-criterion_group!(benches, bench_merger_real);
+// criterion_group!(benches, bench_merger_real);
+// criterion_group!(benches, bench_hashmaps);
 
 criterion_main!(benches);

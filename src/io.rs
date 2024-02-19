@@ -27,7 +27,7 @@ use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use tempfile::TempDir;
 use rkyv::{self, Deserialize};
 
-const BUS_ENTRY_SIZE: usize = 32;
+pub (crate) const BUS_ENTRY_SIZE: usize = 32;
 pub const BUS_HEADER_SIZE: usize = 20;
 
 /// Basic unit of a busfile as created by kallisto.
@@ -94,7 +94,7 @@ pub struct BusParams {
 /// // let header = BusHeader::from_file("somefile.bus");
 /// ```
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
-pub (crate) struct BusHeader {
+pub struct BusHeader {
     //4sIIII: 20bytes
     pub(crate) magic: [u8; 4],
     pub(crate) version: u32,
@@ -105,7 +105,7 @@ pub (crate) struct BusHeader {
 
 impl BusHeader {
     /// construct a busheader from CB/UMI length
-    pub (crate) fn new(cb_len: u32, umi_len: u32, tlen: u32, compressed: bool) -> BusHeader {
+    pub fn new(cb_len: u32, umi_len: u32, tlen: u32, compressed: bool) -> BusHeader {
         let magic: [u8; 4] = if compressed {
             *b"BUS\x01"
         } else {
@@ -173,8 +173,9 @@ impl BusHeader {
 ///
 /// pretty much a type alias for Iterator<Item=BusRecord>
 pub trait CUGIterator: Iterator<Item = BusRecord> {}
+pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 
-/// Main reader for Busfiles, buffered reading of BusRecords
+/// Main reader for Busfiles
 /// Allows to iterate over the BusRecords in the file
 ///
 /// # Example
@@ -185,48 +186,76 @@ pub trait CUGIterator: Iterator<Item = BusRecord> {}
 ///     let cb= record.CB;
 /// };
 /// ```
-pub struct BusReader {
+/// # From `Read`
+/// The [`BusReader`] can operate on anything implementing the `Read`-trait.
+/// For example, one can create a [`BusReader`] from a [`File`]:
+/// ```rust, no_run
+/// # use bustools::io::BusReader;
+/// # use std::io::BufReader;
+/// # use std::fs::File;
+/// // note: Buffering is highly recommended for performance reasons
+/// let bufReader = BufReader::with_capacity(10000, File::open("somefile.bus").unwrap());
+/// let breader = BusReader::from_read(bufReader);
+/// ```
+/// 
+/// Similarly one can also construct a BusReader for in-memory data:
+/// ```rust
+/// # use bustools::io::{BusReader, BusRecord, BusHeader};
+/// // create an in memory representation of a busfile (in bytes)
+/// let header = BusHeader::new(16, 12, 1, false);
+/// let r1 = BusRecord{CB: 1, UMI:1, EC:1, COUNT: 10, FLAG: 0};
+/// let mut v = Vec::new();
+/// v.extend_from_slice(&header.to_bytes());
+/// v.extend_from_slice(&r1.to_bytes());
+/// 
+/// // v contains a busfile as a Vec<u8> which we can read with BusReader
+/// let breader = BusReader::from_read(&v[..]);
+/// let records:Vec<_> = breader.collect();
+/// ```
+pub struct BusReader<'a> {
     /// containing info about CB-length, UMI length for decoding
     pub params: BusParams,
-    reader: BufReader<File>,
+    reader:  Box<dyn Read+ 'a>, //ugly way to store any Read-like object in here, BufferedReader, File, Cursor, or just a vec<u8>!
 }
+impl <'a> BusReader <'a> {
 
-// benchmarking had a sligh incrase of speed using 800KB instead of 8Kb
-// further increase buffers dont speed things up more (just need more mem)
-// const DEFAULT_BUF_SIZE: usize = 8 * 1024;  //8KB
-pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
-impl BusReader {
-    /// main constructor for busreader, buffersize is set to best performance
-    pub fn new(filename: &str) -> BusReader {
-        BusReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
+    /// Creates a BusReader for a file on disk.
+    /// Turns the file into a bufferedReader.
+    pub fn new(fname: &str) -> Self {
+        let file_handle = File::open(fname).expect("FAIL");       
+        let buf = BufReader::with_capacity(DEFAULT_BUF_SIZE, file_handle);
+        Self::from_read(buf)
     }
 
-    /// Creates a buffered reader over busfiles, with specific buffersize
-    pub fn new_with_capacity(filename: &str, bufsize: usize) -> BusReader {
-        let bus_header = BusHeader::from_file(filename);
+    /// construct the BusReader on any input stream which yields bytes (implements read)
+    /// if this is based on a File, highly recommended to wrap it in a BufferedReader for performance
+    /// otherwise every iteration will cause a read/system call
+    pub fn from_read(mut reader: impl Read + 'a) -> Self {
 
+        // parse header
+        let mut header_bytes = [0_u8; BUS_HEADER_SIZE];
+        reader.read_exact(&mut header_bytes).expect("failed to read header");
+        let header = BusHeader::from_bytes(&header_bytes);
+        let params = BusParams { cb_len: header.cb_len, umi_len: header.umi_len };
+        
         assert_eq!(
-            &bus_header.magic, b"BUS\x00",
+            &header.magic, b"BUS\x00",
             "Header struct not matching; MAGIC is wrong"
         );
 
-        let params = BusParams{cb_len: bus_header.cb_len, umi_len: bus_header.umi_len };
-        let mut file_handle = File::open(filename).expect("FAIL");
+        // the variable header
+        let mut buffer = Vec::with_capacity(header.tlen as usize);
+        for _i in 0..header.tlen {
+            buffer.push(0_u8);
+        }
+        reader.read_exact(&mut buffer).expect("failed to read variable header");
 
-        // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
-        let to_seek = BUS_HEADER_SIZE as u64 + bus_header.tlen as u64;
-        let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
-
-        let buf = BufReader::with_capacity(bufsize, file_handle);
-        BusReader { params, reader: buf }
-    }
-
-    pub fn get_params(&self) -> &BusParams {
-        &self.params
+        // reader is now positioned at the first record
+        BusReader { params, reader: Box::new(reader) }
     }
 }
 
-impl Iterator for BusReader {
+impl <'a> Iterator for BusReader <'a> {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -247,14 +276,15 @@ impl Iterator for BusReader {
             Err(e) => match e.kind() {
                 // this can happen due to a real EOF, or we're almost at the EOF 
                 // and try to read more bytes than whats left (i.e. a truncated file)
-                std::io::ErrorKind::UnexpectedEof => None,  
+                std::io::ErrorKind::UnexpectedEof => None,
                 _ => panic!("{e}"),
             }
         }
-    }    
+    }
 }
+
 // tag our iterator to be compatible with our framework
-impl CUGIterator for BusReader {}
+impl <'a> CUGIterator for BusReader<'a> {}
 
 
 /// actually, also make general iterators of BusRecord amenable
@@ -513,6 +543,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
 mod tests {
     use crate::consistent_genes::EC;
     use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter, BusParams};
+    use crate::iterators::CellGroupIterator;
     use std::io::{BufReader, Read, Write};
     use tempfile::tempdir;
 
@@ -646,5 +677,79 @@ mod tests {
         let external_file = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
         let records: Vec<BusRecord> = BusReader::new(external_file).step_by(10000).take(100).collect();
         insta::assert_yaml_snapshot!(records)
+    }
+
+    #[test]
+    fn test_dyn_from_read_file(){
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let rlist = vec![r1.clone(), r2.clone()]; // note: this clones r1, r2!
+        let (busname, _dir) = setup_busfile(&rlist);
+
+        let f = File::open(busname).unwrap();
+        let mut r = BusReader::from_read(f);
+        assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
+
+        assert_eq!(r.next(), Some(r1));
+        assert_eq!(r.next(), Some(r2));
+        assert_eq!(r.next(), None);
+    }
+
+    #[test]
+    fn test_dyn_from_file(){
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let rlist = vec![r1.clone(), r2.clone()]; // note: this clones r1, r2!
+        let (busname, _dir) = setup_busfile(&rlist);
+
+        let mut r = BusReader::new(&busname);
+        assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
+
+        assert_eq!(r.next(), Some(r1));
+        assert_eq!(r.next(), Some(r2));
+        assert_eq!(r.next(), None);
+    }
+
+    #[test]
+    fn test_dyn_from_mem(){
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let rlist = vec![r1.clone(), r2.clone()]; // note: this clones r1, r2!
+        let (busname, _dir) = setup_busfile(&rlist);
+
+        let mut f = File::open(busname).unwrap();
+
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer).unwrap();
+
+
+        let mut r = BusReader::from_read(buffer.as_slice());
+        assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
+
+        assert_eq!(r.next(), Some(r1));
+        assert_eq!(r.next(), Some(r2));
+        assert_eq!(r.next(), None);
+    }
+
+    #[test]
+    fn test_dyn_group(){
+        let r1 = BusRecord { CB: 0, UMI: 2, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 3, EC: 0, COUNT: 12, FLAG: 0 };
+        let r3 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
+        let rlist = vec![r1.clone(), r2.clone(), r3.clone()]; // note: this clones r1, r2!
+        let (busname, _dir) = setup_busfile(&rlist);
+
+        let mut f = File::open(busname).unwrap();
+
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer).unwrap();
+
+
+        let r = BusReader::from_read(buffer.as_slice());
+
+        let mut iter = r.groupby_cb();
+
+        assert_eq!(iter.next(), Some((0, vec![r1, r2])));
+        assert_eq!(iter.next(), Some((1, vec![r3])));
     }
 }
