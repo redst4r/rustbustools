@@ -316,7 +316,7 @@ impl Ec2GeneMapper {
     }
 }
 
-pub fn make_mapper(busfolder: &BusFolder, t2g_file: &str) -> Ec2GeneMapper{
+pub (crate) fn make_mapper(busfolder: &BusFolder, t2g_file: &str) -> Ec2GeneMapper{
     let t2g_dict = parse_t2g(t2g_file);
     let e2g = build_ec2gene(
         &busfolder.parse_ecmatrix(), 

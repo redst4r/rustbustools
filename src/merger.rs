@@ -260,7 +260,7 @@ where
         // println!("Current min {:?}", current_min_cb);
         // all iterators/names that are at the minimum item will emit
 
-        let mut ix_to_emit = Vec::new();
+        let mut ix_to_emit = Vec::with_capacity(self.names.len());
         for (ix, item) in  self.current_items.iter().enumerate(){
             if let Some((key, _ii)) = item {
                 if *key == current_min_cb {
@@ -281,19 +281,21 @@ where
 
             // advance the iterator, swap othe old with the new item
             let name_to_emit = self.names[ix].clone();
-            match self.advance_iter(ix) {
+            let item_to_emit = match self.advance_iter(ix) {
                 Some(new_item) => {
-                    let item_to_emit = replace(&mut self.current_items[ix], Some(new_item));
-                    the_emission.insert(name_to_emit, item_to_emit.expect("should never be none").1);
+                    // let item_to_emit = replace(&mut self.current_items[ix], Some(new_item));
+                    // the_emission.insert(name_to_emit, item_to_emit.expect("should never be none").1);
+                    replace(&mut self.current_items[ix], Some(new_item))
                 },
                 None => {
-                    // let item_to_emit = replace(&mut self.current_items[ix], None);
-                    let item_to_emit = self.current_items[ix].take();  // does the same as above: pop and insert non
-                    the_emission.insert(name_to_emit.clone(), item_to_emit.expect("should never be none").1);
-                    // cleanup that iterator
-                    names_for_cleanup.push(name_to_emit);
+                    // cleanup that iterator; NOTE: cant do it here directly, the next loop iteration relies on the indices being the same
+                    names_for_cleanup.push(name_to_emit.clone());
+                    // let item_to_emit = self.current_items[ix].take();  // does the same as above: pop and insert non
+                    // the_emission.insert(name_to_emit.clone(), item_to_emit.expect("should never be none").1);
+                    self.current_items[ix].take() // does the same as above: pop and insert non
                 },
-            }
+            };
+            the_emission.insert(name_to_emit, item_to_emit.expect("should never be none").1);
         }
 
         // clean up exhausted iterators

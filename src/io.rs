@@ -253,6 +253,10 @@ impl <'a> BusReader <'a> {
         // reader is now positioned at the first record
         BusReader { params, reader: Box::new(reader) }
     }
+    
+    pub fn get_params(&self) -> &BusParams {
+        &self.params
+    }
 }
 
 impl <'a> Iterator for BusReader <'a> {
