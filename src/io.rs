@@ -16,6 +16,7 @@
 //!     writer.write_record(&record);
 //! }
 //!
+#![allow(non_snake_case)]
 
 use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
@@ -23,7 +24,7 @@ use bincode;
 use serde;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use tempfile::TempDir;
 use rkyv::{self, Deserialize};
 
@@ -41,7 +42,6 @@ pub const BUS_HEADER_SIZE: usize = 20;
 /// I: unsigned int, 4byte
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)] // TODO take away the copy and clone
 #[archive(check_bytes)]
-#[allow(non_snake_case)]
 pub struct BusRecord {
     pub CB: u64,    // 8byte
     pub UMI: u64,   // 8byte

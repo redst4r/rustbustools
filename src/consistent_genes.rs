@@ -374,6 +374,8 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
 
             assert!(!t2g_dict.contains_key(&transcript_id.to_string())); //make sure transcripts dont map to multiple genes
             t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
+        } else {
+            panic!("Error readin lines from {}", t2g_file);
         }
     }
     t2g_dict
