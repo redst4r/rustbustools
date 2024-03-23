@@ -1,4 +1,5 @@
-//! Module for more advanced iterators over busrecords.
+//! Advanced iterators over busrecords, grouping records by cell or molecule.
+//! 
 //! Allows to iterate over 
 //! * cells (CB)
 //! * mRNAs (CB+UMI)
@@ -13,11 +14,10 @@
 //! for (cb, vector_of_records) in breader.groupby_cb() {
 //!     // Example: the number of records in that cell
 //!     let n_molecules: usize = vector_of_records.len();
-//!     
 //! }
 //! ```
 //! 
-//! To iterate over a `sorted` busfile, grouping all records by CB+UMI:
+//! To iterate over a **sorted** busfile, grouping all records by CB+UMI:
 //! ```rust, no_run
 //! # use bustools::io::BusReader; 
 //! use bustools::iterators::CbUmiGroupIterator; //need to bring that trait into scope

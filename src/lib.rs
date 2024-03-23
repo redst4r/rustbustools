@@ -3,11 +3,14 @@
 //! This library allows interaction with the Bus format (see [bustools](https://github.com/BUStools/bustools)) 
 //! for scRNAseq data processing. 
 //! 
-//! At this point, it's **far from complete and correct**, but rather a project to learn rust.
+//! At this point, the package is pretty mature, but there might be some minor features missing compared to the original bustools.
 //! 
 //! # Basics of the library
 //! The basic unit is the [`io::BusRecord`], which represents a single entry in a busfile,
 //! consisting of CB, UMI, EC, COUNT and Flag.
+//! 
+//! [`io::BusReader`] and [`io::BusWriter`] are the primary means to actually read and write `.bus` files.
+//! For compressed busfiles (`.busz`), use [`busz::BuszReader`] and [`busz::BuszWriter`] instead.
 //! 
 //! ## Iterate over a busfile
 //! [`io`] contains the code to read and write from busfiles.
@@ -57,11 +60,11 @@
 //! ```
 //! ## EC to gene mapping
 //! More convenient features are provided by [`io::BusFolder`], 
-//! which wraps around the busfile, the matric.ec and transcripts.txt created by `kallisto bus`.
-//! Those files tell us what a particular bus record `(CB,UMI,EC,Count,flag)` 
+//! which wraps around the `.bus` file, the `matric.ec` and `transcripts.txt` created by the `kallisto bus` command.
+//! Those files tell us what a particular [`io::BusRecord`]  
 //! actually maps to as specified by its EC (equivalence class, a set of transcripts).
 //! This automatically constructs a mapper from equivalence class to gene via [`consistent_genes::Ec2GeneMapper`]
-//! which allows to resolve ECs to genes
+//! which allows to resolve ECs to genes.
 //! 
 //! ```rust, no_run
 //! # use bustools::io::BusFolder;
@@ -74,9 +77,10 @@
 // #![deny(missing_docs)]
 pub mod io;
 pub mod iterators;
+
+#[deprecated(note="please use `merger` instead", since="0.11.1")]
 pub mod bus_multi;
 pub mod utils;
-pub mod multinomial;
 pub mod consistent_genes;
 pub mod disjoint;
 pub mod merger;

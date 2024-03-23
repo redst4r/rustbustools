@@ -1,6 +1,6 @@
-//! The io module of bustools
+//! The io module of bustools deals with reading and writing busfiles.
 //!
-//! Deals with reading and writing busfiles. The most important components are:
+//! The most important components are:
 //! - BusRecord: a single record of a Busfile, containing CB/UMI/EC/COUNT
 //! - BusFolder: representing the directory structure of kallisto quantification
 //! - BusReader: to iterate over Records of a busfile
@@ -69,7 +69,7 @@ impl BusRecord {
         // bincode::serde::decode_from_slice(bytes, bincode::config::legacy()).expect("FAILED to deserialze record").0 //.expect("FAILED to deserialze header");
 
         // let archived = rkyv::check_archived_root::<BusRecord>(&bytes[..]).unwrap();
-        let archived = unsafe { rkyv::archived_root::<BusRecord>(&bytes) };
+        let archived = unsafe { rkyv::archived_root::<BusRecord>(bytes) };
         let s:BusRecord = archived.deserialize(&mut rkyv::Infallible).unwrap();
         s
         // bincode::deserialize(bytes).expect("deserial error")

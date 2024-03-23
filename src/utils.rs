@@ -1,4 +1,4 @@
-//! Utilities, such as barcode <-> int conversion
+//! Utilities
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashSet;
 use std::hash::Hash;

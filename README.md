@@ -1,7 +1,7 @@
 # Rustbustools
 
 Rust library to interact with the kallisto/bus format of scRNAseq data (see [bustools](https://github.com/BUStools/bustools)).
-At this point, it's **far from complete and correct**, but rather a project to learn rust.
+At this point, the package is pretty mature, but there might be some minor features missing compared to the original bustools.
 
 There's also a CLI mimicking [bustools](https://github.com/BUStools/bustools), see [bustools_cli](https://github.com/redst4r/bustools_cli-rs)
 ## Examples
@@ -27,6 +27,3 @@ for (cb, vector_of_records) in breader.groupby_cb() {
     let n_molecules: usize = vector_of_records.len();
 }
 ```
-
-## TODO
-- [ ] consolidate bus_multi and merger

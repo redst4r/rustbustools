@@ -37,7 +37,6 @@ use crate::iterators::{CbUmiGroupFaster, CellGroupFaster};
 use std::collections::HashMap;
 
 /// Iterator over cells across multiple busfiles
-#[deprecated(note="please use `merger.MultiIteratorFast` instead")]
 pub struct CellIteratorMulti<I: CUGIterator> {
     iterators: HashMap<String, CellGroupFaster<I>>,
     current_items: HashMap<String, (u64, Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)
@@ -145,7 +144,6 @@ impl <I: CUGIterator>Iterator for CellIteratorMulti<I> {
 
 // =================================================================
 /// Iterator over cells across multiple busfiles
-#[deprecated(note="please use `merger.MultiIteratorFast` instead")]
 pub struct CellUmiIteratorMulti <I:CUGIterator> {
     iterators: HashMap<String, CbUmiGroupFaster<I>>,
     current_items: HashMap<String, ((u64, u64), Vec<BusRecord>)>, // filename - > (CB, ListOfRecords)

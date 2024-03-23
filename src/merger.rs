@@ -174,7 +174,7 @@ where
 /// ## Generics:
 /// - `I`: an iterator of Item=(K,T)
 /// - `K`: the key to group items (e.g. CB,UMI)
-/// - `T`: the type of item a single iterator emits ([BusRecord])
+/// - `T`: the type of item a single iterator emits ([`crate::io::BusRecord`])
 /// 
 pub struct MultiIterator<I, T, K>
 where
