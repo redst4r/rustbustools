@@ -360,7 +360,7 @@ mod tests {
     use super::{MultiIteratorSlow, MultiIterator};
     use crate::{
         bus_multi::{CellIteratorMulti, CellUmiIteratorMulti},
-        io::{BusReader, BusRecord},
+        io::{BusReaderPlain, BusRecord},
         iterators::{CbUmiGroupIterator, CellGroupIterator},
     };
     use itertools::izip;
@@ -447,8 +447,8 @@ mod tests {
         let input2 = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), BusReader::new(&input1).groupby_cbumi()),
-            ("test2".to_string(), BusReader::new(&input2).groupby_cbumi()),
+            ("test1".to_string(), BusReaderPlain::new(&input1).groupby_cbumi()),
+            ("test2".to_string(), BusReaderPlain::new(&input2).groupby_cbumi()),
         ]);
         let m = MultiIteratorSlow::new(hashmap);
         let mut counter = 0;
@@ -467,8 +467,8 @@ mod tests {
         let input2 = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), BusReader::new(&input1).groupby_cbumi()),
-            ("test2".to_string(), BusReader::new(&input2).groupby_cbumi()),
+            ("test1".to_string(), BusReaderPlain::new(&input1).groupby_cbumi()),
+            ("test2".to_string(), BusReaderPlain::new(&input2).groupby_cbumi()),
         ]);
 
         let m = MultiIterator::new(hashmap);

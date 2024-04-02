@@ -1,5 +1,5 @@
 use std::{fs::File, io::{BufWriter, Write}};
-use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReader, BusHeader, BusParams}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
+use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReaderPlain, BusHeader, BusParams}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
 use fastfibonacci::fibonacci;
@@ -165,7 +165,7 @@ fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVe
 /// * blocksize: How many elements are grouped together and compressed together
 pub fn compress_busfile(input: &str, output: &str, blocksize: usize) {
 
-    let reader = BusReader::new(input);
+    let reader = BusReaderPlain::new(input);
     let mut writer = BuszWriter::new(output, reader.params.clone(), blocksize);
     writer.write_iterator(reader.into_iter());
 }

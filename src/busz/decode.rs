@@ -1,5 +1,5 @@
 use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
-use crate::{io::{BusHeader, BusRecord, BusWriter, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator, BusParams}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
+use crate::{io::{BusHeader, BusRecord, BusWriterPlain, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator, BusParams}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
 use fastfibonacci::FbDec;
@@ -40,6 +40,10 @@ impl BuszReader {
     /// main constructor for busreader, buffersize is set to best performance
     pub fn new(filename: &str) -> Self {
         BuszReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
+    }
+
+    pub fn get_params(&self) -> &BusParams {
+        &self.params
     }
 
     /// Creates a buffered reader over busfiles, with specific buffersize
@@ -588,7 +592,7 @@ impl <'a> BuszBlock <'a> {
 /// Decompress the `input` busz file into a plain busfile, `output`
 pub fn decompress_busfile(input: &str, output: &str) {
     let reader = BuszReader::new(input);
-    let mut writer = BusWriter::new(
+    let mut writer = BusWriterPlain::new(
         output,
         reader.params.clone()
     );

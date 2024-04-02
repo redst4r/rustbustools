@@ -8,7 +8,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::{izip, Itertools};
 use bustools::bus_multi::CellIteratorMulti;
 use bustools::consistent_genes::{Ec2GeneMapper, Genename, EC};
-use bustools::io::{BusReader, BusRecord, BusWriter, BusParams, setup_busfile};
+use bustools::io::{BusReaderPlain, BusRecord, BusWriterPlain, BusParams, setup_busfile};
 use bustools::iterators::{CbUmiGroup, CbUmiGroupIterator, CellGroup, CellGroupIterator};
 use bustools::merger::{MultiIteratorSlow, MultiIterator};
 
@@ -33,7 +33,7 @@ fn plain_iterator_speed(c: &mut Criterion){
     c.bench_function("plain_iterator",
      |b| b.iter(|| {
         let n = 100000;
-        BusReader::from_read(buffer.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
+        BusReaderPlain::from_read(buffer.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
      }
     ));
 
@@ -42,7 +42,7 @@ fn plain_iterator_speed(c: &mut Criterion){
     c.bench_function("plain_iterator on disk",
      |b| b.iter(|| {
         let n = 100000;
-        BusReader::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
+        BusReaderPlain::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
      }
     ));
 }
@@ -56,13 +56,13 @@ fn iterator_speed(c: &mut Criterion){
      pub const FOLDERNAME:&str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     
     fn dummy_cb_mine(n: usize) ->Vec<Vec<BusRecord>>{
-        let biter2= BusReader::new(FOLDERNAME).groupby_cb();
+        let biter2= BusReaderPlain::new(FOLDERNAME).groupby_cb();
         let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
         s2
     }
     
     fn dummy_cbumi_mine(n: usize) ->Vec<Vec<BusRecord>>{
-        let biter2= BusReader::new(FOLDERNAME).groupby_cbumi();
+        let biter2= BusReaderPlain::new(FOLDERNAME).groupby_cbumi();
         let s2: Vec<Vec<BusRecord>> = biter2.take(n).map(|(_a, records)|records).collect();
         s2
     }
@@ -134,7 +134,7 @@ fn bench_busreader_buffersize(c: &mut Criterion){
         let bfile = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
         // return BusReader::new_with_capacity(bfile, buffersize).count();
         let reader = BufReader::with_capacity(buffersize, File::open(bfile).unwrap());
-        BusReader::from_read(reader).count()
+        BusReaderPlain::from_read(reader).count()
 
     }
     for bsize in buffersize_vector{
@@ -149,7 +149,7 @@ fn bench_buswriter_buffersize(c: &mut Criterion){
 
         let fname_nozip = "/tmp/test.bus";
         let params = BusParams{ cb_len:16, umi_len: 12 };
-        let mut bw =  BusWriter::new_with_capacity( File::create(fname_nozip).unwrap(), params, buffersize);
+        let mut bw =  BusWriterPlain::new_with_capacity( File::create(fname_nozip).unwrap(), params, buffersize);
         for i in 0..1000{
             for j in 0..10000{
                 let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
@@ -170,7 +170,7 @@ fn bench_busz_compression_write(c: &mut Criterion){
     fn dummy_uncompressed() -> usize{
         let fname_nozip = "/tmp/test.bus";
         let params = BusParams{ cb_len:16, umi_len: 12 };
-        let mut bw =  BusWriter::new( fname_nozip, params);
+        let mut bw =  BusWriterPlain::new( fname_nozip, params);
         for i in 1..501{
             for j in 1..10001{
                 let r = BusRecord {CB: i, UMI: j*i, EC: 0, COUNT:1, FLAG: 0};
@@ -205,7 +205,7 @@ fn bench_busz_compression_read(c: &mut Criterion){
     
     fn dummy_uncompressed(fname :&str) -> usize{
 
-        let r = BusReader::new(fname);
+        let r = BusReaderPlain::new(fname);
         let mut counter = 0;
         for record in r {
             counter += record.COUNT as usize;
@@ -239,8 +239,8 @@ fn busmulti_vs_merger(c: &mut Criterion){
 
     fn dummy_busmulti(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cb();
-        let b2 = BusReader::new(fname2).groupby_cb();
+        let b1 = BusReaderPlain::new(fname1).groupby_cb();
+        let b2 = BusReaderPlain::new(fname2).groupby_cb();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -252,8 +252,8 @@ fn busmulti_vs_merger(c: &mut Criterion){
 
     fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cb();
-        let b2 = BusReader::new(fname2).groupby_cb();
+        let b1 = BusReaderPlain::new(fname1).groupby_cb();
+        let b2 = BusReaderPlain::new(fname2).groupby_cb();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -350,8 +350,8 @@ fn bench_merger(c: &mut Criterion){
 
     fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cb();
-        let b2 = BusReader::new(fname2).groupby_cb();
+        let b1 = BusReaderPlain::new(fname1).groupby_cb();
+        let b2 = BusReaderPlain::new(fname2).groupby_cb();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -363,8 +363,8 @@ fn bench_merger(c: &mut Criterion){
 
     fn dummy_merger_fast(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cb();
-        let b2 = BusReader::new(fname2).groupby_cb();
+        let b1 = BusReaderPlain::new(fname1).groupby_cb();
+        let b2 = BusReaderPlain::new(fname2).groupby_cb();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -402,8 +402,8 @@ fn bench_merger_real(c: &mut Criterion){
     let n = 100000;
 
     // lets pull those into mem, so that its not just disk access we measure
-    let b1 = BusReader::new(busname1).groupby_cbumi().take(n);
-    let b2 = BusReader::new(busname2).groupby_cbumi().take(n);
+    let b1 = BusReaderPlain::new(busname1).groupby_cbumi().take(n);
+    let b2 = BusReaderPlain::new(busname2).groupby_cbumi().take(n);
 
     let r1 = b1.collect::<Vec<_>>();
     let r2 = b2.collect::<Vec<_>>();
@@ -432,8 +432,8 @@ fn bench_merger_real(c: &mut Criterion){
 
     fn dummy_merger(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cbumi();
-        let b2 = BusReader::new(fname2).groupby_cbumi();
+        let b1 = BusReaderPlain::new(fname1).groupby_cbumi();
+        let b2 = BusReaderPlain::new(fname2).groupby_cbumi();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -445,8 +445,8 @@ fn bench_merger_real(c: &mut Criterion){
 
     fn dummy_merger_fast(fname1: &str,fname2: &str, n:usize) -> usize{
 
-        let b1 = BusReader::new(fname1).groupby_cbumi();
-        let b2 = BusReader::new(fname2).groupby_cbumi();
+        let b1 = BusReaderPlain::new(fname1).groupby_cbumi();
+        let b2 = BusReaderPlain::new(fname2).groupby_cbumi();
         let hashmap = HashMap::from([
             ("test1".to_string(), b1),
             ("test2".to_string(), b2),
@@ -534,7 +534,7 @@ fn bench_io_vs_inmem(c: &mut Criterion){
 
     c.bench_function("from disk ",
         |b| b.iter(|| {
-            let s: u32 = BusReader::new(busfiles).map(|r|r.COUNT).sum();
+            let s: u32 = BusReaderPlain::new(busfiles).map(|r|r.COUNT).sum();
             s
         })
     );
@@ -545,7 +545,7 @@ fn bench_io_vs_inmem(c: &mut Criterion){
     f.read_to_end(&mut buffer).unwrap();
     c.bench_function("in mem",
     |b| b.iter(|| {
-        let s: u32 = BusReader::from_read(buffer.as_slice()).map(|r|r.COUNT).sum();
+        let s: u32 = BusReaderPlain::from_read(buffer.as_slice()).map(|r|r.COUNT).sum();
         s
     })
     );

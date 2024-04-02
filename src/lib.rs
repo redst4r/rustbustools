@@ -9,8 +9,9 @@
 //! The basic unit is the [`io::BusRecord`], which represents a single entry in a busfile,
 //! consisting of CB, UMI, EC, COUNT and Flag.
 //! 
-//! [`io::BusReader`] and [`io::BusWriter`] are the primary means to actually read and write `.bus` files.
-//! For compressed busfiles (`.busz`), use [`busz::BuszReader`] and [`busz::BuszWriter`] instead.
+//! [`io::BusReader`] and [`io::BusWriter`] are the primary means to actually read and write busfiles.
+//! These are polymorphic wrappers around the speicialized implementation for plain and compressed readers/writers which handle uncompressed and compressed files: [`io::BusReaderPlain`] and [`busz::BuszReader`] ([`io::BusWriterPlain`] and [`busz::BuszWriter`])
+//! Any downstream code should really onyl accept the generic [`io::BusReader`] and [`io::BusWriter`] ot be agnostic of format.
 //! 
 //! ## Iterate over a busfile
 //! [`io`] contains the code to read and write from busfiles.

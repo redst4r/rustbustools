@@ -153,7 +153,7 @@ mod test {
     mod external {
         use tempfile::tempdir;
         use pretty_assertions::assert_eq;
-        use crate::io::{BusRecord, BusWriter, BusReader, BusParams};
+        use crate::io::{BusRecord, BusWriterPlain, BusReaderPlain, BusParams};
         use crate::busz::decode::{BuszReader, decompress_busfile};
         use crate::busz::encode::compress_busfile;
 
@@ -170,7 +170,7 @@ mod test {
             let file_path= dir.path().join("buscompress.bus");
             let filename = file_path.to_str().unwrap();
             
-            let mut  writer = BusWriter::new(
+            let mut  writer = BusWriterPlain::new(
                 filename, 
                 BusParams {cb_len: 16, umi_len: 12}
             );
@@ -194,7 +194,7 @@ mod test {
 
             // let x = tempfile::tempfile().unwrap();
             // x.
-            let mut  writer = BusWriter::new(
+            let mut  writer = BusWriterPlain::new(
                 input_plain, 
                 BusParams {cb_len: 16, umi_len: 12}
             );
@@ -238,7 +238,7 @@ mod test {
             let reader = BuszReader::new(copmressed_output);
             let recs: Vec<_> = reader.collect();
 
-            let x = BusReader::new(input_plain);
+            let x = BusReaderPlain::new(input_plain);
             assert_eq!(x.collect::<Vec<_>>(), recs);
 
         }
@@ -290,9 +290,9 @@ mod test {
             println!("decoding: {elapsed} ms");
 
 
-            let r = BusReader::new(output);
+            let r = BusReaderPlain::new(output);
             let records:Vec<_> = r.collect();
-            let r_original = BusReader::new(input_plain);
+            let r_original = BusReaderPlain::new(input_plain);
             let records_original:Vec<_> = r_original.collect();
 
             assert_eq!(records.len(), records_original.len());
@@ -304,7 +304,7 @@ mod test {
             let reader = BuszReader::new("/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.busz");
             let records:Vec<BusRecord> = reader.collect();
 
-            let r_original = BusReader::new("/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus");
+            let r_original = BusReaderPlain::new("/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus");
             let records_original:Vec<_> = r_original.collect();
 
             assert_eq!(records.len(), records_original.len());

@@ -1,23 +1,23 @@
 //! The io module of bustools deals with reading and writing busfiles.
 //!
 //! The most important components are:
-//! - BusRecord: a single record of a Busfile, containing CB/UMI/EC/COUNT
-//! - BusFolder: representing the directory structure of kallisto quantification
-//! - BusReader: to iterate over Records of a busfile
-//! - BusWriter: writing records to busfile
+//! - [`BusRecord`]: a single record of a Busfile, containing CB/UMI/EC/COUNT
+//! - [`BusFolder`]: representing the directory structure of kallisto quantification
+//! - [`BusReader`]: to iterate over Records of a busfile
+//! - [`BusWriter`]: writing records to busfile
 //!
 //! # Example
 //! ```rust, no_run
-//! # use bustools::io::{BusReader, BusParams, BusWriter};
+//! # use bustools::io::{BusReader, BusParams, BusWriter, BusRecord};
 //! let bus = BusReader::new("/tmp/some.bus");
 //! let params = BusParams {cb_len: 16, umi_len: 12};
 //! let mut writer = BusWriter::new("/tmp/out.bus", params);
-//! for record in bus{
-//!     writer.write_record(&record);
-//! }
+//! let records: Vec<BusRecord> = bus.collect();
+//! writer.write_iterator(records.into_iter());
 //!
 #![allow(non_snake_case)]
 
+use crate::busz::{BuszReader, BuszWriter};
 use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
@@ -128,13 +128,13 @@ impl BusHeader {
 
     /// desearializes a BusHeader from Bytes; when reading busfiles
     pub fn from_bytes(bytes: &[u8]) -> BusHeader {
-        bincode::deserialize(bytes).expect("FAILED to deserialze header")
-        // bincode::serde::decode_from_slice(bytes, bincode::config::legacy()).expect("FAILED to deserialze header").0 //.expect("FAILED to deserialze header");
+        let header_struct: BusHeader =
+            bincode::deserialize(bytes).expect("FAILED to deserialze header");
+        header_struct
     }
 
     /// seialize the header to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
-        // bincode::serde::encode_to_vec(self, bincode::config::legacy()).unwrap() //.expect("FAILED to deserialze header");
         bincode::serialize(self).expect("FAILED to serialze header")
     }
 
@@ -143,6 +143,7 @@ impl BusHeader {
         self.tlen
     }
 
+    // /// return the length of the Cell Barcode in the busfile
     // pub fn get_cb_len(&self) -> u32 {
     //     self.cb_len
     // }
@@ -175,10 +176,29 @@ impl BusHeader {
 pub trait CUGIterator: Iterator<Item = BusRecord> {}
 pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 
-/// Main reader for Busfiles
-/// Allows to iterate over the BusRecords in the file
-///
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/// The main struct to read (un)compressed bus files.
+/// Should always be used in favour of the concrete [`BusReaderPlain`] (plain .bus files) and [`BuszReader`] (compressed .busz files),
+/// as this allows code to be transparent/agnositc of wether the underlying file is compressed or not. 
+/// 
 /// # Example
+/// Uncompressed busfile
 /// ```rust, no_run
 /// # use bustools::io::BusReader;
 /// let breader = BusReader::new("somefile.bus");
@@ -186,21 +206,116 @@ pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 ///     let cb= record.CB;
 /// };
 /// ```
-/// # From `Read`
-/// The [`BusReader`] can operate on anything implementing the `Read`-trait.
-/// For example, one can create a [`BusReader`] from a [`File`]:
+/// Compressed busfile (works just the same way, note the different file extension)
 /// ```rust, no_run
 /// # use bustools::io::BusReader;
+/// let breader = BusReader::new("somefile.busz");
+/// for record in breader{
+///     let cb= record.CB;
+/// };
+/// ```
+pub enum BusReader <'a> {
+    Plain(BusReaderPlain<'a>),
+    Compressed(BuszReader),
+}
+
+impl <'a>BusReader<'a> {
+    /// Creates a new reader of a bus/busz file. Depending on the file extension,
+    /// it infers wether the file is plain-binary (.bus) or compressed (.busz).
+    /// 
+    /// # TODO: make the plain/compressed choice explicit?
+    pub fn new(fname: &str) -> Self {
+        if fname.ends_with(".busz") {
+            Self::new_compressed(fname)
+        } else {
+            Self::new_plain(fname)
+        }
+    } 
+
+    /// construct the BusReader on any input stream which yields bytes (implements read)
+    /// if this is based on a File, highly recommended to wrap it in a BufferedReader for performance
+    /// otherwise every iteration will cause a read/system call
+    pub fn from_read_plain(reader: impl Read + 'a) -> Self {
+        BusReader::Plain(BusReaderPlain::from_read(reader))
+    }
+
+    pub fn from_read_compressed(reader: impl Read + 'a) -> Self {
+       todo!("need to change BuszWriter to accept streams")
+    }
+
+    // THIS ONE IS DEPRECATED: IF YOU WANT SEPCIFIC BUFFER SIZE, FEED a BufferedReader into :from_read_*
+    // /// Creates a new reader with specified buffer size (800KB = 800 * 1024) is
+    // /// a good choice. 
+    // pub fn new_with_capacity(fname: &str, bufsize: usize) -> Self {
+    //     if fname.ends_with(".busz") {
+    //         BusReader::Compressed(BuszReader::new_with_capacity(fname, bufsize))
+    //     } else {
+    //         BusReader::Plain(BusReaderPlain::new_with_capacity(fname, bufsize))
+    //     }
+    // } 
+
+    /// specifically return a Reader for plain bus files
+    pub fn new_plain(fname: &str) -> Self{
+        BusReader::Plain(BusReaderPlain::new(fname))
+    }
+
+    /// specifically return a Reader for compressed busfiles
+    pub fn new_compressed(fname: &str) -> Self{
+        BusReader::Compressed(BuszReader::new(fname))
+    }
+
+    // /// get the [`BusParams`] of the file.
+    pub fn get_params(&self) -> &BusParams { 
+        match self {
+            BusReader::Plain(reader) => reader.get_params(),
+            BusReader::Compressed(reader) => reader.get_params(),
+        }
+    }
+}
+
+impl <'a> Iterator for BusReader<'a> {
+    type Item = BusRecord;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            BusReader::Plain(reader) => reader.next(),
+            BusReader::Compressed(reader) => reader.next(),
+        }
+    }
+}
+
+impl <'a> CUGIterator for BusReader <'a> {}
+
+//=================================================================================================
+
+
+
+
+/// Main reader for plain Busfiles
+/// Allows to iterate over the BusRecords in the file
+///
+/// # Example
+/// ```rust, no_run
+/// # use bustools::io::BusReaderPlain;
+/// let breader = BusReaderPlain::new("somefile.bus");
+/// for record in breader{
+///     let cb= record.CB;
+/// };
+/// ```
+/// # From `Read`
+/// The [`BusReaderPlain`] can operate on anything implementing the `Read`-trait.
+/// For example, one can create a [`BusReaderPlain`] from a [`File`]:
+/// ```rust, no_run
+/// # use bustools::io::BusReaderPlain;
 /// # use std::io::BufReader;
 /// # use std::fs::File;
 /// // note: Buffering is highly recommended for performance reasons
 /// let bufReader = BufReader::with_capacity(10000, File::open("somefile.bus").unwrap());
-/// let breader = BusReader::from_read(bufReader);
+/// let breader = BusReaderPlain::from_read(bufReader);
 /// ```
 /// 
-/// Similarly one can also construct a BusReader for in-memory data:
+/// Similarly one can also construct a [`BusReaderPlain`] for in-memory data:
 /// ```rust
-/// # use bustools::io::{BusReader, BusRecord, BusHeader};
+/// # use bustools::io::{BusReaderPlain, BusRecord, BusHeader};
 /// // create an in memory representation of a busfile (in bytes)
 /// let header = BusHeader::new(16, 12, 1, false);
 /// let r1 = BusRecord{CB: 1, UMI:1, EC:1, COUNT: 10, FLAG: 0};
@@ -209,15 +324,15 @@ pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 /// v.extend_from_slice(&r1.to_bytes());
 /// 
 /// // v contains a busfile as a Vec<u8> which we can read with BusReader
-/// let breader = BusReader::from_read(&v[..]);
+/// let breader = BusReaderPlain::from_read(&v[..]);
 /// let records:Vec<_> = breader.collect();
 /// ```
-pub struct BusReader<'a> {
+pub struct BusReaderPlain<'a> {
     /// containing info about CB-length, UMI length for decoding
     pub params: BusParams,
     reader:  Box<dyn Read+ 'a>, //ugly way to store any Read-like object in here, BufferedReader, File, Cursor, or just a vec<u8>!
 }
-impl <'a> BusReader <'a> {
+impl <'a> BusReaderPlain <'a> {
 
     /// Creates a BusReader for a file on disk.
     /// Turns the file into a bufferedReader.
@@ -251,7 +366,7 @@ impl <'a> BusReader <'a> {
         reader.read_exact(&mut buffer).expect("failed to read variable header");
 
         // reader is now positioned at the first record
-        BusReader { params, reader: Box::new(reader) }
+        BusReaderPlain { params, reader: Box::new(reader) }
     }
     
     pub fn get_params(&self) -> &BusParams {
@@ -259,7 +374,7 @@ impl <'a> BusReader <'a> {
     }
 }
 
-impl <'a> Iterator for BusReader <'a> {
+impl <'a> Iterator for BusReaderPlain <'a> {
     type Item = BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -288,40 +403,91 @@ impl <'a> Iterator for BusReader <'a> {
 }
 
 // tag our iterator to be compatible with our framework
-impl <'a> CUGIterator for BusReader<'a> {}
+impl <'a> CUGIterator for BusReaderPlain<'a> {}
 
 
 /// actually, also make general iterators of BusRecord amenable
 // impl CUGIterator for dyn Iterator<Item = BusRecord> {}
 impl CUGIterator for std::vec::IntoIter<BusRecord> {}
 
+
+
+
+
+/// Main writer for bus records, either uncompressed or compressed.
+pub enum BusWriter {
+    Plain(BusWriterPlain),
+    Compressed(BuszWriter),
+}
+
+impl BusWriter {
+    pub fn new(filename: &str, params: BusParams) -> Self {
+        if filename.ends_with(".busz") {
+            Self::Compressed(
+                // BuszWriter::new_with_capacity(file_handle, header, DEFAULT_BUF_SIZE)
+                BuszWriter::new(filename, params, 100_000)  // TODO: buz_block
+            )
+        } else {
+            Self::Plain(
+                BusWriterPlain::new(filename, params)
+            )
+        }
+    }
+
+    pub fn write_iterator(&mut self, iter: impl Iterator<Item=BusRecord>) {
+        match self {
+            BusWriter::Plain(writer) => writer.write_records(&iter.collect()), // TODO remove allocation
+            BusWriter::Compressed(writer) => writer.write_iterator(iter),
+        }
+    }
+    // pub fn new_with_capacity(file_handle: File, header: BusHeader, bufsize: usize) -> Self {
+
+
+    //     if file_handle.ends_with(".busz") {
+    //         Self::Compressed(
+    //             BuszWriter::new_with_capacity(file_handle, header, 100_000)
+    //         )     
+    //     } else {
+    //         Self::Plain(
+    //             BusWriterPlain::new_with_capacity(file_handle, header, bufsize)
+    //         )  
+    //     }
+    // }
+}
+
+
+
+
+
+
+
 // ========================================
 /// Writing BusRecords into a File, using Buffers
 /// needs the Header of the busfile to be specified (length of CB and UMI)
 /// # Example
 /// ```
-/// # use bustools::io::{BusWriter, BusParams, BusRecord};
+/// # use bustools::io::{BusWriterPlain, BusParams, BusRecord};
 ///
 /// let params = BusParams { cb_len: 16, umi_len: 12};
-/// let mut w = BusWriter::new("/tmp/target.bus", params);
+/// let mut w = BusWriterPlain::new("/tmp/target.bus", params);
 /// let record = BusRecord{CB: 1, UMI: 2, EC: 0, COUNT: 10, FLAG: 0};
 /// w.write_record(&record);
 /// ```
-pub struct BusWriter {
+pub struct BusWriterPlain {
     writer: BufWriter<File>,
     header: BusHeader,
 }
 
-impl BusWriter {
+impl BusWriterPlain {
     /// create a BusWriter from an open Filehandle
-    pub fn from_filehandle(file_handle: File, params: BusParams) -> BusWriter {
-        BusWriter::new_with_capacity(file_handle, params, DEFAULT_BUF_SIZE)
+    pub fn from_filehandle(file_handle: File, params: BusParams) -> BusWriterPlain {
+        BusWriterPlain::new_with_capacity(file_handle, params, DEFAULT_BUF_SIZE)
     }
 
     /// create a Buswriter that streams records into a file
-    pub fn new(filename: &str, params: BusParams) -> BusWriter {
+    pub fn new(filename: &str, params: BusParams) -> BusWriterPlain {
         let file_handle: File = File::create(filename).expect("FAILED to open");
-        BusWriter::from_filehandle(file_handle, params)
+        BusWriterPlain::from_filehandle(file_handle, params)
     }
 
     /// Writing a single BusRecord
@@ -363,7 +529,7 @@ impl BusWriter {
             .write_all(&varheader)
             .expect("FAILED to write var header");
 
-        BusWriter { writer, header }
+        BusWriterPlain { writer, header }
     }
 
     pub fn write_iterator(&mut self, iter: impl Iterator<Item=BusRecord>) {
@@ -442,9 +608,9 @@ impl BusFolder {
     }
  
     /// returns an iterator of the folder's busfile
-    pub fn get_iterator(&self) -> BusReader {
+    pub fn get_iterator(&self) -> BusReaderPlain {
         let bfile = self.get_busfile();
-        BusReader::new(&bfile)
+        BusReaderPlain::new(&bfile)
     }
 
     /// return the folders busfile
@@ -526,7 +692,7 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
     let file_path = dir.path().join("output.corrected.sort.bus");
     let tmpfilename = file_path.to_str().unwrap();
 
-    let mut writer = BusWriter::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
+    let mut writer = BusWriterPlain::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
     writer.write_records(records);
 
     (tmpfilename.to_string(), dir)
@@ -534,8 +700,8 @@ pub fn setup_busfile(records: &Vec<BusRecord>) -> (String, TempDir) {
 
 pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
     // write the first nrecords of the intput file into the output
-    let busiter = BusReader::new(bfile);
-    let mut buswriter = BusWriter::new(boutfile, busiter.params.clone());
+    let busiter = BusReaderPlain::new(bfile);
+    let mut buswriter = BusWriterPlain::new(boutfile, busiter.params.clone());
 
     for record in busiter.take(nrecords) {
         buswriter.write_record(&record);
@@ -546,7 +712,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
 #[cfg(test)]
 mod tests {
     use crate::consistent_genes::EC;
-    use crate::io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter, BusParams};
+    use crate::io::{setup_busfile, BusHeader, BusReaderPlain, BusRecord, BusWriterPlain, BusParams};
     use crate::iterators::CellGroupIterator;
     use std::io::{BufReader, Read, Write};
     use tempfile::tempdir;
@@ -559,7 +725,7 @@ mod tests {
         let file_path = dir.path().join("test_read_write_header.bus");
         let busname = file_path.to_str().unwrap();
 
-        let mut writer = BusWriter::new(busname, BusParams {cb_len: 16, umi_len: 12});
+        let mut writer = BusWriterPlain::new(busname, BusParams {cb_len: 16, umi_len: 12});
         writer.write_record(&r1);
         writer.writer.flush().unwrap();
 
@@ -581,7 +747,7 @@ mod tests {
         let r2 = BusRecord { CB: 1, UMI: 21, EC: 1, COUNT: 2, FLAG: 0 };
         let rlist = vec![r1, r2]; // note: this clones r1, r2!
         let (busname, _dir) = setup_busfile(&rlist);
-        let reader = BusReader::new(&busname);
+        let reader = BusReaderPlain::new(&busname);
 
         let records: Vec<BusRecord> = reader.into_iter().collect();
         assert_eq!(records, rlist)
@@ -656,7 +822,7 @@ mod tests {
         let file_path = dir.path().join("test.bus");
         let tmpfilename = file_path.to_str().unwrap();
 
-        let mut wri = BusWriter::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
+        let mut wri = BusWriterPlain::new(tmpfilename, BusParams {cb_len: 16, umi_len: 12});
         let b = BusRecord {CB: 1, UMI: 1, EC: 1, COUNT: 3, FLAG: 0};
         let c = BusRecord {CB: 0, UMI: 1, EC: 1, COUNT: 3, FLAG: 0};
         let records = vec![b, c];
@@ -679,7 +845,7 @@ mod tests {
     /// make sure the format on disk stays the same when we read it
     fn test_insta_binary_format_read() {
         let external_file = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-        let records: Vec<BusRecord> = BusReader::new(external_file).step_by(10000).take(100).collect();
+        let records: Vec<BusRecord> = BusReaderPlain::new(external_file).step_by(10000).take(100).collect();
         insta::assert_yaml_snapshot!(records)
     }
 
@@ -691,7 +857,7 @@ mod tests {
         let (busname, _dir) = setup_busfile(&rlist);
 
         let f = File::open(busname).unwrap();
-        let mut r = BusReader::from_read(f);
+        let mut r = BusReaderPlain::from_read(f);
         assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
 
         assert_eq!(r.next(), Some(r1));
@@ -706,7 +872,7 @@ mod tests {
         let rlist = vec![r1.clone(), r2.clone()]; // note: this clones r1, r2!
         let (busname, _dir) = setup_busfile(&rlist);
 
-        let mut r = BusReader::new(&busname);
+        let mut r = BusReaderPlain::new(&busname);
         assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
 
         assert_eq!(r.next(), Some(r1));
@@ -727,7 +893,7 @@ mod tests {
         f.read_to_end(&mut buffer).unwrap();
 
 
-        let mut r = BusReader::from_read(buffer.as_slice());
+        let mut r = BusReaderPlain::from_read(buffer.as_slice());
         assert_eq!(r.params, BusParams {cb_len: 16, umi_len: 12});
 
         assert_eq!(r.next(), Some(r1));
@@ -749,7 +915,7 @@ mod tests {
         f.read_to_end(&mut buffer).unwrap();
 
 
-        let r = BusReader::from_read(buffer.as_slice());
+        let r = BusReaderPlain::from_read(buffer.as_slice());
 
         let mut iter = r.groupby_cb();
 

@@ -249,7 +249,7 @@ impl <I:CUGIterator>Iterator for CellUmiIteratorMulti<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{io::{BusReader, BusRecord}, iterators::{CbUmiGroupIterator, CellGroupIterator}};
+    use crate::{io::{BusReaderPlain, BusRecord}, iterators::{CbUmiGroupIterator, CellGroupIterator}};
     use std::collections::HashMap;
 
     #[test]
@@ -354,8 +354,8 @@ mod tests {
         let input2 = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus";
 
         let hashmap = HashMap::from([
-            ("test1".to_string(), BusReader::new(input1).groupby_cbumi()),
-            ("test2".to_string(), BusReader::new(input2).groupby_cbumi()),
+            ("test1".to_string(), BusReaderPlain::new(input1).groupby_cbumi()),
+            ("test2".to_string(), BusReaderPlain::new(input2).groupby_cbumi()),
         ]);
         let m = CellUmiIteratorMulti::new(hashmap); //warning: this triggers the .next() method for both ierators once, consuming the cell 0
         let mut counter = 0;
