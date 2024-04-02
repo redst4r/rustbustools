@@ -24,7 +24,7 @@ tempfile="3.10.0"
 rkyv= {version = "0.7.43", features =["validation"] }
 bitvec="1"
 newpfd= { version="0.7.0" }
-fastfibonacci= { version="0.3.0" }
+fastfibonacci= { version="1" }
 hashbrown="0.14"
 ahash="0.8"
 md5 = "0.7.0"

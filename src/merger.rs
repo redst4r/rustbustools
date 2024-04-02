@@ -1,6 +1,7 @@
 //! An iterator that merges mutliple sorted iterators by item
 //!
 use std::{collections::HashMap, fmt::Debug, mem::replace};
+use crate::utils::min_argmin;
 
 /// Iterator the merges mulitple sorted iterators by item
 ///
@@ -212,12 +213,13 @@ where
 
     /// advance the specified iterator and return the result
     fn advance_iter(&mut self, ix: usize) -> Option<(K, T)> {
-        // TODO looks like this is just a wrap around `self.iterators[ix].next()`
-        if let Some((key, item)) = self.iterators[ix].next() {
-            Some((key, item))
-        } else {
-            None
-        }
+        // // TODO looks like this is just a wrap around `self.iterators[ix].next()`
+        // if let Some((key, item)) = self.iterators[ix].next() {
+        //     Some((key, item))
+        // } else {
+        //     None
+        // }
+        self.iterators[ix].next() 
     }
 
     /// gets the smallest key (K) across the iterators
@@ -230,8 +232,49 @@ where
         *min
     }
 
+    /// gets the smallest key (K) across the iterators
+    fn get_current_min_items_and_indices_old(&mut self) -> (K, Vec<usize>) {
+
+
+        let cbs  = self.current_items.iter()
+            .flatten()
+            .map(|(cb, _records)| *cb).collect::<Vec<_>>();
+        min_argmin(&cbs)
+    }
+
+    /// TODO: check if this is actually faster!!
+    fn get_current_min_items_and_indices(&self) -> (K, Vec<usize>) {
+        let mut cbs  = self.current_items.iter()
+            .flatten()
+            .map(|(cb, _records)| *cb);
+
+        let mut current_min = cbs.next().expect("must contain at least 1 items");
+        let mut indices: Vec<usize> = Vec::with_capacity(self.names.len());
+        indices.push(0);
+
+    
+        for (ix, el) in cbs.enumerate() {
+            match el.cmp(&current_min) {
+                std::cmp::Ordering::Less => {
+                    // new min
+                    current_min = el;
+                    indices = vec![ix+1]  // since we skipped the first element
+                },
+                std::cmp::Ordering::Equal => {
+                    // found another one thats equally small
+                    indices.push(ix+1) // since we skipped the first element
+                },
+                std::cmp::Ordering::Greater => { /* nothing to do here */},
+            }
+        }
+        
+        (current_min, indices)
+    }
+    
+
     /// remove an iterator from the structure, cleaning up the arrays.
     /// Typically done when the iterator is empty (this will panic if called on a nonempy iterator)
+    /// Careful: removing by index wouldnt work, removing an iterator changes the index of all others!!
     fn remove_iterator(&mut self, name: &str) {
         let ix = self.names.iter().position(|x| x==name).expect("name needs to be present in iterators");
         let _ii = self.iterators.remove(ix);
@@ -239,7 +282,6 @@ where
         let curr = self.current_items.remove(ix);
         assert!(curr.is_none());
     }
-
 }
 
 impl<I, T, K> Iterator for MultiIterator<I, T, K>
@@ -269,8 +311,14 @@ where
             }
         }
 
+        // TODO: check if this would actually be faster
+        // let (current_min_cb, ix_to_emit) = self.get_current_min_items_and_indices();
+
         // TODO hashbrown with ahash??
-        let mut the_emission: HashMap<String, T> = HashMap::new();
+        let mut the_emission: HashMap<String, T> = HashMap::with_capacity(self.names.len());
+        // let mut the_emission: HashMap<String, T, RandomState> = HashMap::default();
+        // let mut the_emission: HashMap<String, T> = HashMap::with_hasher(RandomState::with_seed(42));
+        // let mut the_emission = HashMap::with_hasher(RandomState::with_seed(42));
 
         // advance all the iterators that did emit
         // 1. advance the respective iterator (a new element to be stored)

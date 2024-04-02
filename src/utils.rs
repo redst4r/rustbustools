@@ -154,6 +154,59 @@ pub mod argsort {
     }
 }
 
+/// return the minimum value and all indices that have the min value
+pub fn min_argmin<T: Ord+ Copy>(x: &[T]) -> (T, Vec<usize>){
+
+    if x.len() == 1 {
+        (x[0], vec![0])
+    } else {
+        let mut current_min: &T = x.first().expect("x has to contain an element");
+        let mut indices: Vec<usize> = Vec::with_capacity(x.len());
+        indices.push(0);
+
+        for (ix, el) in x.iter().enumerate().skip(1) {
+            match el.cmp(current_min) {
+                std::cmp::Ordering::Less => {
+                    // new min
+                    current_min = el;
+                    indices = vec![ix]
+                },
+                std::cmp::Ordering::Equal => {
+                    // found another one thats equally small
+                    indices.push(ix)
+                },
+                std::cmp::Ordering::Greater => { /* nothing to do here */},
+            }
+        }
+    
+        (*current_min, indices)
+    }
+}
+#[test]
+fn test_min_argmin() {
+
+    // basic
+    let x = vec![4,3,2,1];
+    assert_eq!(
+        min_argmin(&x),
+        (1, vec![3])
+    );
+
+    // multiple mins
+    let x = vec![4,1,2,1];
+    assert_eq!(
+        min_argmin(&x),
+        (1, vec![1,3])
+    );
+
+    // multiple mins in a 
+    let x = vec![4, 2, 3, 2, 1, 2, 1, 4];
+    assert_eq!(
+        min_argmin(&x),
+        (1, vec![4, 6])
+    );
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

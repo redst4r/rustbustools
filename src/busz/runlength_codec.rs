@@ -51,7 +51,7 @@ impl RunlengthCodec {
 
     
     pub fn decode(&self, input: Vec<u64>) -> Vec<u64>{
-        let mut decoded = Vec::new();
+        let mut decoded = Vec::with_capacity(input.len());  // its going to be AT LEAST as long as the input
         let mut iii = input.iter();
         // loop {
         while let Some(&item) = iii.next() {
