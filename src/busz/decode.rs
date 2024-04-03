@@ -28,13 +28,13 @@ use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_e
 /// ```
 /// 
 /// 
-// #[derive(Debug)]
 pub struct BuszReader <'a> {
     params: BusParams,
     busz_header: BuszHeader,
     // reader: BufReader<File>,
     reader:  Box<dyn Read+ 'a>, //ugly way to store any Read-like object in here, BufferedReader, File, Cursor, or just a vec<u8>!
-    buffer: VecDeque<BusRecord>
+    buffer: VecDeque<BusRecord>,
+    is_done: bool,  // weird case where .groupby() keeps calling .next() even after it recieved None. We need to keep emitting None once we're done with the file
 }
 
 impl <'a>BuszReader<'a> {
@@ -71,7 +71,7 @@ impl <'a>BuszReader<'a> {
         
         // done, create the BuszReader
         let buffer = VecDeque::with_capacity(busz_header.block_size as usize);
-        BuszReader { params, busz_header, reader: Box::new(reader), buffer }
+        BuszReader { params, busz_header, reader: Box::new(reader), buffer, is_done: false }
     }
 
     #[deprecated]
@@ -102,7 +102,7 @@ impl <'a>BuszReader<'a> {
         let buffer = VecDeque::with_capacity(bzheader.block_size as usize);
 
         let params = BusParams {cb_len: bus_header.cb_len, umi_len: bus_header.umi_len};
-        BuszReader { params, busz_header:bzheader, reader: Box::new(buf), buffer }
+        BuszReader { params, busz_header:bzheader, reader: Box::new(buf), buffer , is_done:false}
     }
 
     /// takes the next 8 bytes (u64) out of the stream and interprets it as a buszheader
@@ -110,12 +110,12 @@ impl <'a>BuszReader<'a> {
     fn load_busz_header(&mut self) -> Option<CompressedBlockHeader>{
         // get block header
         let mut blockheader_bytes = [0_u8;8];
-        self.reader.read_exact(&mut blockheader_bytes).unwrap();
+        self.reader.read_exact(&mut blockheader_bytes).expect("couldnt read the busz block header");
         if blockheader_bytes == [0,0,0,0,0,0,0,0] {  // EOF
             return None
         }
         let h = CompressedBlockHeader { header_bytes: u64::from_le_bytes(blockheader_bytes)};
-        // println!("H bytes {}, H records {}", H.get_blocksize_and_nrecords().0, H.get_blocksize_and_nrecords().1);
+        // println!("H bytes {}, H records {}", h.get_blocksize_and_nrecords().0, h.get_blocksize_and_nrecords().1);
         Some(h)
     }
 
@@ -147,22 +147,46 @@ impl <'a>BuszReader<'a> {
     
         Some(records)
     }
+
+    pub fn get_params(&self) -> &BusParams {
+        &self.params
+    }
+
+    // pub fn get_busz_header(&self) -> BuszHeader{
+    //     self.busz_header.clone()
+    // }
 }
 
 impl <'a>Iterator for BuszReader<'a> {
     type Item=BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
+
+        if self.is_done {  // weird little workaround such that the iterator keeps emitting None when were done without trying to read more blocks from disk
+            return None
+        }
+
         if self.buffer.is_empty(){
             // pull in another block
+            // println!("Pulling in another block");
             let block =self.load_busz_block_faster(); 
             match block {
-                Some(records) => {self.buffer = records.into()},
-                None => {return None}
+                Some(records) => {
+                    // println!("Pulled in another {} records", records.len());
+                    self.buffer = records.into()
+                },
+                None => {
+                    // println!("no more records to pull");
+                    self.is_done = true;
+                    return None
+                }
             };
         }
         match self.buffer.pop_front() {
-            Some(record) => Some(record),
+            Some(record) => {
+                // println!("Emitting {:?}\nRemainingBuffer: {:?}\n", record, self.buffer);
+                Some(record)
+            },
             None => panic!("cant happen")
         }
     }
@@ -629,4 +653,83 @@ pub fn decompress_busfile(input: &str, output: &str) {
     for r in reader {
         writer.write_record(&r);
     }
+}
+
+#[cfg(test)]
+mod testing{
+    use tempfile::tempdir;
+
+    use crate::{busz::BuszWriter, iterators::CellGroupIterator};
+
+    use super::*;
+
+    #[test]
+    /// this tests some weird assumption of the grouping iterators (.groupby_cb(), .groupby_cbumi()):
+    /// They call .next() once more even thoguh they already recieved a `None`
+    /// 
+    fn test_groupby() {
+        // odd! groupby_cbumi() calls next() once more after we're already done with the file
+        // which leads to an exception
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r3 = BusRecord { CB: 0, UMI: 3, EC: 0, COUNT: 12, FLAG: 0 };
+        let r4 = BusRecord { CB: 1, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
+        let r6 = BusRecord { CB: 2, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+
+        let records = vec![
+            r1.clone(),
+            r2.clone(),
+            r3.clone(),
+            r4.clone(),
+            r5.clone(),
+            r6.clone(),
+        ];
+
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.bus");
+        let fname = file_path.to_str().unwrap();
+        let mut w = BuszWriter::new(
+            fname, 
+            BusParams {cb_len:16, umi_len:12}, 
+            4
+        );
+        w.write_iterator(records.into_iter());
+
+
+        let mut reader = BuszReader::new(fname).groupby_cb();
+
+
+        // lets step through it
+        assert_eq!(reader.next(), Some((0, vec![r1,r2,r3])));
+        assert_eq!(reader.next(), Some((1, vec![r4,r5])));
+        assert_eq!(reader.next(), Some((2, vec![r6])));
+        assert_eq!(reader.next(), None);
+
+        // just to make sure it keeps yielding None
+        assert_eq!(reader.next(), None);
+
+
+    }
+
+    #[test]
+    fn test_inmem() {
+        let fname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.busz";
+        let mut fh = BufReader::new(
+            File::open(fname).unwrap()
+        );
+    
+        let mut bytes: Vec<u8> = Vec::new();
+        let bytes_read = fh.read_to_end(&mut bytes).unwrap();
+        println!("bytes_read : {bytes_read}");
+
+
+        let reader_inmem = BuszReader::from_read(bytes.as_slice());
+        let reader_ondisk = BuszReader::new(fname);
+
+        for (r1, r2) in izip!(reader_inmem, reader_ondisk) {
+            assert_eq!(r1, r2)
+        }
+    }
+
 }

@@ -22,27 +22,45 @@ fn bus_to_mem(busfile: &str) -> Vec<u8>{
 }
 #[allow(dead_code)]
 /// profiling the deserializing of the busfile more or less
-fn plain_iterator_speed(c: &mut Criterion){
+/// based on IN MEMORY busfiles to get around I/O
+fn plain_and_compressed_iterator_speed(c: &mut Criterion){
     
     // let busname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     let busname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+    let busname_compressed = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.busz";
+
+
 
     // pull the file into memory, to alleviate disk access
     let buffer = bus_to_mem(busname);
+    let n = 1_000_000;
 
-    c.bench_function("plain_iterator",
+    c.bench_function("plain_iterator in memory",
      |b| b.iter(|| {
-        let n = 100000;
         BusReaderPlain::from_read(buffer.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
      }
     ));
 
-
     // do it on disk
     c.bench_function("plain_iterator on disk",
      |b| b.iter(|| {
-        let n = 100000;
         BusReaderPlain::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
+     }
+    ));
+
+    // Compressed iterators
+    let buffer_compressed = bus_to_mem(busname_compressed);
+
+    c.bench_function("compressed_iterator in memory",
+    |b| b.iter(|| {
+       BuszReader::from_read(buffer_compressed.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
+    }
+    ));
+
+    // do it on disk
+    c.bench_function("compressed_iterator on disk",
+     |b| b.iter(|| {
+        BuszReader::new(busname_compressed).take(n).map(|r|r.COUNT).sum::<u32>();
      }
     ));
 }
@@ -526,35 +544,44 @@ fn bench_hashmaps(c: &mut Criterion){
 }
 
 
-/// how much difference does it make to pull busfiles into memory
-/// for profiling the code. Things might be influenced by disk asscess alot
-fn bench_io_vs_inmem(c: &mut Criterion){
+/// grouping on plain and compressed iterators
+fn grouped_plain_and_compressed_iterator_speed(c: &mut Criterion){
+    
+    // let busname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    let busname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
+    let busname_compressed = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.busz";
 
-    let busfiles = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
 
-    c.bench_function("from disk ",
-        |b| b.iter(|| {
-            let s: u32 = BusReaderPlain::new(busfiles).map(|r|r.COUNT).sum();
-            s
-        })
-    );
+    // pull the file into memory, to alleviate disk access
+    let buffer = bus_to_mem(busname);
+    let n = 100_000;
 
-    // pull into mem
-    let mut buffer = Vec::new();
-    let mut f= File::open(busfiles).unwrap();
-    f.read_to_end(&mut buffer).unwrap();
-    c.bench_function("in mem",
+    c.bench_function("plain_iterator groupby_cb in memory",
+     |b| b.iter(|| {
+        BusReaderPlain::from_read(buffer.as_slice()).groupby_cb().take(n).map(|(_cb, rlist)|rlist.len()).sum::<usize>();
+     }
+    ));
+
+
+    // Compressed iterators
+    let buffer_compressed = bus_to_mem(busname_compressed);
+
+    c.bench_function("compressed_iterator in memory",
     |b| b.iter(|| {
-        let s: u32 = BusReaderPlain::from_read(buffer.as_slice()).map(|r|r.COUNT).sum();
-        s
-    })
-    );
+       BuszReader::from_read(buffer_compressed.as_slice()).groupby_cb().take(n).map(|(_cb, rlist)|rlist.len()).sum::<usize>();;
+    }
+    ));
+
 }
+
+
 // criterion_group!(benches, criterion_benchmark);
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
-criterion_group!(benches, iterator_speed);
-// criterion_group!(benches, plain_iterator_speed);
+// criterion_group!(benches, iterator_speed);
+// criterion_group!(benches, plain_and_compressed_iterator_speed);
+criterion_group!(benches, grouped_plain_and_compressed_iterator_speed);
+
 // criterion_group!(benches, bench_io_vs_inmem);
 
 
