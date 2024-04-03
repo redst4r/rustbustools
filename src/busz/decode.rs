@@ -28,24 +28,53 @@ use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_e
 /// ```
 /// 
 /// 
-#[derive(Debug)]
-pub struct BuszReader {
+// #[derive(Debug)]
+pub struct BuszReader <'a> {
     params: BusParams,
     busz_header: BuszHeader,
-    reader: BufReader<File>,
+    // reader: BufReader<File>,
+    reader:  Box<dyn Read+ 'a>, //ugly way to store any Read-like object in here, BufferedReader, File, Cursor, or just a vec<u8>!
     buffer: VecDeque<BusRecord>
 }
 
-impl BuszReader {
+impl <'a>BuszReader<'a> {
     /// main constructor for busreader, buffersize is set to best performance
     pub fn new(filename: &str) -> Self {
-        BuszReader::new_with_capacity(filename, DEFAULT_BUF_SIZE)
+        let file_handle = File::open(filename).expect("FAIL");       
+        let buf = BufReader::with_capacity(DEFAULT_BUF_SIZE, file_handle);
+        Self::from_read(buf)
     }
 
-    pub fn get_params(&self) -> &BusParams {
-        &self.params
+    pub fn from_read(mut reader: impl Read + 'a) -> Self {
+        // parse header
+        let mut header_bytes = [0_u8; BUS_HEADER_SIZE];
+        reader.read_exact(&mut header_bytes).expect("failed to read header");
+        let header = BusHeader::from_bytes(&header_bytes);
+        let params = BusParams { cb_len: header.cb_len, umi_len: header.umi_len };
+        
+        assert_eq!(
+            &header.magic, b"BUS\x01",
+            "Header struct not matching; MAGIC is wrong"
+        );
+
+        // the variable header
+        let mut var_buffer = Vec::with_capacity(header.tlen as usize);
+        for _i in 0..header.tlen {
+            var_buffer.push(0_u8);
+        }
+        reader.read_exact(&mut var_buffer).expect("failed to read variable header");
+        
+        // BusZHeader
+        let mut buszheader_bytes = [0_u8; BUSZ_HEADER_SIZE];
+        reader.read_exact(&mut buszheader_bytes).unwrap();
+        let busz_header = BuszHeader::from_bytes(&buszheader_bytes);
+        
+        // done, create the BuszReader
+        let buffer = VecDeque::with_capacity(busz_header.block_size as usize);
+        BuszReader { params, busz_header, reader: Box::new(reader), buffer }
     }
 
+    #[deprecated]
     /// Creates a buffered reader over busfiles, with specific buffersize
     pub fn new_with_capacity(filename: &str, bufsize: usize) -> Self {
 
@@ -73,7 +102,7 @@ impl BuszReader {
         let buffer = VecDeque::with_capacity(bzheader.block_size as usize);
 
         let params = BusParams {cb_len: bus_header.cb_len, umi_len: bus_header.umi_len};
-        BuszReader { params, busz_header:bzheader, reader: buf, buffer }
+        BuszReader { params, busz_header:bzheader, reader: Box::new(buf), buffer }
     }
 
     /// takes the next 8 bytes (u64) out of the stream and interprets it as a buszheader
@@ -120,7 +149,7 @@ impl BuszReader {
     }
 }
 
-impl Iterator for BuszReader {
+impl <'a>Iterator for BuszReader<'a> {
     type Item=BusRecord;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -140,7 +169,7 @@ impl Iterator for BuszReader {
 }
 
 // To make `grouby_cb()` etc work
-impl CUGIterator for BuszReader {}
+impl <'a> CUGIterator for BuszReader<'a> {}
 
 /// to keep track in which section we are in the busz-block
 #[derive(Debug, PartialEq, Eq)]

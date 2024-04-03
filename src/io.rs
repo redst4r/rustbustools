@@ -216,7 +216,7 @@ pub const DEFAULT_BUF_SIZE: usize = 800 * 1024; // 800  KB
 /// ```
 pub enum BusReader <'a> {
     Plain(BusReaderPlain<'a>),
-    Compressed(BuszReader),
+    Compressed(BuszReader<'a>),
 }
 
 impl <'a>BusReader<'a> {
@@ -240,7 +240,7 @@ impl <'a>BusReader<'a> {
     }
 
     pub fn from_read_compressed(reader: impl Read + 'a) -> Self {
-       todo!("need to change BuszWriter to accept streams")
+        BusReader::Compressed(BuszReader::from_read(reader))
     }
 
     // THIS ONE IS DEPRECATED: IF YOU WANT SEPCIFIC BUFFER SIZE, FEED a BufferedReader into :from_read_*
