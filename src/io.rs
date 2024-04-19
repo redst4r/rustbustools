@@ -19,6 +19,7 @@
 
 use crate::busz::{BuszReader, BuszWriter};
 use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
+use crate::consistent_transcripts::{make_mapper_transcript, Ec2TranscriptMapper};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
 use serde;
@@ -667,6 +668,9 @@ impl BusFolder {
 
     pub fn make_mapper(&self, t2g_file: &str) -> Ec2GeneMapper {
         make_mapper(self, t2g_file)
+    }
+    pub fn make_mapper_transcript(&self) -> Ec2TranscriptMapper {
+        make_mapper_transcript(self)
     }
 }
 

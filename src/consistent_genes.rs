@@ -12,6 +12,7 @@
 //!
 //! See [Ec2GeneMapper] and [MappingResult]
 //!
+use crate::consistent_transcripts::Ec2TranscriptMapper;
 use crate::io::BusFolder;
 use crate::{disjoint::Intersector, io::BusRecord};
 use itertools::izip;
@@ -40,7 +41,7 @@ pub struct CB(pub u64);
 pub struct Genename(pub String);
 
 /// intersecting both sets, modifying the first one (it'll stay the same or loose elements)
-fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: &HashSet<T>) {
+pub (crate) fn update_intersection_via_retain<T: Hash + Eq>(inter: &mut HashSet<T>, newset: &HashSet<T>) {
     // delete any elemt in shared_genes not present in current_set
     // i..e set intersection
     // we cant delete while iterating, so remember which elements to delete
@@ -69,6 +70,7 @@ pub enum MappingMode {
     EC(InconsistentResolution), // just the EC as the molecular identiy of a read
     // IgnoreMultipleCbUmi,  // if we come arcoss a CB/UMI with more than one busrecord (,i.e. multiple ECs), just skip that cb/umi
     Gene(Ec2GeneMapper, InconsistentResolution),  // use the gene 
+    Transcript(Ec2TranscriptMapper, InconsistentResolution),  // use the gene 
 }
 
 /// if we come across a CB/UMI the has inconsistent mapping

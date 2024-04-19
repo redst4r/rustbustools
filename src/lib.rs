@@ -85,6 +85,7 @@ pub mod iterators;
 pub mod bus_multi;
 pub mod utils;
 pub mod consistent_genes;
+pub mod consistent_transcripts;
 pub mod disjoint;
 pub mod merger;
 pub mod busz;
