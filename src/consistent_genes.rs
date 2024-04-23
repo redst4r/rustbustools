@@ -167,7 +167,8 @@ pub struct Ec2GeneMapper {
     int_to_gene: HashMap<GeneId, Genename>, // for a given gene (ENSBEMLE id), get its unique ID (as recorded in ec2geneid)
 
     // for each gene get a EC that uniquely maps to that gene
-    geneid2ec: HashMap<GeneId, EC>, // consistent_ec_sets: HashSet<HashSet<EC>>  // what general EC combinations are allowed
+    // currently removed: not really useful and convusion
+    // geneid2ec: HashMap<GeneId, EC>, // consistent_ec_sets: HashSet<HashSet<EC>>  // what general EC combinations are allowed
 }
 
 // fn ec_combinatorics_for_gene(geneid: u32, ec2geneid: &HashMap<EC, HashSet<u32>>){
@@ -253,14 +254,17 @@ impl Ec2GeneMapper {
             ec2geneid.insert(*ec, geneids);
         }
 
-        let mut geneid2ec: HashMap<GeneId, EC> = HashMap::new();
-        for (ec, genes) in ec2gene.iter() {
-            if genes.len() == 1 {
-                let gname = genes.iter().next().unwrap().clone();
-                let gid = *gene_to_int.get(&gname).unwrap();
-                geneid2ec.insert(gid, *ec);
-            }
-        }
+        // inverse map from gene to EC
+        // given a gene, get ANY EC that maps to it
+        // this is all a bit ugly, so lwets remove it for now
+        // let mut geneid2ec: HashMap<GeneId, EC> = HashMap::new();
+        // for (ec, genes) in ec2gene.iter() {
+        //     if genes.len() == 1 {
+        //         let gname = genes.iter().next().unwrap().clone();
+        //         let gid = *gene_to_int.get(&gname).unwrap();
+        //         geneid2ec.insert(gid, *ec);
+        //     }
+        // }
 
         // //faster
         // // need to mark ec2gene ordered first
@@ -277,7 +281,7 @@ impl Ec2GeneMapper {
         //     _vec.push(geneids);
         // }
 
-        Ec2GeneMapper { ec2geneid, int_to_gene, geneid2ec }
+        Ec2GeneMapper { ec2geneid, int_to_gene }
     }
 
     /// resolves an EC into a set of gene_ids
@@ -312,10 +316,10 @@ impl Ec2GeneMapper {
         genelist_vector
     }
 
-    fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC> {
-        // just dereferencing whats inside the Option returned by the dict
-        self.geneid2ec.get(&GeneId(geneid)).copied()
-    }
+    // fn resolve_geneid_to_ec_uniquely(&self, geneid: u32) -> Option<EC> {
+    //     // just dereferencing whats inside the Option returned by the dict
+    //     self.geneid2ec.get(&GeneId(geneid)).copied()
+    // }
 }
 
 pub (crate) fn make_mapper(busfolder: &BusFolder, t2g_file: &str) -> Ec2GeneMapper{
@@ -424,7 +428,7 @@ pub fn groubygene(records: Vec<BusRecord>, ec2gene: &Ec2GeneMapper) -> Vec<CUGse
 mod testing {
     use crate::{
         consistent_genes::{find_consistent, groubygene, Genename, MappingResult},
-        io::{BusFolder, BusRecord},
+        io::BusRecord,
         utils::vec2set,
     };
     use std::collections::{HashMap, HashSet};
@@ -547,31 +551,31 @@ mod testing {
         )
     }
 
-    #[test]
-    fn test_resolve_geneid_2_ec() {
-        let ec0 = vec2set(vec![Genename("A".to_string())]);
-        let ec1 = vec2set(vec![Genename("B".to_string())]);
-        let ec2 = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
-        let ec3 = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
+    // #[test]
+    // fn test_resolve_geneid_2_ec() {
+    //     let ec0 = vec2set(vec![Genename("A".to_string())]);
+    //     let ec1 = vec2set(vec![Genename("B".to_string())]);
+    //     let ec2 = vec2set(vec![Genename("A".to_string()), Genename("B".to_string())]);
+    //     let ec3 = vec2set(vec![Genename("C".to_string()), Genename("D".to_string())]);
 
-        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
-            (EC(0), ec0.clone()),
-            (EC(1), ec1.clone()),
-            (EC(2), ec2.clone()),
-            (EC(3), ec3.clone()),
-        ]);
-        let es = Ec2GeneMapper::new(ec_dict);
+    //     let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+    //         (EC(0), ec0.clone()),
+    //         (EC(1), ec1.clone()),
+    //         (EC(2), ec2.clone()),
+    //         (EC(3), ec3.clone()),
+    //     ]);
+    //     let es = Ec2GeneMapper::new(ec_dict);
 
-        // Gene A resolves to EC0
-        assert_eq!(es.resolve_geneid_to_ec_uniquely(0), Some(EC(0)));
-        // Gene Bresolves to EC1
-        assert_eq!(es.resolve_geneid_to_ec_uniquely(1), Some(EC(1)));
+    //     // Gene A resolves to EC0
+    //     assert_eq!(es.resolve_geneid_to_ec_uniquely(0), Some(EC(0)));
+    //     // Gene Bresolves to EC1
+    //     assert_eq!(es.resolve_geneid_to_ec_uniquely(1), Some(EC(1)));
 
-        // Gene C cant be resolved uniquely (EC3 mapps to both C,D)
-        assert_eq!(es.resolve_geneid_to_ec_uniquely(2), None);
-        // Gene D cant be resolved uniquely (EC3 mapps to both C,D)
-        assert_eq!(es.resolve_geneid_to_ec_uniquely(3), None);
-    }
+    //     // Gene C cant be resolved uniquely (EC3 mapps to both C,D)
+    //     assert_eq!(es.resolve_geneid_to_ec_uniquely(2), None);
+    //     // Gene D cant be resolved uniquely (EC3 mapps to both C,D)
+    //     assert_eq!(es.resolve_geneid_to_ec_uniquely(3), None);
+    // }
 
     #[test]
     fn test_groubygene() {
@@ -618,16 +622,16 @@ mod testing {
     }
 
     // #[test]
-    #[allow(dead_code)]
-    fn test_ec() {
-        let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
-        let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
-        let b = BusFolder::new(folder);
-        let ecmapper = b.make_mapper(t2g_file);
+    // #[allow(dead_code)]
+    // fn test_ec() {
+    //     let folder = "/home/michi/mounts/TB4drive/ISB_data/201015_NS500720_0063_AHV53GBGXG/kallisto_quant/01_Day2/kallisto/sort_bus/bus_output/";
+    //     let t2g_file = "/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt";
+    //     let b = BusFolder::new(folder);
+    //     let ecmapper = b.make_mapper(t2g_file);
 
-        for g in 0..ecmapper.int_to_gene.len() {
-            ecmapper.resolve_geneid_to_ec_uniquely(g as u32).unwrap();
-            // let ec = ecmapper.geneid2ec.get(&(g as u32)).unwrap().0;
-        }
-    }
+    //     for g in 0..ecmapper.int_to_gene.len() {
+    //         ecmapper.resolve_geneid_to_ec_uniquely(g as u32).unwrap();
+    //         // let ec = ecmapper.geneid2ec.get(&(g as u32)).unwrap().0;
+    //     }
+    // }
 }
