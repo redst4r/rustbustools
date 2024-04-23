@@ -1,9 +1,9 @@
-use std::{io::{BufReader, SeekFrom, Read, Seek}, collections::VecDeque, fs::File};
+use std::{collections::VecDeque, fs::File, io::{BufReader, Read}};
 use crate::{io::{BusHeader, BusRecord, BusWriterPlain, DEFAULT_BUF_SIZE, BUS_HEADER_SIZE, CUGIterator, BusParams}, busz::{BUSZ_HEADER_SIZE, utils::{swap_endian, calc_n_trailing_bits, bitstream_to_string}}};
 use bitvec::prelude as bv;
 use itertools::izip;
 use fastfibonacci::FbDec;
-use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, PFD_BLOCKSIZE};
+use super::{utils::{bitslice_to_bytes, swap_endian8_swap_endian4, swap_endian8_swap_endian4_inplace}, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
 /// 
@@ -31,7 +31,6 @@ use super::{BuszHeader, CompressedBlockHeader, utils::{bitslice_to_bytes, swap_e
 pub struct BuszReader <'a> {
     params: BusParams,
     busz_header: BuszHeader,
-    // reader: BufReader<File>,
     reader:  Box<dyn Read+ 'a>, //ugly way to store any Read-like object in here, BufferedReader, File, Cursor, or just a vec<u8>!
     buffer: VecDeque<BusRecord>,
     is_done: bool,  // weird case where .groupby() keeps calling .next() even after it recieved None. We need to keep emitting None once we're done with the file
@@ -45,6 +44,9 @@ impl <'a>BuszReader<'a> {
         Self::from_read(buf)
     }
 
+    /// Construct a decoder from a `Read`-able object. Make sure that the supplied
+    /// reader is buffered, otherwise each call will result in an io/operation.
+    /// (proably not super-critical, as BuszReader reads entire blocks of bytes anyways, i.e. its internally buffered)
     pub fn from_read(mut reader: impl Read + 'a) -> Self {
         // parse header
         let mut header_bytes = [0_u8; BUS_HEADER_SIZE];
@@ -74,40 +76,10 @@ impl <'a>BuszReader<'a> {
         BuszReader { params, busz_header, reader: Box::new(reader), buffer, is_done: false }
     }
 
-    #[deprecated]
-    /// Creates a buffered reader over busfiles, with specific buffersize
-    pub fn new_with_capacity(filename: &str, bufsize: usize) -> Self {
-
-        // read the regular busheader
-        let bus_header = BusHeader::from_file(filename);
-        assert_eq!(
-            &bus_header.magic, b"BUS\x01",
-            "Header struct not matching; MAGIC is wrong"
-        );
-
-        let mut file_handle = File::open(filename).expect("FAIL");
-
-        // advance the file point 20 bytes (pure header) + header.tlen (the variable part)
-        let to_seek = BUS_HEADER_SIZE as u64 + bus_header.get_tlen() as u64;
-        let _x = file_handle.seek(SeekFrom::Start(to_seek)).unwrap();
-
-        // now we're at the start of the BusZHeader
-        let mut buszheader_bytes = [0_u8; BUSZ_HEADER_SIZE];
-        file_handle.read_exact(&mut buszheader_bytes).unwrap();
-
-        let bzheader = BuszHeader::from_bytes(&buszheader_bytes);
-        //FH is now at the start of the actual contents
-        let buf = BufReader::with_capacity(bufsize, file_handle);
-
-        let buffer = VecDeque::with_capacity(bzheader.block_size as usize);
-
-        let params = BusParams {cb_len: bus_header.cb_len, umi_len: bus_header.umi_len};
-        BuszReader { params, busz_header:bzheader, reader: Box::new(buf), buffer , is_done:false}
-    }
 
     /// takes the next 8 bytes (u64) out of the stream and interprets it as a buszheader
     /// if we encounter the zero byte [00000000], this indicates the EOF
-    fn load_busz_header(&mut self) -> Option<CompressedBlockHeader>{
+    fn load_block_header(&mut self) -> Option<CompressedBlockHeader>{
         // get block header
         let mut blockheader_bytes = [0_u8;8];
         self.reader.read_exact(&mut blockheader_bytes).expect("couldnt read the busz block header");
@@ -119,12 +91,12 @@ impl <'a>BuszReader<'a> {
         Some(h)
     }
 
-    /// loads a BusZ-block from the stream
-    /// we parse the header, which tells us how many bytes and records the block has
-    /// with that we pull that amount of bytes out of the stream and parse them into Records
+    /// loads a BusZ-block from the stream.
+    /// We parse the header, which tells us how many bytes and records the block has
+    /// with that we pull that amount of bytes out of the stream and parse them into Records.
     fn load_busz_block_faster(&mut self) -> Option<Vec<BusRecord>>{
 
-        let h: Option<CompressedBlockHeader> = self.load_busz_header();
+        let h: Option<CompressedBlockHeader> = self.load_block_header();
         if h.is_none(){
             return None
         }
@@ -140,8 +112,9 @@ impl <'a>BuszReader<'a> {
         
         // conversion to big-endian to make the reading work right
         let bigendian_buf = swap_endian(&block_buffer, 8);
-        let theblock: bv::BitVec<u8, bv::Msb0> = bv::BitVec::from_slice(&bigendian_buf);
-        let mut block = BuszBlock::new(&theblock,nrecords as usize);
+
+        let theblock: &bv::BitSlice<u8, bv::Msb0> = bv::BitSlice::from_slice(&bigendian_buf);
+        let mut block = BuszBlock::new(theblock,nrecords as usize);
         
         let records =block.parse_block();
     
@@ -235,8 +208,8 @@ impl <'a> BuszBlock <'a> {
 
     // just a streamlined way to generate a fibonacci decoder
     // which is used in parse_xxx()
-    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> newpfd::fibonacci::FibonacciDecoder { 
-    //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
+    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> fastfibonacci::fibonacci::FibonacciDecoder { 
+    //     fastfibonacci::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
     fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
@@ -402,10 +375,18 @@ impl <'a> BuszBlock <'a> {
         let ec_buffer = &self.buffer[self.pos..];
 
         // println!("converting EC bitstream");
-        let bytes = bitslice_to_bytes(ec_buffer);       
-        let little_endian_32_bytes = swap_endian8_swap_endian4(&bytes);
 
+        let bytes = bitslice_to_bytes(ec_buffer);       
+        let little_endian_32_bytes = swap_endian8_swap_endian4(&bytes);  //TODO performance: could be done in-place
         let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&little_endian_32_bytes);
+
+        // IMPORTANT NOTE: the next line copies self.buffer
+        // which is subsequently swapped!
+        // if WE DONT COPY, the entire self.buffer would be swapped
+        // let mut bytes = bitslice_to_bytes(ec_buffer);       
+        // swap_endian8_swap_endian4_inplace(&mut bytes);
+        // let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&bytes);
+
 
         let (ecs, bits_consumed) = newpfd::newpfd_bitvec::decode(remainder_little_endian_32, self.n_elements, PFD_BLOCKSIZE);
 
@@ -441,8 +422,12 @@ impl <'a> BuszBlock <'a> {
 
         // this does the trick, but copies things (to_bitvec)
         // kind of tricky to not copy in the if, only copy in the else (due to lifetimes)
+        
+        // using CoW for lazy eval: if aligned with u64, just use the existing buffer
+        // if not, do the above shifting, whihc requires allocation
         let _count_buffer = if self.pos % 64 == 0 {
             self.buffer[self.pos..].to_bitvec()
+            // Cow::Borrowed(&self.buffer[self.pos..])
         } else {
 
             // note that we acutally have to backtrack a bit in the original buffer
@@ -470,9 +455,14 @@ impl <'a> BuszBlock <'a> {
             let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
             let swapped_trunc = &swapped[4..];
             let swapped_final = swap_endian8_swap_endian4(swapped_trunc);
-            bv::BitVec::from_slice(&swapped_final)
+            // bv::BitVec::from_slice(&swapped_final)
+
+            // println!("triggered count");
+            bv::BitVec::from_vec(swapped_final)
+            // Cow::Owned(bv::BitVec::from_vec(swapped_final))
         };
-        let count_buffer = _count_buffer.as_bitslice();
+        // let count_buffer = _count_buffer.as_bitslice();
+        let count_buffer = _count_buffer.as_ref();
         
         // finally decoding the COUNT bytes
         let mut fibdec = Self::fibonacci_factory(count_buffer);
@@ -541,10 +531,15 @@ impl <'a> BuszBlock <'a> {
             //     ^ pos
             let tmp = &self.buffer[self.pos-32..];
             let bytes_behind_ec = bitslice_to_bytes(tmp);
+            // tmp.load()
+
             let swapped = swap_endian8_swap_endian4(&bytes_behind_ec);
             let swapped_trunc = &swapped[4..];
             let swapped_final = swap_endian8_swap_endian4(swapped_trunc);
-            bv::BitVec::from_slice(&swapped_final)
+            // bv::BitVec::from_slice(&swapped_final)
+
+            // println!("triggered flag");
+            bv::BitVec::from_vec(swapped_final)
         };
         let flag_buffer = _flag_buffer.as_bitslice();
 
@@ -728,6 +723,37 @@ mod testing{
         let reader_ondisk = BuszReader::new(fname);
 
         for (r1, r2) in izip!(reader_inmem, reader_ondisk) {
+            assert_eq!(r1, r2)
+        }
+    }
+
+    /// Make sure all BusRecord fields are decoded properly (we dont usualy spend time one FLAG)
+    #[test]
+    fn test_all_busrecord_fields() {
+
+        let r1 = BusRecord { CB: 0, UMI: 0, EC: 1, COUNT: 2, FLAG: 5 };
+        let r2 = BusRecord { CB: 100, UMI: 10, EC: 2, COUNT: 4, FLAG: 10 };
+        let r3 = BusRecord { CB: 200, UMI: 20, EC: 3, COUNT: 8, FLAG: 15 };
+        let r4 = BusRecord { CB: 300, UMI: 30, EC: 4, COUNT: 16, FLAG: 20 };
+        let records = vec![r1, r2, r3, r4];
+
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut w = BuszWriter::new(
+            "/tmp/allfields.busz", 
+            BusParams{ cb_len:16, umi_len: 12}, 
+            3
+        );
+        w.write_iterator(records.clone().into_iter());
+
+        let mut fh = File::open("/tmp/allfields.busz").unwrap();
+        let bytes_read = fh.read_to_end(&mut bytes).unwrap();
+        println!("bytes_read : {bytes_read}");
+
+
+        let reader_inmem = BuszReader::from_read(bytes.as_slice());
+
+        for (r1, r2) in izip!(reader_inmem, records) {
             assert_eq!(r1, r2)
         }
     }

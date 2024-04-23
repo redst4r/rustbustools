@@ -1,4 +1,4 @@
-use bitvec::{prelude as bv, field::BitField};
+use bitvec::{field::BitField, prelude as bv};
 use itertools::Itertools;
 
 /// turn a bitslice into an array of bytes
@@ -69,23 +69,21 @@ pub (crate) fn swap_endian8_swap_endian4(bytes: &[u8], ) -> Vec<u8>{
     swapped_endian
 }
 
-#[test]
-fn test_swap_endian8_swap_endian4() {
-    let x = &[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, 17,18,19,20,21,22,23,24];
-    let y1 = swap_endian8_swap_endian4(x);
+/// does the endian8-endian4 swap, but without allocating anything
+/// just does it in the vec itself
+pub (crate) fn swap_endian8_swap_endian4_inplace(x: &mut [u8]) {
+    let n_chunks: usize = (x.len() / 8).try_into().expect("must be multiple of 8 (u64=8 bytes!)");
+    for i in 0..n_chunks {
+        let pos = i * 8;
 
-    let y2 = swap_endian(
-        &swap_endian(x, 8),
-        4
-    );
-    assert_eq!(y1, y2);
-
-    let y3 = swap_endian(
-        &swap_endian(x, 4),
-        8
-    );
-    assert_eq!(y1, y3);
+        x.swap(pos, pos+4);
+        x.swap(pos+1, pos+5);
+        x.swap(pos+2, pos+6);
+        x.swap(pos+3, pos+7);
+    }
 }
+
+
 
 
 // pub fn display_u64_in_bits(x: u64) -> String{
@@ -123,8 +121,56 @@ pub (crate) fn setbits_u64(x: u8) -> u64 {
 
 #[cfg(test)]
 mod test {
+    use std::io::Read;
+    use bitvec::{bits, order::Msb0};
+    use super::*;
     use crate::busz::utils::{swap_endian, setbits_u32, setbits_u64};
+    #[test]
+    fn test_bitslice_to_bytes() {
+        let b = bits![u8, Msb0; 
+            0,0,0,0, 0, 0, 1, 1,
+            1,1,1,1, 1, 1, 1, 1,
+        ];
+        
+        assert_eq!(
+            bitslice_to_bytes(b),
+            vec![3, 255]
+        );
 
+        assert_eq!(
+            b.bytes().map(|x| x.unwrap()).collect::<Vec<_>>(),
+            vec![3, 255]
+        )
+    }
+
+    #[test]
+    fn test_swap_inmem() {
+        let b = bits![u8, Msb0; 
+            0,0,0,0, 0, 0, 0, 1,
+            0,0,0,0, 0, 0, 1, 1,
+            0,0,0,0, 0, 1, 1, 1,
+            0,0,0,0, 1, 1, 1, 1,
+            0,0,0,1, 1, 1, 1, 1,
+            0,0,1,1, 1, 1, 1, 1,
+            0,1,1,1, 1, 1, 1, 1,
+            1,1,1,1, 1, 1, 1, 1,
+        ];
+        let before = b.bytes().map(|x| x.unwrap()).collect::<Vec<_>>();
+
+        println!("{:?}", before);
+
+
+        let bytes_it = b.bytes().map(|x| x.unwrap());
+
+        let mut swapped_endian: Vec<u8> = Vec::new();
+        for bytes in bytes_it.chunks(8).into_iter(){
+            let b1: Vec<_> = bytes.collect();
+            swapped_endian.extend(&b1[4..]);
+            swapped_endian.extend(&b1[..4]);
+        }
+
+        println!("{:?}", swapped_endian)
+    }
     #[test]
     fn endian_swapping() {
         let v = vec![0_u8,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
@@ -148,4 +194,29 @@ mod test {
         assert_eq!(setbits_u64(1), 1);
 
     }
+    #[test]
+    fn test_swap_endian8_swap_endian4() {
+        let x = &[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, 17,18,19,20,21,22,23,24];
+        let y1 = swap_endian8_swap_endian4(x);
+    
+        let y2 = swap_endian(
+            &swap_endian(x, 8),
+            4
+        );
+        assert_eq!(y1, y2);
+    
+        let y3 = swap_endian(
+            &swap_endian(x, 4),
+            8
+        );
+        assert_eq!(y1, y3);
+    
+        // inplace swap
+        let mut a: Vec<u8> = x.to_vec();
+        // println!("before {:?}", a);
+        swap_endian8_swap_endian4_inplace(&mut a);
+        // println!("after {:?}", a);
+        assert_eq!(y1, a);
+    }
+
 }

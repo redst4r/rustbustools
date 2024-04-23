@@ -151,6 +151,9 @@ mod test {
     }
 
     mod external {
+        use std::fs::File;
+        use std::io::Read;
+
         use tempfile::tempdir;
         use pretty_assertions::assert_eq;
         use crate::io::{BusRecord, BusWriterPlain, BusReaderPlain, BusParams};
@@ -301,15 +304,29 @@ mod test {
 
         #[test]
         fn test_iterator(){
-            let reader = BuszReader::new("/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.busz");
-            let records:Vec<BusRecord> = reader.collect();
+            
+            let buszfile = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.busz";
+            let buffer_busz = bus_to_mem(buszfile);
+            let reader_busz = BuszReader::from_read(buffer_busz.as_slice());
+            let records:Vec<BusRecord> = reader_busz.collect();
 
-            let r_original = BusReaderPlain::new("/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus");
+
+            let busfile  = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus";
+            let buffer_bus = bus_to_mem(busfile);
+            let r_original = BusReaderPlain::from_read(buffer_bus.as_slice());
             let records_original:Vec<_> = r_original.collect();
 
             assert_eq!(records.len(), records_original.len());
             assert_eq!(records, records_original);
         }   
+        fn bus_to_mem(busfile: &str) -> Vec<u8>{
+            let mut buffer = Vec::new();
+            let mut f= File::open(busfile).unwrap();
+            f.read_to_end(&mut buffer).unwrap();
+            buffer
+        }
     }
 
+
+    
 }
