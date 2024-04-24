@@ -285,25 +285,24 @@ impl BuszWriter {
     pub fn new_with_capacity(file_handle: File, params: BusParams, busz_blocksize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(DEFAULT_BUF_SIZE, file_handle);
 
+        let custom_header_str = "BUS file produced by kallisto".as_bytes();
+
         // write the header into the file
         let busheader = BusHeader::new(
             params.cb_len,
             params.umi_len,
-            0,
+            custom_header_str.len() as u32,
             true
         );
         let binheader = busheader.to_bytes();
         writer
             .write_all(&binheader)
             .expect("FAILED to write header");
+        
+        let varheader = custom_header_str;
 
-        // write the variable header
-        let mut varheader: Vec<u8> = Vec::new();
-        for _i in 0..busheader.tlen {
-            varheader.push(0);
-        }
         writer
-            .write_all(&varheader)
+            .write_all(varheader)
             .expect("FAILED to write var header");
         
         // BusZ header
@@ -320,10 +319,8 @@ impl BuszWriter {
         let internal_buffer: Vec<BusRecord> = Vec::with_capacity(busz_blocksize);
 
         BuszWriter { writer, internal_buffer, busz_blocksize, params, state: BuszWriterState::Open }
-    
     }
 }
-
 
 /// implementing Drop on the writer to make sure the internal buffer gets flushed out to
 /// the file eventually

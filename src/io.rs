@@ -513,7 +513,8 @@ impl BusWriterPlain {
     pub fn new_with_capacity(file_handle: File, params: BusParams, bufsize: usize) -> Self {
         let mut writer = BufWriter::with_capacity(bufsize, file_handle);
 
-        let header = BusHeader::new(params.cb_len, params.umi_len, 0, false);
+        let custom_header_str = "BUS file produced by kallisto".as_bytes();
+        let header = BusHeader::new(params.cb_len, params.umi_len, custom_header_str.len() as u32, false);
 
         // write the header into the file
         let binheader = header.to_bytes();
@@ -521,13 +522,10 @@ impl BusWriterPlain {
             .write_all(&binheader)
             .expect("FAILED to write header");
 
-        // write the variable header
-        let mut varheader: Vec<u8> = Vec::new();
-        for _i in 0..header.tlen {
-            varheader.push(0);
-        }
+        let varheader = custom_header_str;
+
         writer
-            .write_all(&varheader)
+            .write_all(varheader)
             .expect("FAILED to write var header");
 
         BusWriterPlain { writer, header }
@@ -841,7 +839,7 @@ mod tests {
         let digest_str = format!("{:x}", md5::compute(buffer));
         insta::assert_yaml_snapshot!(digest_str, @r###"
         ---
-        7c8244640a360b26bfae2351b6200ec2
+        3b49ecec15ae50a3cf2b7cfd37441ea1
         "###);
     }
 
