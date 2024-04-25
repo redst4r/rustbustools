@@ -12,7 +12,7 @@
 //!
 //! See [Ec2GeneMapper] and [MappingResult]
 //!
-use crate::consistent_transcripts::Ec2TranscriptMapper;
+use crate::consistent_transcripts::{Ec2TranscriptMapper, TranscriptId, Transcriptname};
 use crate::io::BusFolder;
 use crate::{disjoint::Intersector, io::BusRecord};
 use itertools::izip;
@@ -333,9 +333,9 @@ pub (crate) fn make_mapper(busfolder: &BusFolder, t2g_file: &str) -> Ec2GeneMapp
 
 
 fn build_ec2gene(
-    ec_dict: &HashMap<EC, Vec<u32>>,
-    transcript_dict: &HashMap<u32, String>,
-    t2g_dict: &HashMap<String, Genename>,
+    ec_dict: &HashMap<EC, Vec<TranscriptId>>,
+    transcript_dict: &HashMap<TranscriptId, Transcriptname>,
+    t2g_dict: &HashMap<Transcriptname, Genename>,
 ) -> HashMap<EC, HashSet<Genename>> {
     let mut ec2gene: HashMap<EC, HashSet<Genename>> = HashMap::new();
 
@@ -367,8 +367,8 @@ fn build_ec2gene(
     ec2gene
 }
 
-fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
-    let mut t2g_dict: HashMap<String, Genename> = HashMap::new();
+fn parse_t2g(t2g_file: &str) -> HashMap<Transcriptname, Genename> {
+    let mut t2g_dict: HashMap<Transcriptname, Genename> = HashMap::new();
     let file = File::open(t2g_file).unwrap_or_else(|_| panic!("{} not found", t2g_file));
     let reader = BufReader::new(file);
     for line in reader.lines() {
@@ -378,8 +378,10 @@ fn parse_t2g(t2g_file: &str) -> HashMap<String, Genename> {
             let ensemble_id = s.next().unwrap();
             let _symbol = s.next().unwrap();
 
-            assert!(!t2g_dict.contains_key(&transcript_id.to_string())); //make sure transcripts dont map to multiple genes
-            t2g_dict.insert(transcript_id.to_string(), Genename(ensemble_id.to_string()));
+            let tname = Transcriptname(transcript_id.to_string());
+
+            assert!(!t2g_dict.contains_key(&tname)); //make sure transcripts dont map to multiple genes
+            t2g_dict.insert(tname, Genename(ensemble_id.to_string()));
         } else {
             panic!("Error readin lines from {}", t2g_file);
         }

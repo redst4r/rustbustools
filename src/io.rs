@@ -19,7 +19,7 @@
 
 use crate::busz::{BuszReader, BuszWriter};
 use crate::consistent_genes::{Ec2GeneMapper, EC, make_mapper};
-use crate::consistent_transcripts::{make_mapper_transcript, Ec2TranscriptMapper};
+use crate::consistent_transcripts::{make_mapper_transcript, Ec2TranscriptMapper, TranscriptId, Transcriptname};
 use crate::iterators::{CbUmiGroupIterator, CellGroupIterator};
 use bincode;
 use serde;
@@ -556,11 +556,11 @@ pub struct BusFolder {
 
 }
 
-pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
+pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<TranscriptId>> {
     // parsing an ec.matrix into a Hashmap EC->list_of_transcript_ids
     let file = File::open(filename).unwrap_or_else(|_| panic!("{} not found", filename));
     let reader = BufReader::new(file);
-    let mut ec_dict: HashMap<EC, Vec<u32>> = HashMap::new();
+    let mut ec_dict: HashMap<EC, Vec<TranscriptId>> = HashMap::new();
 
     for line in reader.lines() {
         if let Ok(l) = line {
@@ -569,8 +569,8 @@ pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
             let ec = s.next().unwrap().parse::<u32>().unwrap();
             let tmp = s.next().unwrap();
 
-            let transcript_list: Vec<u32> =
-                tmp.split(',').map(|x| x.parse::<u32>().unwrap()).collect();
+            let transcript_list: Vec<TranscriptId> =
+                tmp.split(',').map(|x| TranscriptId(x.parse::<u32>().unwrap())).collect();
             ec_dict.insert(EC(ec), transcript_list);
         } else {
             panic!("Error reading file {}", filename)
@@ -579,13 +579,13 @@ pub fn parse_ecmatrix(filename: &str) -> HashMap<EC, Vec<u32>> {
     ec_dict
 }
 
-fn parse_transcript(filename: &str) -> HashMap<u32, String> {
+fn parse_transcript(filename: &str) -> HashMap<TranscriptId, Transcriptname> {
     let file = File::open(filename).unwrap();
     let reader = BufReader::new(file);
-    let mut transcript_dict: HashMap<u32, String> = HashMap::new();
+    let mut transcript_dict: HashMap<TranscriptId, Transcriptname> = HashMap::new();
     for (i, line) in reader.lines().enumerate() {
         if let Ok(l) = line {
-            transcript_dict.insert(i as u32, l);
+            transcript_dict.insert(TranscriptId(i as u32), Transcriptname(l));
         }
     }
     transcript_dict
@@ -638,21 +638,15 @@ impl BusFolder {
     }
 
     /// return the matric.ec file
-    pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<u32>> {
+    pub fn parse_ecmatrix(&self) -> HashMap<EC, Vec<TranscriptId>> {
         let filename = self.get_ecmatrix_file();
         parse_ecmatrix(&filename)
     }
 
-    pub fn parse_transcript(&self) -> HashMap<u32, String> {
+    pub fn parse_transcript(&self) -> HashMap<TranscriptId, Transcriptname> {
         let filename = self.get_transcript_file();
         parse_transcript(&filename)
     }
-    // pub fn build_ec2gene(&self, ) -> HashMap<u32, HashSet<String>>{
-    //     let ec_dict = self.parse_ecmatrix();
-    //     let transcript_dict = self.parse_transcript();
-    //     let t2g_dict = parse_t2g(&self.t2g_file);
-    //     build_ec2gene(&ec_dict, &transcript_dict, &t2g_dict)
-    // }
 
     pub fn get_cb_size(&self) -> usize {
         let cb_iter_tmp = self.get_iterator().groupby_cb();
@@ -714,6 +708,7 @@ pub fn write_partial_busfile(bfile: &str, boutfile: &str, nrecords: usize) {
 #[cfg(test)]
 mod tests {
     use crate::consistent_genes::EC;
+    use crate::consistent_transcripts::TranscriptId;
     use crate::io::{setup_busfile, BusHeader, BusReaderPlain, BusRecord, BusWriterPlain, BusParams};
     use crate::iterators::CellGroupIterator;
     use std::io::{BufReader, Read, Write};
@@ -777,10 +772,10 @@ mod tests {
         // println!("{}", ec.len());
         // println!("{:?}", ec);
         let e1 = ec.get(&EC(0)).unwrap();
-        assert_eq!(*e1, vec![1, 2, 3]);
+        assert_eq!(*e1, vec![TranscriptId(1), TranscriptId(2), TranscriptId(3)]);
 
         let e1 = ec.get(&EC(1)).unwrap();
-        assert_eq!(*e1, vec![3, 4]);
+        assert_eq!(*e1, vec![TranscriptId(3), TranscriptId(4)]);
     }
 
     use super::group_record_by_cb_umi;

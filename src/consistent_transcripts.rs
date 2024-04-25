@@ -175,8 +175,8 @@ pub fn find_consistent_transcripts(records: &[BusRecord], ec2gene: &Ec2Transcrip
 
 
 fn build_ec2transcript(
-    ec_dict: &HashMap<EC, Vec<u32>>,
-    transcript_dict: &HashMap<u32, String>,
+    ec_dict: &HashMap<EC, Vec<TranscriptId>>,
+    transcript_dict: &HashMap<TranscriptId, Transcriptname>,
 ) -> HashMap<EC, HashSet<Transcriptname>> {
     let mut ec2transcript: HashMap<EC, HashSet<Transcriptname>> = HashMap::new();
 
@@ -185,7 +185,7 @@ fn build_ec2transcript(
 
         for t_int in transcript_ints {
             let t_name = transcript_dict.get(t_int).unwrap();
-            transcripts.insert(Transcriptname(t_name.clone()));
+            transcripts.insert(t_name.clone());
         }
         ec2transcript.insert(*ec, transcripts);
     }
