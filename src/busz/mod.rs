@@ -51,6 +51,7 @@
 //! ddddddddccccccccbbbbbbbbaaaaaaaahhhhhhhhgggggggg....
 //! ``` 
 
+use bitvec::{order::Msb0, prelude as bv};
 use serde::{Serialize, Deserialize};
 use self::utils::{setbits_u32, setbits_u64};
 
@@ -63,10 +64,13 @@ mod runlength_codec;
 // exposing some core classes/functions to the public API
 pub use encode::BuszWriter;
 pub use decode::BuszReader;
-pub use encode::compress_busfile;
-pub use decode::decompress_busfile;
 
 const PFD_BLOCKSIZE: usize = 512; // size of a PFD block within busz (this many ECs get encoded together)
+
+pub (crate) type BuszBitSlice = bv::BitSlice<u8,Msb0>;
+/// reftype that goes with [`MyBitSlice`]
+pub (crate) type BuszBitVector = bv::BitVec<u8, Msb0>;
+
 
 /// Each block in the compressed busz starts with a BlockHeader
 /// which contains the blocksize (in bytes) and the number of records in the block.
@@ -155,7 +159,7 @@ mod test {
         use std::io::Read;
 
         use tempfile::tempdir;
-        use pretty_assertions::assert_eq;
+        // use pretty_assertions::assert_eq;
         use crate::io::{BusRecord, BusWriterPlain, BusReaderPlain, BusParams};
         use crate::busz::decode::{BuszReader, decompress_busfile};
         use crate::busz::encode::compress_busfile;

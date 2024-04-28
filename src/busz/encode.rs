@@ -3,10 +3,10 @@ use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReaderPlain, BusHeader, BusPara
 use bitvec::prelude as bv;
 use itertools::Itertools;
 use fastfibonacci::fibonacci;
-use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszHeader};
+use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszBitVector, BuszHeader};
 
 
-fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
+fn compress_barcodes2(records: &[BusRecord]) -> BuszBitVector {
     let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
 
     let mut cb_iter = records.iter().map(|r| r.CB);
@@ -36,7 +36,7 @@ fn compress_barcodes2(records: &[BusRecord]) -> bv::BitVec<u8,bv::Msb0> {
 // TODO: the first value encoded is a little funny, it gets incremented 2x!!
 // periodic runlength encoding since the UMI resets to smaller values (when changing CB)
 // and we cant handle negative differences!
-fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
+fn compress_umis(records: &[BusRecord]) -> BuszBitVector {
     let runlength_codec = RunlengthCodec {rle_val: 0,shift_up_1: true};
     let mut periodic_delta_encoded = Vec::new();
     let iii = records.iter();
@@ -71,8 +71,9 @@ fn compress_umis(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     enc
 }
 
-/// Compress ECs with NewPFD encoding
-fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
+/// Compress ECs with NewPFD encoding.
+/// This is padded towards the next multiple of 32 (i.e. the whole thing fits into \[u32\])
+fn compress_ecs(records: &[BusRecord]) -> BuszBitVector {
     let ecs = records.iter().map(|r|r.EC as u64);
     let (mut encoded, _n_el) = newpfd::newpfd_bitvec::encode(ecs, PFD_BLOCKSIZE);
 
@@ -87,13 +88,13 @@ fn compress_ecs(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
     let bytes = bitslice_to_bytes(encoded.as_bitslice()); 
     let a = swap_endian(&bytes, 8);
     let swapped = swap_endian(&a, 4);
-    let swapped_bv: bv::BitVec<u8, bv::Msb0> =  bv::BitVec::from_slice(&swapped);
+    let swapped_bv: BuszBitVector =  bv::BitVec::from_slice(&swapped);
 
     swapped_bv
 }
 
 /// Compress counts with RunLength(1) encoding
-fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
+fn compress_counts(records: &[BusRecord]) -> BuszBitVector {
     let runlength_codec = RunlengthCodec {rle_val: 1, shift_up_1: false};
     let count_iter = records.iter().map(|r| r.COUNT as u64);
 
@@ -111,7 +112,7 @@ fn compress_counts(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 }
 
 /// Compress flags with RunLength(0) encoding
-fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
+fn compress_flags(records: &[BusRecord]) -> BuszBitVector {
     let runlength_codec = RunlengthCodec {rle_val: 0, shift_up_1: true};
     let flag_iter = records.iter().map(|r| r.FLAG as u64);
 
@@ -130,7 +131,7 @@ fn compress_flags(records: &[BusRecord]) -> bv::BitVec<u8, bv::Msb0> {
 }
 
 /// puts all given records into a single busz-block, including header
-fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//bv::BitVec<u8, bv::Msb0> {
+pub (crate) fn compress_busrecords_into_block(records: &[BusRecord]) -> Vec<u8> {//BuszBitVector {
     let bcs = compress_barcodes2(records);
     let umis = compress_umis(records);
     let ecs = compress_ecs(records);
@@ -336,15 +337,14 @@ impl Drop for BuszWriter {
 
 #[cfg(test)]
 mod test {
-    use bitvec::{slice::BitSlice, prelude::Msb0};
-    use crate::{io::BusRecord, busz::encode::{compress_barcodes2, compress_umis, compress_ecs}};
+    use crate::{busz::{encode::{compress_barcodes2, compress_ecs, compress_umis}, BuszBitSlice}, io::BusRecord};
 
     // convenience function
     // fn fib_factory(stream: &BitSlice<u8, Msb0>) ->newpfd::fibonacci::FibonacciDecoder {
     //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fib_factory(stream: &BitSlice<u8, Msb0>) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
+    fn fib_factory(stream: &BuszBitSlice) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
         fastfibonacci::fast::get_u8_decoder(stream, false)
     }
 

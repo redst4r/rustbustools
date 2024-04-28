@@ -1,10 +1,12 @@
-use bitvec::{field::BitField, prelude as bv};
+use bitvec::field::BitField;
 use itertools::Itertools;
+
+use super::BuszBitSlice;
 
 /// turn a bitslice into an array of bytes
 /// the first 8 bits (bits[..8]) will become the first byte in the result
 /// i.e. a sort of BigEndian encoding
-pub (crate) fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
+pub (crate) fn bitslice_to_bytes(bits: &BuszBitSlice) -> Vec<u8>{
 
     assert_eq!(bits.len() % 8,  0, "cant covnert to bytes if Bitsclie is not a multiple of 8");
 
@@ -19,7 +21,7 @@ pub (crate) fn bitslice_to_bytes(bits: &bv::BitSlice<u8, bv::Msb0>) -> Vec<u8>{
 }
 
 /// for debugging: display a BitVec as a string of bits
-pub (crate) fn bitstream_to_string(buffer: &bv::BitSlice<u8, bv::Msb0>) -> String{
+pub (crate) fn bitstream_to_string(buffer: &BuszBitSlice) -> String{
     let mut s = String::new();
     let x = buffer.iter().map(|x| if *x{"1"} else {"0"});
     for bit64 in &x.into_iter().chunks(64){
@@ -123,17 +125,18 @@ pub (crate) fn setbits_u64(x: u8) -> u64 {
 mod test {
     use std::io::Read;
     use bitvec::{bits, order::Msb0};
+    use fastfibonacci::utils::create_bitvector;
     use super::*;
     use crate::busz::utils::{swap_endian, setbits_u32, setbits_u64};
     #[test]
     fn test_bitslice_to_bytes() {
-        let b = bits![u8, Msb0; 
+        let b = create_bitvector(vec![
             0,0,0,0, 0, 0, 1, 1,
             1,1,1,1, 1, 1, 1, 1,
-        ];
+        ]);
         
         assert_eq!(
-            bitslice_to_bytes(b),
+            bitslice_to_bytes(&b),
             vec![3, 255]
         );
 
@@ -145,7 +148,7 @@ mod test {
 
     #[test]
     fn test_swap_inmem() {
-        let b = bits![u8, Msb0; 
+        let b = bits![u64, Msb0; 
             0,0,0,0, 0, 0, 0, 1,
             0,0,0,0, 0, 0, 1, 1,
             0,0,0,0, 0, 1, 1, 1,

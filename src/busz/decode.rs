@@ -3,7 +3,7 @@ use crate::{io::{BusHeader, BusRecord, BusWriterPlain, DEFAULT_BUF_SIZE, BUS_HEA
 use bitvec::prelude as bv;
 use itertools::izip;
 use fastfibonacci::FbDec;
-use super::{utils::{bitslice_to_bytes, swap_endian8_swap_endian4, swap_endian8_swap_endian4_inplace}, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
+use super::{utils::{bitslice_to_bytes, swap_endian8_swap_endian4, swap_endian8_swap_endian4_inplace}, BuszBitSlice, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
 /// 
@@ -113,7 +113,7 @@ impl <'a>BuszReader<'a> {
         // conversion to big-endian to make the reading work right
         let bigendian_buf = swap_endian(&block_buffer, 8);
 
-        let theblock: &bv::BitSlice<u8, bv::Msb0> = bv::BitSlice::from_slice(&bigendian_buf);
+        let theblock: &BuszBitSlice = bv::BitSlice::from_slice(&bigendian_buf);
         let mut block = BuszBlock::new(theblock,nrecords as usize);
         
         let records =block.parse_block();
@@ -185,7 +185,7 @@ enum BuszBlockState {
 /// and parses those bytes into BusRecords
 #[derive(Debug)]
 struct BuszBlock <'a> {
-    buffer: &'a bv::BitSlice<u8, bv::Msb0>,  // TODO chould probably own it, we're doing some swaping and shifting, and it probablyh wont be usable after
+    buffer: &'a BuszBitSlice,  // TODO chould probably own it, we're doing some swaping and shifting, and it probablyh wont be usable after
     pos: usize, // where we are currently in the buffer
     n_elements: usize ,// how many busrecords are stored in the block
     state: BuszBlockState,
@@ -193,7 +193,7 @@ struct BuszBlock <'a> {
 }
 
 impl <'a> BuszBlock <'a> {
-    fn new(buffer: &'a bv::BitSlice<u8, bv::Msb0>, n_elements: usize) -> Self {
+    fn new(buffer: &'a BuszBitSlice, n_elements: usize) -> Self {
         // TODO: warning, buffer must be conveted in a special way if the bytes come out of a file
         // see BuszReader::load_busz_block_faster
         // cant do it in herer due to lifetime issues
@@ -208,11 +208,11 @@ impl <'a> BuszBlock <'a> {
 
     // just a streamlined way to generate a fibonacci decoder
     // which is used in parse_xxx()
-    // fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> fastfibonacci::fibonacci::FibonacciDecoder { 
+    // fn fibonacci_factory(stream: &BuszBitSlice) -> fastfibonacci::fibonacci::FibonacciDecoder { 
     //     fastfibonacci::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fibonacci_factory(stream: &bv::BitSlice<u8, bv::Msb0>) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
+    fn fibonacci_factory(stream: &BuszBitSlice) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
         fastfibonacci::fast::get_u8_decoder(stream, false)
     }
 
@@ -378,14 +378,14 @@ impl <'a> BuszBlock <'a> {
 
         let bytes = bitslice_to_bytes(ec_buffer);       
         let little_endian_32_bytes = swap_endian8_swap_endian4(&bytes);  //TODO performance: could be done in-place
-        let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&little_endian_32_bytes);
+        let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&little_endian_32_bytes);
 
         // IMPORTANT NOTE: the next line copies self.buffer
         // which is subsequently swapped!
         // if WE DONT COPY, the entire self.buffer would be swapped
         // let mut bytes = bitslice_to_bytes(ec_buffer);       
         // swap_endian8_swap_endian4_inplace(&mut bytes);
-        // let remainder_little_endian_32: &bv::BitSlice<u8, bv::Msb0> =  bv::BitSlice::from_slice(&bytes);
+        // let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&bytes);
 
 
         let (ecs, bits_consumed) = newpfd::newpfd_bitvec::decode(remainder_little_endian_32, self.n_elements, PFD_BLOCKSIZE);
