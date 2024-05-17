@@ -9,7 +9,7 @@ pub fn vec2set<T: Eq + Hash>(x: Vec<T>) -> HashSet<T> {
 }
 
 /// Encoding a base sequence into int
-pub fn seq_to_int(seq: String) -> u64 {
+pub fn seq_to_int(seq: &str) -> u64 {
     assert!(seq.len() <= 32); // cant handle longer sequences in a single 64bit integer!
     let s: String = seq
         .chars()
@@ -18,7 +18,7 @@ pub fn seq_to_int(seq: String) -> u64 {
             'C' => '1',
             'G' => '2',
             'T' => '3',
-            _ => panic!("unkown seq character"),
+            c => panic!("unkown seq character {}", c),
         })
         .collect();
     u64::from_str_radix(&s, 4).unwrap()
@@ -48,7 +48,7 @@ pub fn int_to_seq(i: u64, seq_len: usize) -> String {
             1 => 'C',
             2 => 'G',
             3 => 'T',
-            _ => panic!("unkown seq character"),
+            c => panic!("unkown seq character {}", c),
         })
         // .collect::<String>();
         .collect();
@@ -61,6 +61,17 @@ pub fn get_progressbar(total: u64) -> ProgressBar {
     bar.set_style(
         ProgressStyle::default_bar()
             .template("[{elapsed_precise} ETA {eta}] {bar:40.cyan/blue} {pos}/{len} {per_sec}")
+            .unwrap()
+            .progress_chars("##-"),
+    );
+    bar
+}
+
+pub fn get_spinner() -> indicatif::ProgressBar{
+    let bar = indicatif::ProgressBar::new_spinner();
+    bar.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {pos} {per_sec}")
             .unwrap()
             .progress_chars("##-"),
     );
@@ -212,11 +223,11 @@ mod tests {
     #[test]
     fn encode_seq() {
         use crate::utils::seq_to_int;
-        assert_eq!(seq_to_int("A".to_string()), 0);
-        assert_eq!(seq_to_int("C".to_string()), 1);
-        assert_eq!(seq_to_int("G".to_string()), 2);
-        assert_eq!(seq_to_int("T".to_string()), 3);
-        assert_eq!(seq_to_int("GCCA".to_string()), 148);
+        assert_eq!(seq_to_int("A"), 0);
+        assert_eq!(seq_to_int("C"), 1);
+        assert_eq!(seq_to_int("G"), 2);
+        assert_eq!(seq_to_int("T"), 3);
+        assert_eq!(seq_to_int("GCCA"), 148);
     }
 
     #[test]

@@ -2,7 +2,7 @@ use std::{fs::File, io::{BufWriter, Write}};
 use crate::{io::{BusRecord, DEFAULT_BUF_SIZE, BusReaderPlain, BusHeader, BusParams}, busz::{utils::{bitslice_to_bytes, swap_endian}, PFD_BLOCKSIZE, CompressedBlockHeader}};
 use bitvec::prelude as bv;
 use itertools::Itertools;
-use fastfibonacci::fibonacci;
+use fastfibonacci::bit_decode::fibonacci;
 use super::{runlength_codec::RunlengthCodec, utils::round_to_multiple, BuszBitVector, BuszHeader};
 
 
@@ -344,8 +344,8 @@ mod test {
     //     newpfd::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fib_factory(stream: &BuszBitSlice) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
-        fastfibonacci::fast::get_u8_decoder(stream, false)
+    fn fib_factory(stream: &BuszBitSlice) -> fastfibonacci::bit_decode::fast::FastFibonacciDecoder<u8>{
+        fastfibonacci::bit_decode::fast::get_u8_decoder(stream, false)
     }
 
     #[test]

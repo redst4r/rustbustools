@@ -212,8 +212,8 @@ impl <'a> BuszBlock <'a> {
     //     fastfibonacci::fibonacci::FibonacciDecoder::new(stream, false)
     // }
 
-    fn fibonacci_factory(stream: &BuszBitSlice) -> fastfibonacci::fast::FastFibonacciDecoder<u8>{
-        fastfibonacci::fast::get_u8_decoder(stream, false)
+    fn fibonacci_factory(stream: &BuszBitSlice) -> fastfibonacci::bit_decode::fast::FastFibonacciDecoder<u8>{
+        fastfibonacci::bit_decode::fast::get_u8_decoder(stream, false)
     }
 
     /// The whole issue with decoding is the way bustools stored the different parts (CB/UMI...)

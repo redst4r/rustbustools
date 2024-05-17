@@ -29,8 +29,6 @@ fn plain_and_compressed_iterator_speed(c: &mut Criterion){
     let busname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     let busname_compressed = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.busz";
 
-
-
     // pull the file into memory, to alleviate disk access
     let buffer = bus_to_mem(busname);
     let n = 1_000_000;
@@ -41,12 +39,12 @@ fn plain_and_compressed_iterator_speed(c: &mut Criterion){
      }
     ));
 
-    // do it on disk
-    c.bench_function("plain_iterator on disk",
-     |b| b.iter(|| {
-        BusReaderPlain::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
-     }
-    ));
+    // // do it on disk
+    // c.bench_function("plain_iterator on disk",
+    //  |b| b.iter(|| {
+    //     BusReaderPlain::new(busname).take(n).map(|r|r.COUNT).sum::<u32>();
+    //  }
+    // ));
 
     // Compressed iterators
     let buffer_compressed = bus_to_mem(busname_compressed);
@@ -57,12 +55,20 @@ fn plain_and_compressed_iterator_speed(c: &mut Criterion){
     }
     ));
 
-    // do it on disk
-    c.bench_function("compressed_iterator on disk",
-     |b| b.iter(|| {
-        BuszReader::new(busname_compressed).take(n).map(|r|r.COUNT).sum::<u32>();
-     }
+    // // do it on disk
+    // c.bench_function("compressed_iterator on disk",
+    //  |b| b.iter(|| {
+    //     BuszReader::new(busname_compressed).take(n).map(|r|r.COUNT).sum::<u32>();
+    //  }
+    // ));
+
+
+    c.bench_function("u64 compressed_iterator in memory",
+    |b| b.iter(|| {
+       bustools::busz::decode2::BuszReader::from_read(buffer_compressed.as_slice()).take(n).map(|r|r.COUNT).sum::<u32>();
+    }
     ));
+
 }
 
 
@@ -551,7 +557,6 @@ fn grouped_plain_and_compressed_iterator_speed(c: &mut Criterion){
     let busname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     let busname_compressed = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.busz";
 
-
     // pull the file into memory, to alleviate disk access
     let buffer = bus_to_mem(busname);
     let n = 100_000;
@@ -579,8 +584,8 @@ fn grouped_plain_and_compressed_iterator_speed(c: &mut Criterion){
 // criterion_group!(benches, bench_buswriter_buffersize);
 // criterion_group!(benches, busmulti_vs_merger);
 // criterion_group!(benches, iterator_speed);
-// criterion_group!(benches, plain_and_compressed_iterator_speed);
-criterion_group!(benches, grouped_plain_and_compressed_iterator_speed);
+criterion_group!(benches, plain_and_compressed_iterator_speed);
+// criterion_group!(benches, grouped_plain_and_compressed_iterator_speed);
 
 // criterion_group!(benches, bench_io_vs_inmem);
 

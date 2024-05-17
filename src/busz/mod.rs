@@ -59,7 +59,7 @@ mod decode;
 mod encode;
 mod utils;
 mod runlength_codec;
-
+pub mod decode2;
 
 // exposing some core classes/functions to the public API
 pub use encode::BuszWriter;
