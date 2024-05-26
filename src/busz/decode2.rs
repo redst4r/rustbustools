@@ -2,10 +2,8 @@ use std::{collections::VecDeque, fs::File, io::{BufReader, Read}};
 use crate::{busz::{encode::compress_busrecords_into_block, utils::{bitstream_to_string, calc_n_trailing_bits, swap_endian}, BUSZ_HEADER_SIZE}, io::{BusHeader, BusParams, BusRecord, BusWriterPlain, CUGIterator, BUS_HEADER_SIZE, DEFAULT_BUF_SIZE}};
 use bitvec::prelude as bv;
 use itertools::izip;
-use fastfibonacci::{byte_decode::{faster::FB_LOOKUP_NEW_U8, u64_fibdecoder::U64Decoder}, FbDec};
+use fastfibonacci::{byte_decode::{faster::{FB_LOOKUP_NEW_U16, FB_LOOKUP_NEW_U8}, u64_fibdecoder::U64Decoder}, FbDec};
 use super::{BuszBitSlice, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
-
-
 
 pub struct BuszReader <'a> {
     params: BusParams,
@@ -180,13 +178,13 @@ impl <'a> BuszBlock <'a> {
         }
     }
 
-    fn fibonacci_factory<R:Read>(stream: R) -> U64Decoder<R>{
-         U64Decoder::new(stream)
-    }
-
-    // fn fibonacci_factory<R:Read>(stream: R) -> fastfibonacci::byte_decode::faster::FastFibonacciDecoderNewU8<'a, R>{
-    //     fastfibonacci::byte_decode::faster::FastFibonacciDecoderNewU8::new(stream, &FB_LOOKUP_NEW_U8, false, fastfibonacci::byte_decode::faster::StreamType::U64)
+    // fn fibonacci_factory<R:Read>(stream: R) -> U64Decoder<R>{
+    //      U64Decoder::new(stream)
     // }
+
+    fn fibonacci_factory<R:Read+'a>(stream: R) -> fastfibonacci::byte_decode::faster::FastFibonacciDecoderNewU16<'a, R>{
+        fastfibonacci::byte_decode::faster::FastFibonacciDecoderNewU16::new(stream, &FB_LOOKUP_NEW_U16, false, fastfibonacci::byte_decode::faster::StreamType::U64)
+    }
 
     fn parse_cb(&mut self) -> Vec<u64> {
         assert_eq!(self.state, BuszBlockState::Cb);
@@ -194,6 +192,8 @@ impl <'a> BuszBlock <'a> {
 
         // The CBs are in a u64 block, hence use a decoder for u64s
         let mut dd = Self::fibonacci_factory(&self.buffer[self.pos..]);
+        // let mut dd = U64Decoder::new(&self.buffer[self.pos..]);
+
         //decode the CBs
         // note that its RLE encoded, i.e. each fibbonacci number is not really a cb
 
@@ -325,6 +325,7 @@ impl <'a> BuszBlock <'a> {
         assert_eq!(self.state, BuszBlockState::Count);
 
         let mut dd = Self::fibonacci_factory(&self.buffer[self.pos..]);
+        // let mut dd = U64Decoder::new(&self.buffer[self.pos..]);
 
         const COUNT_RLE_VAL: u64 = 1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut counts_encoded: Vec<u64> = Vec::with_capacity(self.n_elements);
@@ -360,6 +361,7 @@ impl <'a> BuszBlock <'a> {
         assert_eq!(self.state, BuszBlockState::Flag);
 
         let mut dd = Self::fibonacci_factory(&self.buffer[self.pos..]);
+        // let mut dd = U64Decoder::new(&self.buffer[self.pos..]);
 
         const FLAG_RLE_VAL: u64 = 0+1;  //since everhthing is shifted + 1, the RLE element is also +1
         let mut flag_decoded: Vec<u64> = Vec::with_capacity(self.n_elements);
@@ -383,7 +385,7 @@ impl <'a> BuszBlock <'a> {
 
           // update the position in the bytes array
         // we've read 8bytes per u64!
-        let bytes_consumed = dd.get_consumed_bytes();
+        let bytes_consumed = dd.get_consumed_bytes();        
         self.pos += bytes_consumed;
 
         self.state = BuszBlockState::Finished;
