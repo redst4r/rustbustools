@@ -74,7 +74,9 @@ pub (crate) fn swap_endian8_swap_endian4(bytes: &[u8], ) -> Vec<u8>{
 /// does the endian8-endian4 swap, but without allocating anything
 /// just does it in the vec itself
 pub (crate) fn swap_endian8_swap_endian4_inplace(x: &mut [u8]) {
-    let n_chunks: usize = (x.len() / 8).try_into().expect("must be multiple of 8 (u64=8 bytes!)");
+    // let n_chunks: usize = (x.len() / 8).try_into().expect("must be multiple of 8 (u64=8 bytes!)");
+    assert_eq!(x.len() % 8, 0, "must be multiple of 8 (u64=8 bytes!");
+    let n_chunks: usize = x.len() / 8;
     for i in 0..n_chunks {
         let pos = i * 8;
 

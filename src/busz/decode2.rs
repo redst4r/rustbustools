@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, fs::File, io::{BufReader, Read}};
-use crate::{busz::{encode::compress_busrecords_into_block, utils::{bitstream_to_string, calc_n_trailing_bits, swap_endian}, BUSZ_HEADER_SIZE}, io::{BusHeader, BusParams, BusRecord, BusWriterPlain, CUGIterator, BUS_HEADER_SIZE, DEFAULT_BUF_SIZE}};
+use crate::{busz::{utils::swap_endian, BUSZ_HEADER_SIZE}, io::{BusHeader, BusParams, BusRecord, CUGIterator, BUS_HEADER_SIZE, DEFAULT_BUF_SIZE}};
 use bitvec::prelude as bv;
 use itertools::izip;
-use fastfibonacci::{byte_decode::{faster::{FB_LOOKUP_NEW_U16, FB_LOOKUP_NEW_U8}, u64_fibdecoder::U64Decoder}, FbDec};
+use fastfibonacci::byte_decode::faster::FB_LOOKUP_NEW_U16;
 use super::{BuszBitSlice, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
 
 pub struct BuszReader <'a> {
@@ -89,7 +89,6 @@ impl <'a>BuszReader<'a> {
         // HERES THE NEW STUFF
         // create a block from the bytes, parse it
         let mut block = BuszBlock::new(block_buffer.as_slice(), nrecords as usize);
-        
         let records =block.parse_block();
     
         Some(records)
@@ -283,33 +282,38 @@ impl <'a> BuszBlock <'a> {
 
     fn parse_ec(&mut self) -> Vec<u64> {
 
-
         let bytes = &self.buffer[self.pos..];       
 
-        // annoyingly we have to swap the endianness for BitVec to work properly
-        // currently the first bits to consider are stored in byte[3]
-        // Bitstream: 
-        // 00000000000000000000000001111110|00000000000000000000000001011100|
-        // instead of 
-        // 01111110000000000000000000000000|01011100000000000000000000000000
+        if false {
+            // annoyingly we have to swap the endianness for BitVec to work properly
+            // currently the first bits to consider are stored in byte[3]
+            // Bitstream: 
+            // 00000000000000000000000001111110|00000000000000000000000001011100|
+            // instead of 
+            // 01111110000000000000000000000000|01011100000000000000000000000000
 
-        // this swapping copies, i.e. it DOES NOT affect the self.buffer!
-        let little_endian_32_bytes = swap_endian(&bytes, 4);  //TODO performance: could be done in-place
-        let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&little_endian_32_bytes);
-        
-        // IMPORTANT NOTE: the next line copies self.buffer
-        // which is subsequently swapped!
-        // if WE DONT COPY, the entire self.buffer would be swapped
-        // let mut bytes = bitslice_to_bytes(ec_buffer);       
-        // swap_endian8_swap_endian4_inplace(&mut bytes);
-        // let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&bytes);
+            // this swapping copies, i.e. it DOES NOT affect the self.buffer!
+            let little_endian_32_bytes = swap_endian(&bytes, 4);  //TODO performance: could be done in-place
+            let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&little_endian_32_bytes);
+            
+            // IMPORTANT NOTE: the next line copies self.buffer
+            // which is subsequently swapped!
+            // if WE DONT COPY, the entire self.buffer would be swapped
+            // let mut bytes = bitslice_to_bytes(ec_buffer);       
+            // swap_endian8_swap_endian4_inplace(&mut bytes);
+            // let remainder_little_endian_32: &BuszBitSlice =  bv::BitSlice::from_slice(&bytes);
 
-        // println!("Decoding EC: with {} els", self.n_elements);
-        // println!("Bitstream: \n{}", bitstream_to_string_pretty(remainder_little_endian_32, 32));
-        let (ecs, bits_consumed) = newpfd::newpfd_bitvec::decode(remainder_little_endian_32, self.n_elements, PFD_BLOCKSIZE);
+            // println!("Decoding EC: with {} els", self.n_elements);
+            // println!("Bitstream: \n{}", bitstream_to_string_pretty(remainder_little_endian_32, 32));
+            let (ecs, bits_consumed) = newpfd::newpfd_bitvec::decode(remainder_little_endian_32, self.n_elements, PFD_BLOCKSIZE);
+            
+            assert_eq!(bits_consumed % 32, 0);
+            let bytes_consumed = bits_consumed / 8;
+        }
 
-        assert_eq!(bits_consumed % 32, 0);
-        let bytes_consumed = bits_consumed / 8;
+        let (ecs, bytes_consumed) = newpfd::newpfd_u32::decode(bytes, self.n_elements, PFD_BLOCKSIZE);
+        assert_eq!(bytes_consumed % 4, 0);  // must be u32
+
 
         self.pos += bytes_consumed;
         self.state = BuszBlockState::Count;
@@ -446,7 +450,7 @@ fn testing(){
     // let mut r = BuszReader::new("/tmp/test.busz");
     // let x = r.load_block_header().unwrap();
     // println!("ACTUAL FILE {:?}", x.get_blocksize_and_nrecords());
-
+    use crate::busz::encode::compress_busrecords_into_block;
     let mut block_bytes = compress_busrecords_into_block(&records);
 
     let mut header_bytes =[0_u8; 8];

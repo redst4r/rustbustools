@@ -3,7 +3,7 @@ use crate::{io::{BusHeader, BusRecord, BusWriterPlain, DEFAULT_BUF_SIZE, BUS_HEA
 use bitvec::prelude as bv;
 use itertools::izip;
 use fastfibonacci::FbDec;
-use super::{utils::{bitslice_to_bytes, swap_endian8_swap_endian4, swap_endian8_swap_endian4_inplace}, BuszBitSlice, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
+use super::{utils::{bitslice_to_bytes, swap_endian8_swap_endian4}, BuszBitSlice, BuszHeader, CompressedBlockHeader, PFD_BLOCKSIZE};
 
 /// Reading a compressed busfile
 /// 

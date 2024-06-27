@@ -338,7 +338,7 @@ impl <'a> BusReaderPlain <'a> {
     /// Creates a BusReader for a file on disk.
     /// Turns the file into a bufferedReader.
     pub fn new(fname: &str) -> Self {
-        let file_handle = File::open(fname).expect("FAIL");       
+        let file_handle = File::open(fname).expect("Busfile should exist on disk!");       
         let buf = BufReader::with_capacity(DEFAULT_BUF_SIZE, file_handle);
         Self::from_read(buf)
     }
@@ -607,9 +607,9 @@ impl BusFolder {
     }
  
     /// returns an iterator of the folder's busfile
-    pub fn get_iterator(&self) -> BusReaderPlain {
+    pub fn get_iterator(&self) -> BusReader {
         let bfile = self.get_busfile();
-        BusReaderPlain::new(&bfile)
+        BusReader::new(&bfile)
     }
 
     /// return the folders busfile
